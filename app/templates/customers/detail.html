@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .customer-header {
+        background: linear-gradient(45deg, #0d6efd, #6f42c1);
+        color: white;
+        border-radius: 10px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    .customer-avatar-large {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: white;
+        border: 3px solid white;
+    }
+    .info-card {
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        height: 100%;
+    }
+    .info-card .card-body {
+        padding: 1.5rem;
+    }
+    .stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #0d6efd;
+    }
+    .action-buttons .btn {
+        margin-right: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Customer Header -->
+    <div class="customer-header">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <div class="customer-avatar-large">
+                    {{ customer.name[0]|upper }}
+                </div>
+            </div>
+            <div class="col">
+                <h1 class="h2 mb-1">{{ customer.name }}</h1>
+                <p class="mb-0 opacity-75">
+                    Customer ID: {{ customer.id }} • 
+                    Created: {{ customer.created_at|local_date('%d %b %Y') }}
+                </p>
+            </div>
+            <div class="col-auto">
+                <div class="action-buttons">
+                    <a href="{{ url_for('customers.edit', customer_id=customer.id) }}" class="btn btn-light">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <button type="button" class="btn btn-outline-light" onclick="deleteCustomer({{ customer.id }}, '{{ customer.name }}')">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Information -->
+    <div class="row">
+        <!-- Contact Information -->
+        <div class="col-lg-8">
+            <div class="card info-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person-lines-fill"></i> Informasi Kontak
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-2">
+                                    <i class="bi bi-telephone"></i> Nomor Telepon
+                                </h6>
+                                {% if customer.phone %}
+                                <p class="mb-0 fs-5">
+                                    <a href="tel:{{ customer.phone }}" class="text-decoration-none">
+                                        {{ customer.phone }}
+                                    </a>
+                                </p>
+                                {% else %}
+                                <p class="mb-0 text-muted">Tidak ada</p>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-2">
+                                    <i class="bi bi-envelope"></i> Alamat Email
+                                </h6>
+                                {% if customer.email %}
+                                <p class="mb-0 fs-5">
+                                    <a href="mailto:{{ customer.email }}" class="text-decoration-none">
+                                        {{ customer.email }}
+                                    </a>
+                                </p>
+                                {% else %}
+                                <p class="mb-0 text-muted">Tidak ada</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-2">
+                                    <i class="bi bi-geo-alt"></i> Alamat
+                                </h6>
+                                {% if customer.address %}
+                                <p class="mb-0">{{ customer.address|replace('\n', '<br>')|safe }}</p>
+                                {% else %}
+                                <p class="mb-0 text-muted">Tidak ada</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity (Placeholder for future features) -->
+            <div class="card info-card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history"></i> Aktivitas Pelanggan
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-graph-up display-4"></i>
+                        <h5 class="mt-3">Riwayat Penjualan Coming Soon</h5>
+                        <p>Riwayat penjualan pelanggan dan analisis akan tersedia disini.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions & Statistics -->
+        <div class="col-lg-4">
+            <!-- Quick Actions -->
+            <div class="card info-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-lightning"></i> Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('sales.pos') }}?customer={{ customer.id }}" class="btn btn-primary">
+                            <i class="bi bi-cart-plus"></i> Penjualan Baru
+                        </a>
+                        <a href="tel:{{ customer.phone if customer.phone else '#' }}" 
+                           class="btn btn-outline-primary {% if not customer.phone %}disabled{% endif %}">
+                            <i class="bi bi-telephone"></i> Panggil Pelanggan
+                        </a>
+                        <a href="mailto:{{ customer.email if customer.email else '#' }}" 
+                           class="btn btn-outline-primary {% if not customer.email %}disabled{% endif %}">
+                            <i class="bi bi-envelope"></i> Kirim Email
+                        </a>
+                        <a href="{{ url_for('customers.edit', customer_id=customer.id) }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-pencil"></i> Ubah Profil
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Statistics -->
+            <div class="card info-card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up"></i> Statistik Pelanggan
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center">
+                        <div class="stat-number">0</div>
+                        <p class="text-muted mb-3">Total Pembelian</p>
+                        
+                        <div class="stat-number">Rp0.00</div>
+                        <p class="text-muted mb-3">Total Belanja</p>
+                        
+                        <div class="stat-number">0</div>
+                        <p class="text-muted">Last 30 Days</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Information Completeness -->
+            <div class="card info-card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clipboard-check"></i> Kelengkapan Profil
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% set total_fields = 4 %}
+                    {% set filled_fields = 1 %} {# Name is always filled #}
+                    {% if customer.phone %}{% set filled_fields = filled_fields + 1 %}{% endif %}
+                    {% if customer.email %}{% set filled_fields = filled_fields + 1 %}{% endif %}
+                    {% if customer.address %}{% set filled_fields = filled_fields + 1 %}{% endif %}
+                    
+                    {% set completeness = (filled_fields / total_fields * 100)|round|int %}
+                    
+                    <div class="text-center mb-3">
+                        <div class="display-4 fw-bold text-primary">{{ completeness }}%</div>
+                        <p class="text-muted">Profil Lengkap</p>
+                    </div>
+                    
+                    <div class="progress mb-3" style="height: 8px;">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ completeness }}%">
+                        </div>
+                    </div>
+                    
+                    <div class="small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Informasi Dasar</span>
+                            <span class="text-success">
+                                <i class="bi bi-check-circle"></i> Lengkap
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Nomor Telepon</span>
+                            <span class="{% if customer.phone %}text-success{% else %}text-warning{% endif %}">
+                                {% if customer.phone %}
+                                <i class="bi bi-check-circle"></i>
+                                {% else %}
+                                <i class="bi bi-exclamation-circle"></i>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Alamat Email</span>
+                            <span class="{% if customer.email %}text-success{% else %}text-warning{% endif %}">
+                                {% if customer.email %}
+                                <i class="bi bi-check-circle"></i>
+                                {% else %}
+                                <i class="bi bi-exclamation-circle"></i>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Alamat</span>
+                            <span class="{% if customer.address %}text-success{% else %}text-warning{% endif %}">
+                                {% if customer.address %}
+                                <i class="bi bi-check-circle"></i>
+                                {% else %}
+                                <i class="bi bi-exclamation-circle"></i>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function deleteCustomer(customerId, customerName) {
+    if (confirm(`Are you sure you want to delete customer "${customerName}"? This action cannot be undone.`)) {
+        fetch(`/customers/${customerId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                showAlert(`Customer "${customerName}" deleted successfully!`, 'success');
+                // Redirect to customers list after a short delay
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('customers.index') }}";
+                }, 1500);
+            } else {
+                showAlert('Error deleting customer. Please try again.', 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error: ' + error.message, 'danger');
+        });
+    }
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('main').insertBefore(alertDiv, document.querySelector('main').firstChild);
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

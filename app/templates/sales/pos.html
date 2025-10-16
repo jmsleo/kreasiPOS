@@ -1,0 +1,830 @@
+{% extends "base.html" %}
+
+{% block title %}Point of Sale - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .product-card {
+        cursor: pointer;
+        transition: all 0.3s;
+        border: 1px solid #dee2e6;
+        height: 100%;
+    }
+    .product-card:hover {
+        border-color: #0d6efd;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .cart-container {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .cart-item {
+        border-bottom: 1px solid #e9ecef;
+        padding: 10px 0;
+    }
+    .search-box {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 100;
+        padding: 15px 0;
+    }
+    .stock-badge {
+        font-size: 0.75em;
+    }
+    .payment-methods {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin: 15px 0;
+    }
+    .payment-method-btn {
+        border: 2px solid #dee2e6;
+        padding: 10px;
+        text-align: center;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .payment-method-btn.active {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+    .barcode-input {
+        font-family: 'Lucida Console', Monaco, monospace;
+        font-size: 16px;
+        letter-spacing: 1px;
+    }
+    .receipt-modal .modal-dialog {
+        max-width: 400px;
+    }
+    .product-image {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        border-radius: 5px;
+    }
+    .scan-indicator {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 mb-0">
+                <i class="bi bi-cash"></i> Point of Sale
+            </h1>
+            <small class="text-muted">Pemrosesan transaksi penjualan secara cepat dan efisien</small>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('sales.history') }}" class="btn btn-outline-primary">
+                <i class="bi bi-clock-history"></i> Riwayat Penjualan
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Products Section -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-box-seam"></i> Produk
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Search Box -->
+                    <div class="search-box">
+                        <div class="position-relative">
+                            <input type="text" id="searchProduct" class="form-control barcode-input" 
+                                   placeholder="Ketik nama produk, SKU, atau scan barcode..." 
+                                   autocomplete="off" autofocus>
+                            <div class="scan-indicator">
+                                <i class="bi bi-upc-scan"></i>
+                            </div>
+                        </div>
+                        <div class="form-text">
+                            <i class="bi bi-info-circle"></i> Scan barcode atau ketik untuk mencari. Klik Enter untuk menambah produk.
+                        </div>
+                    </div>
+
+                    <!-- Products Grid -->
+                    <div class="row g-3" id="productsGrid">
+                        {% for product in products %}
+                        <div class="col-xl-3 col-lg-4 col-md-6">
+                            <div class="card product-card" onclick="addToCart('{{ product.id }}')">
+                                <div class="card-body text-center">
+                                    {% if product.image_url %}
+                                    <img src="{{ product.image_url }}" alt="{{ product.name }}" 
+                                         class="product-image mb-2">
+                                    {% else %}
+                                    <div class="bg-light rounded mb-2 d-flex align-items-center justify-content-center" 
+                                         style="width: 60px; height: 60px; margin: 0 auto;">
+                                        <i class="bi bi-image text-muted"></i>
+                                    </div>
+                                    {% endif %}
+                                    <h6 class="card-title mb-1">{{ product.name }}</h6>
+                                    <p class="card-text text-success mb-1">
+                                        <strong>Rp{{ "%.2f"|format(product.price) }}</strong>
+                                    </p>
+                                    <small class="text-muted stock-badge">
+                                        Stock: {{ product.stock_quantity }}
+                                    </small>
+                                    {% if product.barcode %}
+                                    <br><small class="text-muted">{{ product.barcode }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cart Section -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-cart"></i> Keranjang Belanja
+                        <span class="badge bg-primary ms-2" id="cartCount">0</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Cart Items -->
+                    <div class="cart-container mb-3">
+                        <div id="cartItems">
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-cart-x display-4"></i>
+                                <p class="mt-2">Keranjang sedang kosong</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cart Summary -->
+                    <div class="border-top pt-3">
+                        <div class="row mb-2">
+                            <div class="col">Subtotal:</div>
+                            <div class="col-auto">Rp<span id="subtotal">0.00</span></div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col">Pajak:</div>
+                            <div class="col-auto">Rp<span id="taxAmount">0.00</span></div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col">Diskon:</div>
+                            <div class="col-auto">Rp<span id="discountAmount">0.00</span></div>
+                        </div>
+                        <div class="row mb-3 fw-bold fs-5">
+                            <div class="col">Total:</div>
+                            <div class="col-auto">Rp<span id="cartTotal">0.00</span></div>
+                        </div>
+
+                        <!-- Customer Selection -->
+                        <div class="mb-3">
+                            <label class="form-label">Customer</label>
+                            <select class="form-select" id="customerSelect">
+                                <option value="">Walk-in Customer</option>
+                                {% for customer in customers %}
+                                <option value="{{ customer.id }}">{{ customer.name }} ({{ customer.phone }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Payment Method -->
+                        <!-- Payment Method -->
+<div class="mb-3">
+    <label class="form-label">Metode Pembayaran</label>
+    <div class="payment-methods">
+        <div class="payment-method-btn active" data-method="cash">
+            <i class="bi bi-cash"></i><br>Tunai
+        </div>
+        <div class="payment-method-btn" data-method="card">
+            <i class="bi bi-credit-card"></i><br>Kartu
+        </div>
+        <div class="payment-method-btn" data-method="transfer">
+            <i class="bi bi-bank"></i><br>Transfer
+        </div>
+        <div class="payment-method-btn" data-method="qris">
+            <i class="bi bi-qr-code"></i><br>QRIS
+        </div>
+    </div>
+    
+    <!-- Cash Payment Form (akan muncul hanya ketika cash dipilih) -->
+    <div id="cashPaymentForm" class="mt-3" style="display: none;">
+        <div class="card border-primary">
+            <div class="card-body">
+                <h6 class="card-title mb-3">
+                    <i class="bi bi-cash-coin text-primary"></i> Pembayaran Tunai
+                </h6>
+                
+                <div class="row mb-3">
+                    <div class="col">
+                        <label class="form-label">Total Biaya</label>
+                        <input type="text" class="form-control bg-light" id="totalAmountDisplay" 
+                               value="Rp0.00" readonly style="font-weight: bold; font-size: 1.1em;">
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col">
+                        <label class="form-label">Total Dibayar <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="amountPaid" 
+                               placeholder="Enter amount paid" step="0.01" min="0">
+                        <div class="form-text">Masukkan jumlah uang tunai yang diserahkan customer</div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col">
+                        <label class="form-label">Kembalian</label>
+                        <input type="text" class="form-control bg-success text-white" id="changeAmount" 
+                               value="Rp0.00" readonly style="font-weight: bold; font-size: 1.1em;">
+                    </div>
+                </div>
+                
+                <!-- Quick Amount Buttons -->
+                <div class="mt-3">
+                    <label class="form-label small">Quick Amounts:</label>
+                    <div class="d-flex flex-wrap gap-2" id="quickAmountButtons">
+                        <!-- Buttons will be generated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+                        <!-- Notes -->
+                        <div class="mb-3">
+                            <label class="form-label">Catatan (Opsional)</label>
+                            <textarea class="form-control" id="saleNotes" rows="2" 
+                                      placeholder="Add notes for this sale..."></textarea>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success btn-lg" onclick="processSale()">
+                                <i class="bi bi-check-circle"></i> Selesaikan Penjualan
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="clearCart()">
+                                <i class="bi bi-trash"></i> Kosongkan Keranjang
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Receipt Modal -->
+<div class="modal fade receipt-modal" id="receiptModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Sale Completed</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <i class="bi bi-check-circle-fill text-success display-4"></i>
+                <h4 class="mt-3">Sale Completed Successfully!</h4>
+                <p class="mb-1">Receipt: <strong id="receiptNumber"></strong></p>
+                <p>Total: <strong id="receiptTotal"></strong></p>
+                
+                <div class="alert alert-info" id="printStatus">
+                    <i class="bi bi-printer"></i> <span id="printMessage">Printing receipt...</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" class="btn btn-primary" id="viewReceiptBtn">
+                    <i class="bi bi-receipt"></i> View Receipt
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/qz_printer.js') }}"></script>
+<script>
+    let cart = [];
+    let selectedPaymentMethod = 'cash';
+    let barcodeBuffer = '';
+    let barcodeTimeout;
+
+    // Initialize payment method selection
+    document.querySelectorAll('.payment-method-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            selectedPaymentMethod = this.dataset.method;
+        });
+    });
+
+    // Barcode scanning functionality
+    document.getElementById('searchProduct').addEventListener('keydown', function(e) {
+        // Clear previous timeout
+        clearTimeout(barcodeTimeout);
+        
+        // If Enter key is pressed, process the barcode
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            processBarcodeInput(this.value.trim());
+            this.value = '';
+            barcodeBuffer = '';
+            return;
+        }
+        
+        // For barcode scanners that don't send Enter (some send Tab or nothing)
+        // We'll accumulate characters and process after a short delay
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            barcodeBuffer += e.key;
+            
+            // Set timeout to process barcode if no more input comes
+            barcodeTimeout = setTimeout(() => {
+                if (barcodeBuffer.length >= 6) { // Minimum barcode length
+                    processBarcodeInput(barcodeBuffer);
+                }
+                barcodeBuffer = '';
+            }, 100); // 100ms delay
+        }
+    });
+
+    // Regular search functionality (with delay for better UX)
+    let searchTimeout;
+document.getElementById('searchProduct').addEventListener('input', function(e) {
+    clearTimeout(searchTimeout);
+    const searchTerm = e.target.value;
+    
+    searchTimeout = setTimeout(() => {
+        // Jika search kosong, tampilkan semua produk
+        if (!searchTerm || searchTerm.trim() === '') {
+            const productCards = document.querySelectorAll('.product-card');
+            productCards.forEach(card => {
+                card.parentElement.style.display = 'block';
+            });
+            
+            // Hapus pesan "no results" jika ada
+            const productsGrid = document.getElementById('productsGrid');
+            const noResults = productsGrid.querySelector('.no-results-message');
+            if (noResults) {
+                noResults.remove();
+            }
+        } 
+        // Jika ada search term, filter produk
+        else if (isNaN(searchTerm) || searchTerm.length < 6) {
+            filterProducts(searchTerm);
+        }
+    }, 300);
+});
+
+// Initialize payment method selection
+document.querySelectorAll('.payment-method-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        selectedPaymentMethod = this.dataset.method;
+        
+        // Show/hide cash payment form
+        const cashForm = document.getElementById('cashPaymentForm');
+        if (selectedPaymentMethod === 'cash') {
+            cashForm.style.display = 'block';
+            updateCashForm();
+            document.getElementById('amountPaid').focus();
+        } else {
+            cashForm.style.display = 'none';
+        }
+    });
+});
+
+    function processBarcodeInput(barcode) {
+        if (!barcode) return;
+        
+        console.log('Processing barcode:', barcode);
+        
+        // Search for product by barcode
+        fetch(`/sales/api/products?q=${encodeURIComponent(barcode)}`)
+            .then(response => response.json())
+            .then(products => {
+                if (products.length > 0) {
+                    // If multiple products found, add the first one
+                    const product = products[0];
+                    addToCart(product.id);
+                    
+                    // Show success feedback
+                    showTemporaryMessage(`Added: ${product.name}`, 'success');
+                } else {
+                    showTemporaryMessage(`Product not found: ${barcode}`, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Barcode search error:', error);
+                showTemporaryMessage('Search error. Please try again.', 'danger');
+            });
+    }
+
+    function updateCashForm() {
+    const total = parseFloat(document.getElementById('cartTotal').textContent) || 0;
+    const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
+    const change = amountPaid - total;
+    
+    // Update displays
+    document.getElementById('totalAmountDisplay').value = `Rp${total.toFixed(2)}`;
+    document.getElementById('changeAmount').value = `Rp${Math.max(change, 0).toFixed(2)}`;
+    
+    // Update change field styling
+    const changeField = document.getElementById('changeAmount');
+    if (change < 0) {
+        changeField.className = 'form-control bg-danger text-white';
+        changeField.value = `-Rp${Math.abs(change).toFixed(2)}`;
+    } else if (change > 0) {
+        changeField.className = 'form-control bg-success text-white';
+        changeField.value = `Rp${change.toFixed(2)}`;
+    } else {
+        changeField.className = 'form-control bg-light';
+        changeField.value = `Rp${change.toFixed(2)}`;
+    }
+    
+    // Generate quick amount buttons
+    generateQuickAmountButtons(total);
+}
+
+// Generate quick amount buttons
+function generateQuickAmountButtons(total) {
+    const container = document.getElementById('quickAmountButtons');
+    container.innerHTML = '';
+    
+    if (total <= 0) return;
+    
+    // Calculate suggested amounts (round up to nearest 5, 10, 20, etc.)
+    const suggestions = [];
+    const roundedTotal = Math.ceil(total);
+    
+    // Add exact amount
+    suggestions.push(roundedTotal);
+    
+    // Add rounded amounts
+    if (roundedTotal % 5 !== 0) {
+        suggestions.push(Math.ceil(roundedTotal / 5) * 5);
+    }
+    if (roundedTotal % 10 !== 0) {
+        suggestions.push(Math.ceil(roundedTotal / 10) * 10);
+    }
+    
+    // Add common denominations
+    suggestions.push(100000);
+    suggestions.push(50000);
+    suggestions.push(20000);
+    
+    // Remove duplicates and sort
+    const uniqueSuggestions = [...new Set(suggestions)].sort((a, b) => a - b);
+    
+    // Create buttons (max 4 buttons)
+    uniqueSuggestions.slice(0, 4).forEach(amount => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-outline-primary btn-sm';
+        button.textContent = `Rp${amount}`;
+        button.onclick = () => {
+            document.getElementById('amountPaid').value = amount;
+            updateCashForm();
+        };
+        container.appendChild(button);
+    });
+}
+
+// Event listener for amount paid input
+document.getElementById('amountPaid').addEventListener('input', updateCashForm);
+document.getElementById('amountPaid').addEventListener('change', updateCashForm);
+
+    function showTemporaryMessage(message, type) {
+        // Remove existing messages
+        const existingAlert = document.querySelector('.search-alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        // Create new alert
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show search-alert mt-2`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Insert after search box
+        const searchBox = document.querySelector('.search-box');
+        searchBox.appendChild(alert);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.remove();
+            }
+        }, 3000);
+    }
+
+    function filterProducts(searchTerm) {
+        const productCards = document.querySelectorAll('.product-card');
+        let visibleCount = 0;
+        
+        productCards.forEach(card => {
+            const productName = card.querySelector('.card-title').textContent.toLowerCase();
+            const productBarcode = card.querySelector('.stock-badge + small')?.textContent?.toLowerCase() || '';
+            
+            if (productName.includes(searchTerm.toLowerCase()) || 
+                productBarcode.includes(searchTerm.toLowerCase())) {
+                card.parentElement.style.display = 'block';
+                visibleCount++;
+            } else {
+                card.parentElement.style.display = 'none';
+            }
+        });
+        
+        // Show message if no products found
+        const productsGrid = document.getElementById('productsGrid');
+        let noResults = productsGrid.querySelector('.no-results-message');
+        
+        if (visibleCount === 0 && searchTerm) {
+            if (!noResults) {
+                noResults = document.createElement('div');
+                noResults.className = 'col-12 no-results-message text-center py-5';
+                noResults.innerHTML = `
+                    <i class="bi bi-search display-4 text-muted"></i>
+                    <h5 class="mt-3 text-muted">No products found</h5>
+                    <p class="text-muted">Try different search terms</p>
+                `;
+                productsGrid.appendChild(noResults);
+            }
+        } else if (noResults) {
+            noResults.remove();
+        }
+    }
+
+    function addToCart(productId) {
+        // Find product in the products list
+        const productElement = document.querySelector(`[onclick="addToCart('${productId}')"]`);
+        if (!productElement) return;
+
+        const productName = productElement.querySelector('.card-title').textContent;
+        const productPrice = parseFloat(productElement.querySelector('.card-text strong').textContent.replace('Rp', ''));
+        const stockQuantity = parseInt(productElement.querySelector('.stock-badge').textContent.replace('Stock: ', ''));
+
+        const existingItem = cart.find(item => item.product_id === productId);
+        
+        if (existingItem) {
+            if (existingItem.quantity >= stockQuantity) {
+                showTemporaryMessage(`Only ${stockQuantity} items available in stock`, 'warning');
+                return;
+            }
+            existingItem.quantity += 1;
+            existingItem.total_price = existingItem.quantity * existingItem.unit_price;
+        } else {
+            if (stockQuantity === 0) {
+                showTemporaryMessage('Product out of stock', 'warning');
+                return;
+            }
+            cart.push({
+                product_id: productId,
+                name: productName,
+                unit_price: productPrice,
+                quantity: 1,
+                total_price: productPrice
+            });
+        }
+        
+        updateCartDisplay();
+        showTemporaryMessage(`Added: ${productName}`, 'success');
+    }
+
+    function updateCartDisplay() {
+        const cartItems = document.getElementById('cartItems');
+        const subtotalEl = document.getElementById('subtotal');
+        const cartTotalEl = document.getElementById('cartTotal');
+        const cartCountEl = document.getElementById('cartCount');
+        
+        cartItems.innerHTML = '';
+        let subtotal = 0;
+        if (selectedPaymentMethod === 'cash') {
+        updateCashForm();
+    }
+        if (cart.length === 0) {
+            cartItems.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-cart-x display-4"></i>
+                    <p class="mt-2">Cart is empty</p>
+                </div>
+            `;
+            cartCountEl.textContent = '0';
+        } else {
+            cartCountEl.textContent = cart.length;
+            
+            cart.forEach((item, index) => {
+                subtotal += item.total_price;
+                
+                const itemElement = document.createElement('div');
+                itemElement.className = 'cart-item';
+                itemElement.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${item.name}</h6>
+                            <small class="text-muted">Rp${item.unit_price.toFixed(2)} × ${item.quantity}</small>
+                        </div>
+                        <div class="text-end">
+                            <strong>Rp${item.total_price.toFixed(2)}</strong>
+                            <div class="mt-1">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="updateQuantity(${index}, -1)">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                                <span class="mx-2">${item.quantity}</span>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="updateQuantity(${index}, 1)">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger ms-1" onclick="removeFromCart(${index})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                cartItems.appendChild(itemElement);
+            });
+        }
+
+        const tax = subtotal * 0.1; // 10% tax
+        const discount = 0;
+        const total = subtotal + tax - discount;
+
+        subtotalEl.textContent = subtotal.toFixed(2);
+        document.getElementById('taxAmount').textContent = tax.toFixed(2);
+        document.getElementById('discountAmount').textContent = discount.toFixed(2);
+        cartTotalEl.textContent = total.toFixed(2);
+    }
+
+    function updateQuantity(index, change) {
+        const item = cart[index];
+        const newQuantity = item.quantity + change;
+        
+        if (newQuantity < 1) {
+            removeFromCart(index);
+            return;
+        }
+        
+        item.quantity = newQuantity;
+        item.total_price = item.quantity * item.unit_price;
+        updateCartDisplay();
+    }
+
+    function removeFromCart(index) {
+        const itemName = cart[index].name;
+        cart.splice(index, 1);
+        updateCartDisplay();
+        showTemporaryMessage(`Removed: ${itemName}`, 'info');
+    }
+
+    function clearCart() {
+        if (cart.length === 0) return;
+        if (confirm('Are you sure you want to clear the cart?')) {
+            cart = [];
+            updateCartDisplay();
+            showTemporaryMessage('Cart cleared', 'info');
+        }
+    }
+
+   function processSale() {
+    if (cart.length === 0) {
+        showTemporaryMessage('Please add products to cart', 'warning');
+        return;
+    }
+
+    // Validate cash payment
+    if (selectedPaymentMethod === 'cash') {
+        const total = parseFloat(document.getElementById('cartTotal').textContent);
+        const amountPaid = parseFloat(document.getElementById('amountPaid').value) || 0;
+        
+        if (amountPaid <= 0) {
+            showTemporaryMessage('Please enter amount paid', 'warning');
+            document.getElementById('amountPaid').focus();
+            return;
+        }
+        
+        if (amountPaid < total) {
+            showTemporaryMessage(`Insufficient payment. Total: Rp${total.toFixed(2)}, Paid: Rp${amountPaid.toFixed(2)}`, 'danger');
+            document.getElementById('amountPaid').focus();
+            return;
+        }
+    }
+
+    const saleData = {
+        items: cart,
+        total_amount: parseFloat(document.getElementById('cartTotal').textContent),
+        tax_amount: parseFloat(document.getElementById('taxAmount').textContent),
+        discount_amount: parseFloat(document.getElementById('discountAmount').textContent),
+        payment_method: selectedPaymentMethod,
+        customer_id: document.getElementById('customerSelect').value || null,
+        notes: document.getElementById('saleNotes').value
+    };
+
+    // Add cash payment details if payment method is cash
+    if (selectedPaymentMethod === 'cash') {
+        saleData.amount_paid = parseFloat(document.getElementById('amountPaid').value);
+        saleData.change_amount = Math.max(saleData.amount_paid - saleData.total_amount, 0);
+    }
+
+    // Get CSRF token from meta tag
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    fetch('/sales/process-sale', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken || ''  // Add CSRF token
+        },
+        body: JSON.stringify(saleData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Show success modal
+            document.getElementById('receiptNumber').textContent = data.receipt_number;
+            document.getElementById('receiptTotal').textContent = 'Rp' + saleData.total_amount.toFixed(2);
+            document.getElementById('viewReceiptBtn').href = `/sales/receipt/${data.sale_id}`;
+            const modal = new bootstrap.Modal(document.getElementById('receiptModal'));
+            modal.show();
+            if (data.receipt_data) {
+                    const printStatus = document.getElementById('printStatus');
+                    const printMessage = document.getElementById('printMessage');
+                    printMessage.textContent = 'Preparing to print...';
+                    
+                    printReceiptWithQZ(data.receipt_data).then(result => {
+                         if (result.success) {
+                            printStatus.className = 'alert alert-success';
+                            printMessage.innerHTML = `<i class="bi bi-check-circle"></i> ${result.message}`;
+                        } else {
+                            printStatus.className = 'alert alert-danger';
+                            printMessage.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Print failed: ${result.message}`;
+                        }
+                    });
+                }
+                
+            // Reset cart dan form
+            cart = [];
+            updateCartDisplay();
+            document.getElementById('customerSelect').value = '';
+            document.getElementById('saleNotes').value = '';
+            document.getElementById('amountPaid').value = '';
+            updateCashForm();
+            document.getElementById('searchProduct').focus();
+        } else {
+            showTemporaryMessage('Error: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Process sale error:', error);
+        showTemporaryMessage('Error processing sale: ' + error.message, 'danger');
+    });
+}
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Focus search input when slash (/) is pressed
+        if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            document.getElementById('searchProduct').focus();
+        }
+        
+        // Process sale when Ctrl+Enter is pressed
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            processSale();
+        }
+        
+        // Clear cart when Ctrl+Delete is pressed
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Delete') {
+            e.preventDefault();
+            clearCart();
+        }
+    });
+
+    // Auto-focus search input on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('searchProduct').focus();
+    });
+</script>
+{% endblock %}

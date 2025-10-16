@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Product Categories - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .category-card {
+        transition: transform 0.2s;
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .category-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .category-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        opacity: 0.8;
+    }
+    .product-count {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6c757d;
+    }
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    .category-actions {
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .category-card:hover .category-actions {
+        opacity: 1;
+    }
+    .stats-card {
+        border-left: 4px solid #0d6efd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('products.index') }}">Products</a></li>
+                    <li class="breadcrumb-item active">Categories</li>
+                </ol>
+            </nav>
+            
+            <h1 class="h2 mb-0">
+                <i class="bi bi-tags"></i> Product Categories
+            </h1>
+            <small class="text-muted">Manage product categories and organization</small>
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                <i class="bi bi-plus-circle"></i> Add Category
+            </button>
+        </div>
+    </div>
+
+    <!-- Precompute statistics -->
+    {% set active_products_count = 0 %}
+    {% set used_categories_count = 0 %}
+    {% set empty_categories_count = 0 %}
+    {% set total_products_count = 0 %}
+    
+    {% for category in categories %}
+        {% set category_product_count = category.products.count() %}
+        {% set total_products_count = total_products_count + category_product_count %}
+        
+        {% if category_product_count > 0 %}
+            {% set used_categories_count = used_categories_count + 1 %}
+        {% else %}
+            {% set empty_categories_count = empty_categories_count + 1 %}
+        {% endif %}
+        
+        {% for product in category.products %}
+            {% if product.is_active %}
+                {% set active_products_count = active_products_count + 1 %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Total Categories</h6>
+                            <h3 class="mb-0">{{ categories|length }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-tags text-primary fs-2"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card" style="border-left-color: #198754;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Active Products</h6>
+                            <h3 class="mb-0">{{ active_products_count }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-check-circle text-success fs-2"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card" style="border-left-color: #fd7e14;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Categories with Products</h6>
+                            <h3 class="mb-0">{{ used_categories_count }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-folder-check text-warning fs-2"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card" style="border-left-color: #6f42c1;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Empty Categories</h6>
+                            <h3 class="mb-0">{{ empty_categories_count }}</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-folder-x text-purple fs-2"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Categories Grid -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-grid"></i> All Categories
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if categories %}
+                    <div class="row g-3">
+                        {% for category in categories %}
+                        <div class="col-xl-3 col-lg-4 col-md-6">
+                            <div class="card category-card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h5 class="card-title mb-0">{{ category.name }}</h5>
+                                        <div class="category-actions">
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                    <i class="bi bi-three-dots"></i>
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    <li>
+                                                        <button class="dropdown-item" onclick="editCategory('{{ category.id }}', '{{ category.name }}', '{{ category.description }}')">
+                                                            <i class="bi bi-pencil"></i> Edit
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <button class="dropdown-item text-danger" onclick="deleteCategory('{{ category.id }}', '{{ category.name }}')">
+                                                            <i class="bi bi-trash"></i> Delete
+                                                        </button>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if category.description %}
+                                    <p class="card-text text-muted small mb-2">{{ category.description }}</p>
+                                    {% endif %}
+                                    
+                                    <div class="product-count">
+                                        <i class="bi bi-box"></i> 
+                                        {% set product_count = category.products.count() %}
+                                        {{ product_count }} product{% if product_count != 1 %}s{% endif %}
+                                    </div>
+                                    
+                                    <!-- Progress bar showing category usage -->
+                                    {% if total_products_count > 0 %}
+                                    <div class="mt-2">
+                                        <div class="d-flex justify-content-between small text-muted mb-1">
+                                            <span>Usage</span>
+                                            <span>{{ "%.1f"|format((product_count / total_products_count * 100)) }}%</span>
+                                        </div>
+                                        <div class="progress" style="height: 4px;">
+                                            <div class="progress-bar" role="progressbar" 
+                                                 style="width: {{ (product_count / total_products_count * 100) }}%">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <!-- Empty State -->
+                    <div class="empty-state">
+                        <i class="bi bi-tags"></i>
+                        <h4>No Categories Yet</h4>
+                        <p class="mb-4">Get started by creating your first product category to organize your products.</p>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                            <i class="bi bi-plus-circle"></i> Create First Category
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Add New Category
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('products.create_category') }}">
+                <div class="modal-body">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Category Name</label>
+                        {{ form.name(class="form-control", placeholder="Enter category name") }}
+                        {% if form.name.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.name.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        {{ form.description(class="form-control", rows="3", placeholder="Optional category description") }}
+                        {% if form.description.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.description.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Create Category
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil"></i> Edit Category
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editCategoryForm" method="POST" action="">
+                <div class="modal-body">
+                    <input type="hidden" name="category_id" id="editCategoryId">
+                    <div class="mb-3">
+                        <label for="editCategoryName" class="form-label">Category Name</label>
+                        <input type="text" class="form-control" id="editCategoryName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCategoryDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editCategoryDescription" name="description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Update Category
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Store URLs in a data attribute in the HTML body
+document.body.dataset.updateUrl = "{{ url_for('products.update_category', category_id=0) }}";
+document.body.dataset.deleteUrl = "{{ url_for('products.delete_category', category_id=0) }}";
+
+function editCategory(categoryId, categoryName, categoryDescription) {
+    document.getElementById('editCategoryId').value = categoryId;
+    document.getElementById('editCategoryName').value = categoryName;
+    document.getElementById('editCategoryDescription').value = categoryDescription || '';
+    
+    // Set form action using base URL
+    const updateUrl = document.body.dataset.updateUrl.replace('/0', '/' + categoryId);
+    document.getElementById('editCategoryForm').action = updateUrl;
+    
+    new bootstrap.Modal(document.getElementById('editCategoryModal')).show();
+}
+
+function deleteCategory(categoryId, categoryName) {
+    if (confirm('Are you sure you want to delete the category "' + categoryName + '"?')) {
+        const deleteUrl = document.body.dataset.deleteUrl.replace('/0', '/' + categoryId);
+        
+        fetch(deleteUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name="csrf_token"]')?.value || ''
+            },
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Error deleting category');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error deleting category');
+        });
+    }
+}
+
+// Auto-focus on category name field when modal opens
+document.addEventListener('DOMContentLoaded', function() {
+    const addModal = document.getElementById('addCategoryModal');
+    if (addModal) {
+        addModal.addEventListener('shown.bs.modal', function () {
+            const nameField = document.getElementById('name');
+            if (nameField) nameField.focus();
+        });
+    }
+    
+    const editModal = document.getElementById('editCategoryModal');
+    if (editModal) {
+        editModal.addEventListener('shown.bs.modal', function () {
+            const editNameField = document.getElementById('editCategoryName');
+            if (editNameField) editNameField.focus();
+        });
+    }
+});
+</script>
+{% endblock %}

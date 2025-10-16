@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Receipt {{ sale.receipt_number }} - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .receipt-container {
+        max-width: 400px;
+        margin: 0 auto;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+    }
+    .receipt-header {
+        background: #f8f9fa;
+        border-bottom: 2px dashed #dee2e6;
+    }
+    .receipt-items {
+        border-bottom: 1px dashed #dee2e6;
+    }
+    .receipt-totals {
+        background: #f8f9fa;
+    }
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        .receipt-container {
+            border: none;
+            box-shadow: none;
+        }
+        body {
+            background: white !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4 no-print">
+        <div class="col">
+            <h1 class="h3 mb-0">
+                <i class="bi bi-receipt"></i> Struk {{ sale.receipt_number }}
+            </h1>
+            <small class="text-muted">Detail Penjualan dan Informasi Transaksi</small>
+        </div>
+        <div class="col-auto">
+            <div class="btn-group">
+                <button onclick="window.print()" class="btn btn-outline-primary">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+                <a href="{{ url_for('sales.download_receipt_pdf', sale_id=sale.id) }}" 
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-download"></i> PDF
+                </a>
+                <a href="{{ url_for('sales.history') }}" class="btn btn-outline-info">
+                    <i class="bi bi-arrow-left"></i> Back to History
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="receipt-container">
+                <!-- Receipt Header -->
+                <div class="receipt-header text-center p-3">
+                    <h4 class="mb-1">{{ current_user.tenant.name }}</h4>
+                    <p class="mb-1 text-muted small">{{ current_user.tenant.address or 'Store Address' }}</p>
+                    <p class="mb-1 text-muted small">Tel: {{ current_user.tenant.phone or 'N/A' }}</p>
+                    <hr class="my-2">
+                    <p class="mb-1"><strong>RECEIPT: {{ sale.receipt_number }}</strong></p>
+                    <p class="mb-0 text-muted small">
+                        {{ sale.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </p>
+                </div>
+
+                <!-- Receipt Body -->
+                <div class="p-3">
+                    <!-- Cashier Info -->
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <small class="text-muted">Kasir:</small><br>
+                            <strong>{{ sale.user.username }}</strong>
+                        </div>
+                        <div class="col-6 text-end">
+                            <small class="text-muted">Customer:</small><br>
+                            <strong>
+                                {% if sale.customer %}
+                                    {{ sale.customer.name }}
+                                {% else %}
+                                    Walk-in Customer
+                                {% endif %}
+                            </strong>
+                        </div>
+                    </div>
+
+                    <!-- Items -->
+                    <div class="receipt-items mb-3">
+                        <table class="table table-sm table-borderless mb-0">
+                            <thead>
+                                <tr class="border-bottom">
+                                    <th class="small">ITEM</th>
+                                    <th class="small text-center">QTY</th>
+                                    <th class="small text-end">PRICE</th>
+                                    <th class="small text-end">TOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in sale.items %}
+                                <tr>
+                                    <td class="small">
+                                        {{ item.product.name }}
+                                        {% if item.quantity > 1 %}
+                                        <br><small class="text-muted">@ ${{ "%.2f"|format(item.unit_price) }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="small text-center">{{ item.quantity }}</td>
+                                    <td class="small text-end">${{ "%.2f"|format(item.unit_price) }}</td>
+                                    <td class="small text-end">${{ "%.2f"|format(item.total_price) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Totals -->
+                    <div class="receipt-totals p-3 rounded">
+                        <div class="row mb-1">
+                            <div class="col">Subtotal:</div>
+                            <div class="col-auto">Rp{{ "%.2f"|format(sale.total_amount - sale.tax_amount) }}</div>
+                        </div>
+                        <div class="row mb-1">
+                            <div class="col">Tax (10%):</div>
+                            <div class="col-auto">Rp{{ "%.2f"|format(sale.tax_amount) }}</div>
+                        </div>
+                        {% if sale.discount_amount > 0 %}
+                        <div class="row mb-1">
+                            <div class="col">Discount:</div>
+                            <div class="col-auto">-Rp{{ "%.2f"|format(sale.discount_amount) }}</div>
+                        </div>
+                        {% endif %}
+                        <div class="row mb-1 fw-bold">
+                            <div class="col">TOTAL:</div>
+                            <div class="col-auto">Rp{{ "%.2f"|format(sale.total_amount) }}</div>
+                        </div>
+                        <div class="row">
+                            <div class="col">Payment:</div>
+                            <div class="col-auto">
+                                <span class="badge bg-{{ 
+                                    'success' if sale.payment_method == 'cash' 
+                                    else 'primary' if sale.payment_method == 'card' 
+                                    else 'info' if sale.payment_method == 'transfer'
+                                    else 'warning' 
+                                }}">
+                                    {{ sale.payment_method|upper }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    {% if sale.notes %}
+                    <div class="mt-3 p-2 bg-light rounded">
+                        <small class="text-muted">Notes:</small><br>
+                        <small>{{ sale.notes }}</small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Footer -->
+                    <div class="text-center mt-4">
+                        <p class="text-muted small mb-1">Thank you for your business!</p>
+                        <p class="text-muted small">Please keep this receipt for your records</p>
+                        <hr class="my-2">
+                        <p class="text-muted small">
+                            Generated on {{ sale.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons for Mobile -->
+            <div class="text-center mt-3 no-print">
+                <div class="btn-group">
+                    <button onclick="window.print()" class="btn btn-primary">
+                        <i class="bi bi-printer"></i> Print Receipt
+                    </button>
+                    <button onclick="reprintReceipt()" class="btn btn-outline-primary">
+                        <i class="bi bi-printer-fill"></i> Reprint
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function reprintReceipt() {
+        fetch(`/sales/receipt/{{ sale.id }}/print`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Receipt sent to printer successfully');
+                } else {
+                    alert('Print failed: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+    }
+
+    // Auto-print on page load if URL has print parameter
+    if (window.location.search.includes('print=true')) {
+        window.print();
+    }
+</script>
+{% endblock %}

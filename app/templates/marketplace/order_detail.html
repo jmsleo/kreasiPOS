@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-file-text"></i> Order Details</h1>
+        <div>
+            <a href="{{ url_for('marketplace.restock_orders') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Orders
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Informasi Pesanan</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th>Produk:</th>
+                                    <td>{{ order.marketplace_item.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Kuantitas:</th>
+                                    <td>{{ order.quantity }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Harga per item:</th>
+                                    <td>{{ "Rp {:,.0f}".format(order.marketplace_item.price) }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Jumlah Total:</th>
+                                    <td class="fw-bold text-primary">{{ "Rp {:,.0f}".format(order.total_amount) }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Tanggal Pesanan:</th>
+                                    <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th>Status:</th>
+                                    <td>
+                                        {% if order.status.value == 'pending' %}
+                                            <span class="badge bg-warning">Verifikasi Tertunda</span>
+                                        {% elif order.status.value == 'verified' %}
+                                            <span class="badge bg-success">Diterima</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Ditolak</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% if order.verified_by %}
+                                <tr>
+                                    <th>Verified by:</th>
+                                    <td>{{ order.verifier.username }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Verified at:</th>
+                                    <td>{{ order.verified_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <h6>Alamat Pengiriman</h6>
+                            <div class="border rounded p-3 bg-light">
+                                <strong>{{ order.tenant.name }}</strong><br>
+                                {{ order.shipping_address }}<br>
+                                {{ order.shipping_city }} {{ order.shipping_postal_code }}<br>
+                                <i class="bi bi-telephone"></i> {{ order.shipping_phone }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Notes</h6>
+                            <div class="border rounded p-3">
+                                <strong>Notes Anda:</strong><br>
+                                {% if order.notes %}
+                                    {{ order.notes }}
+                                {% else %}
+                                    <span class="text-muted">No notes provided</span>
+                                {% endif %}
+                                
+                                {% if order.admin_notes %}
+                                <hr>
+                                <strong>Notes Admin:</strong><br>
+                                {{ order.admin_notes }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if order.payment_proof_url %}
+                    <div class="mt-4">
+                        <h6>Bukti Pembayaran</h6>
+                        <div class="text-center">
+                            <img src="{{ order.payment_proof_url }}" alt="Payment Proof" class="img-fluid rounded border" style="max-height: 400px;">
+                            <div class="mt-2">
+                                <a href="{{ order.payment_proof_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-box-arrow-up-right"></i> View Full Image
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Quick Actions</h6>
+                </div>
+                <div class="card-body text-center">
+                    <a href="{{ url_for('marketplace.restock_orders') }}" class="btn btn-outline-primary w-100 mb-2">
+                        <i class="bi bi-list-check"></i> Pesanan Saya
+                    </a>
+                    <a href="{{ url_for('marketplace.index') }}" class="btn btn-outline-success w-100 mb-2">
+                        <i class="bi bi-cart-plus"></i> Lanjut Belanja
+                    </a>
+                    <a href="{{ url_for('marketplace.my_address') }}" class="btn btn-outline-info w-100">
+                        <i class="bi bi-geo-alt"></i> Alamat Saya
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Timeline Pemesanan</h6>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        <div class="timeline-item {% if order.status.value != 'pending' %}completed{% endif %}">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <h6>Pesanan Dibuat</h6>
+                                <p class="text-muted small">{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            </div>
+                        </div>
+                        
+                        {% if order.status.value != 'pending' %}
+                        <div class="timeline-item completed">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <h6>Pesanan {{ order.status.value|title }}</h6>
+                                <p class="text-muted small">{{ order.verified_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                {% if order.verifier %}
+                                <p class="small">By: {{ order.verifier.username }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 20px;
+}
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+.timeline-marker {
+    position: absolute;
+    left: -20px;
+    top: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #6c757d;
+    border: 2px solid white;
+}
+.timeline-item.completed .timeline-marker {
+    background-color: #198754;
+}
+.timeline-content {
+    padding-left: 10px;
+}
+</style>
+{% endblock %}

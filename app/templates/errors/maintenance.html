@@ -1,0 +1,63 @@
+{% extends "errors/base_error.html" %}
+
+{% block error_title %}Maintenance - KreasiPOS Enterprise{% endblock %}
+
+{% block error_content %}
+<div class="error-icon text-info">
+    <i class="bi bi-tools"></i>
+</div>
+
+<h1 class="error-code">
+    <i class="bi bi-gear"></i>
+</h1>
+<h2 class="h3 mb-4">Under Maintenance</h2>
+
+<p class="text-muted mb-4">
+    KreasiPOS Enterprise is currently undergoing scheduled maintenance. 
+    We'll be back online shortly. Thank you for your patience.
+</p>
+
+<div class="maintenance-info bg-light p-4 rounded mb-4">
+    <div class="row text-center">
+        <div class="col-md-4 mb-3">
+            <i class="bi bi-clock text-primary fs-1"></i>
+            <h5 class="mt-2">Estimated Time</h5>
+            <p class="mb-0">30-60 minutes</p>
+        </div>
+        <div class="col-md-4 mb-3">
+            <i class="bi bi-calendar-event text-success fs-1"></i>
+            <h5 class="mt-2">Schedule</h5>
+            <p class="mb-0">Regular Maintenance</p>
+        </div>
+        <div class="col-md-4 mb-3">
+            <i class="bi bi-info-circle text-warning fs-1"></i>
+            <h5 class="mt-2">Status</h5>
+            <p class="mb-0">In Progress</p>
+        </div>
+    </div>
+</div>
+
+<div class="error-actions">
+    <button onclick="location.reload()" class="btn btn-primary me-3">
+        <i class="bi bi-arrow-clockwise"></i> Check Status
+    </button>
+    <a href="mailto:support@tpos.example.com" class="btn btn-outline-secondary">
+        <i class="bi bi-envelope"></i> Contact Support
+    </a>
+</div>
+
+<div class="mt-4">
+    <small class="text-muted">
+        Last updated: <span id="maintenance-time"></span>
+    </small>
+</div>
+
+<script>
+    document.getElementById('maintenance-time').textContent = new Date().toLocaleString();
+    
+    // Auto-refresh every 2 minutes
+    setTimeout(() => {
+        location.reload();
+    }, 120000);
+</script>
+{% endblock %}

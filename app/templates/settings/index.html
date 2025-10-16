@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .settings-card {
+        transition: transform 0.2s;
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .settings-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .settings-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+    .card-link {
+        text-decoration: none;
+        color: inherit;
+    }
+    .card-link:hover {
+        color: inherit;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h2 mb-0">
+                <i class="bi bi-gear"></i> Pengaturan
+            </h1>
+            <small class="text-muted">Kelola pengaturan bisnis dan preferensi Anda</small>
+        </div>
+    </div>
+
+    <!-- Settings Cards -->
+    <div class="row g-4">
+        <!-- Business Information -->
+        <div class="col-md-6 col-lg-3">
+            <a href="{{ url_for('settings.tenant_info') }}" class="card-link">
+                <div class="card settings-card h-100">
+                    <div class="card-body text-center">
+                        <div class="text-primary settings-icon">
+                            <i class="bi bi-briefcase"></i>
+                        </div>
+                        <h5 class="card-title">Info Bisnis</h5>
+                        <p class="card-text text-muted small">
+                            Perbarui nama bisnis, informasi kontak, dan alamat
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Printer Setup -->
+        <div class="col-md-6 col-lg-3">
+            <a href="{{ url_for('settings.printer_setup') }}" class="card-link">
+                <div class="card settings-card h-100">
+                    <div class="card-body text-center">
+                        <div class="text-success settings-icon">
+                            <i class="bi bi-printer"></i>
+                        </div>
+                        <h5 class="card-title">Printer Setup</h5>
+                        <p class="card-text text-muted small">
+                            Konfigurasikan pengaturan dan koneksi printer struk
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Barcode Scanner -->
+        <div class="col-md-6 col-lg-3">
+            <a href="{{ url_for('settings.barcode_scanner') }}" class="card-link">
+                <div class="card settings-card h-100">
+                    <div class="card-body text-center">
+                        <div class="text-warning settings-icon">
+                            <i class="bi bi-upc-scan"></i>
+                        </div>
+                        <h5 class="card-title">Barcode Scanner</h5>
+                        <p class="card-text text-muted small">
+                            Konfigurasikan pengaturan dan preferensi scanner barcode
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- System Status -->
+        <div class="col-md-6 col-lg-3">
+            <div class="card settings-card h-100">
+                <div class="card-body text-center">
+                    <div class="text-info settings-icon">
+                        <i class="bi bi-info-circle"></i>
+                    </div>
+                    <h5 class="card-title">Status Sistem</h5>
+                    <div class="text-start small">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Bisnis:</span>
+                            <span class="badge bg-success">{{ tenant.name }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Printer:</span>
+                            {% if tenant.printer_settings %}
+                                <span class="badge bg-success">Terkonfigurasi</span>
+                            {% else %}
+                                <span class="badge bg-warning">Belum Diatur</span>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Scanner:</span>
+                            {% if tenant.barcode_scanner_type %}
+                                <span class="badge bg-success">{{ tenant.barcode_scanner_type|title }}</span>
+                            {% else %}
+                                <span class="badge bg-warning">Belum Diatur</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history"></i> Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="d-grid">
+                                <a href="{{ url_for('sales.pos') }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-cash-coin"></i> Go to POS
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-grid">
+                                <a href="{{ url_for('products.index') }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-box-seam"></i> Kelola Produk
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-grid">
+                                <a href="{{ url_for('customers.index') }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-people"></i> Kelola Pelanggan
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-grid">
+                                <a href="{{ url_for('settings.user_management') }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-person-workspace"></i> Kelola Kasir
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - KreasiPOS Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('marketplace.manage') }}">Marketplace Management</a></li>
+                    <li class="breadcrumb-item active">{{ legend }}</li>
+                </ol>
+            </nav>
+
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-0">
+                        <i class="bi bi-{{ 'plus-circle' if legend == 'New Marketplace Item' else 'pencil' }}"></i>
+                        {{ legend }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Name Field -->
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Product Name</label>
+                            <input type="text" class="form-control {% if form.name.errors %}is-invalid{% endif %}" 
+                                   id="name" name="name" value="{{ form.name.data or '' }}" required>
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.name.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Description Field -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3">{{ form.description.data or '' }}</textarea>
+                            {% if form.description.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.description.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <!-- Price Field -->
+                            <div class="col-md-6 mb-3">
+                                <label for="price" class="form-label">Harga</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control {% if form.price.errors %}is-invalid{% endif %}" 
+                                           id="price" name="price" value="{{ form.price.data or '0' }}" 
+                                           step="0.01" min="0" required>
+                                </div>
+                                {% if form.price.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.price.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Stock Field -->
+                            <div class="col-md-6 mb-3">
+                                <label for="stock" class="form-label">Kuantitas Stok</label>
+                                <input type="number" class="form-control {% if form.stock.errors %}is-invalid{% endif %}" 
+                                       id="stock" name="stock" value="{{ form.stock.data or '0' }}" 
+                                       min="0" required>
+                                {% if form.stock.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.stock.errors %}
+                                            {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- SKU Field -->
+                        <div class="mb-3">
+                            <label for="sku" class="form-label">SKU (Optional)</label>
+                            <input type="text" class="form-control" id="sku" name="sku" 
+                                   value="{{ form.sku.data or '' }}">
+                            {% if form.sku.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.sku.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Image Field -->
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Gambar Produk</label>
+                            <input type="file" class="form-control {% if form.image.errors %}is-invalid{% endif %}" 
+                                   id="image" name="image" accept=".jpg,.jpeg,.png,.gif">
+                            {% if form.image.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.image.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">
+                                Supported formats: JPG, JPEG, PNG, GIF. Max file size: 5MB.
+                            </div>
+                            
+                            <!-- Show current image if editing -->
+                            {% if form._obj and form._obj.image_url %}
+                            <div class="mt-2">
+                                <label class="form-label">Gambar Sekarang:</label>
+                                <div>
+                                    <img src="{{ form._obj.image_url }}" alt="{{ form._obj.name }}" 
+                                         class="img-thumbnail" style="max-height: 200px;">
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i>
+                                {{ 'Create Item' if legend == 'New Marketplace Item' else 'Update Item' }}
+                            </button>
+                            <a href="{{ url_for('marketplace.manage') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

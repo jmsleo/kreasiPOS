@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h5>Restock Orders Management</h5>
+    <div>
+        <a href="{{ url_for('marketplace.admin_restock_orders', status='pending') }}" class="btn btn-outline-warning">Pending</a>
+        <a href="{{ url_for('marketplace.admin_restock_orders', status='verified') }}" class="btn btn-outline-success">Verified</a>
+        <a href="{{ url_for('marketplace.admin_restock_orders', status='rejected') }}" class="btn btn-outline-danger">Rejected</a>
+        <a href="{{ url_for('marketplace.admin_restock_orders') }}" class="btn btn-outline-secondary">All</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Tenant</th>
+                        <th>Produk</th>
+                        <th>Kuantitas</th>
+                        <th>Jumlah Total</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>{{ order.created_at|local_datetime }}</td>
+                        <td>{{ order.tenant.name }}</td>
+                        <td>{{ order.marketplace_item.name }}</td>
+                        <td>{{ order.quantity }}</td>
+                        <td>{{ "Rp {:,.0f}".format(order.total_amount) }}</td>
+                        <td>
+                            {% if order.status.value == 'pending' %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% elif order.status.value == 'verified' %}
+                                <span class="badge bg-success">Verified</span>
+                            {% else %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('marketplace.verify_restock_order', order_id=order.id) }}" class="btn btn-sm btn-primary">Verify</a>
+                            <a href="#" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#orderModal{{ order.id }}">View</a>
+                        </td>
+                    </tr>
+
+                    <!-- Modal -->
+                    <div class="modal fade" id="orderModal{{ order.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Order Details</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p><strong>Tenant:</strong> {{ order.tenant.name }}</p>
+                                    <p><strong>Produk:</strong> {{ order.marketplace_item.name }}</p>
+                                    <p><strong>Kuantitas:</strong> {{ order.quantity }}</p>
+                                    <p><strong>Jumlah:</strong> {{ "Rp {:,.0f}".format(order.total_amount) }}</p>
+                                    <p><strong>Status:</strong> 
+                                        {% if order.status.value == 'pending' %}
+                                            <span class="badge bg-warning">Pending</span>
+                                        {% elif order.status.value == 'verified' %}
+                                            <span class="badge bg-success">Verified</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                        {% endif %}
+                                    </p>
+                                    {% if order.payment_proof_url %}
+                                    <p><strong>Payment Proof:</strong></p>
+                                    <img src="{{ order.payment_proof_url }}" alt="Payment Proof" class="img-fluid">
+                                    {% endif %}
+                                    {% if order.notes %}
+                                    <p><strong>Tenant Notes:</strong> {{ order.notes }}</p>
+                                    {% endif %}
+                                    {% if order.admin_notes %}
+                                    <p><strong>Admin Notes:</strong> {{ order.admin_notes }}</p>
+                                    {% endif %}
+                                    {% if order.verified_by %}
+                                    <p><strong>Verified by:</strong> {{ order.verifier.username }} at {{ order.verified_at|local_datetime }}</p>
+                                    {% endif %}
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <h6>Tenant Information</h6>
+                                            <table class="table table-sm">
+                                                <tr>
+                                                    <th>Nama Tenant:</th>
+                                                    <td>{{ order.tenant.name }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Alamat Default:</th>
+                                                    <td>
+                                                        {% if order.tenant.address %}
+                                                            {{ order.tenant.address }}, {{ order.tenant.city }} {{ order.tenant.postal_code }}
+                                                        {% else %}
+                                                            <span class="text-muted">Belum diatur</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Telepon:</th>
+                                                    <td>{{ order.tenant.phone or '-' }}</td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6>Shipping Address for This Order</h6>
+                                            <div class="border rounded p-3 bg-light">
+                                                {{ order.shipping_address }}<br>
+                                                {{ order.shipping_city }} {{ order.shipping_postal_code }}<br>
+                                                <i class="bi bi-telephone"></i> {{ order.shipping_phone }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

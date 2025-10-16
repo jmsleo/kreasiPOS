@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Barcode Scanner - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .scanner-option {
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        height: 100%;
+    }
+    .scanner-option:hover {
+        border-color: #0d6efd;
+        background-color: #f8f9fa;
+    }
+    .scanner-option.active {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+    .scanner-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    .scanner-test {
+        background: #f8f9fa;
+        border: 1px dashed #dee2e6;
+        border-radius: 5px;
+        min-height: 100px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('settings.index') }}">Settings</a></li>
+                    <li class="breadcrumb-item active">Barcode Scanner</li>
+                </ol>
+            </nav>
+            
+            <h1 class="h2 mb-0">
+                <i class="bi bi-upc-scan"></i> Barcode Scanner Settings
+            </h1>
+            <small class="text-muted">Configure barcode scanner for quick product lookup</small>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Scanner Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('settings.barcode_scanner') }}" id="scannerForm">
+                        <div class="mb-4">
+                            <label class="form-label">Scanner Type</label>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="scanner-option {% if tenant.barcode_scanner_type == 'keyboard' or not tenant.barcode_scanner_type %}active{% endif %}" 
+                                         onclick="selectScanner('keyboard')">
+                                        <div class="scanner-icon text-primary">
+                                            <i class="bi bi-keyboard"></i>
+                                        </div>
+                                        <h6>Keyboard Wedge</h6>
+                                        <p class="small text-muted mb-0">
+                                            Most common type. Scanner acts as keyboard input.
+                                        </p>
+                                        <input type="radio" name="scanner_type" value="keyboard" 
+                                               {% if tenant.barcode_scanner_type == 'keyboard' or not tenant.barcode_scanner_type %}checked{% endif %} 
+                                               style="display: none;">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="scanner-option {% if tenant.barcode_scanner_type == 'bluetooth' %}active{% endif %}" 
+                                         onclick="selectScanner('bluetooth')">
+                                        <div class="scanner-icon text-success">
+                                            <i class="bi bi-bluetooth"></i>
+                                        </div>
+                                        <h6>Bluetooth</h6>
+                                        <p class="small text-muted mb-0">
+                                            Wireless Bluetooth barcode scanners.
+                                        </p>
+                                        <input type="radio" name="scanner_type" value="bluetooth" 
+                                               {% if tenant.barcode_scanner_type == 'bluetooth' %}checked{% endif %} 
+                                               style="display: none;">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="scanner-option {% if tenant.barcode_scanner_type == 'serial' %}active{% endif %}" 
+                                         onclick="selectScanner('serial')">
+                                        <div class="scanner-icon text-warning">
+                                            <i class="bi bi-usb-plug"></i>
+                                        </div>
+                                        <h6>Serial/USB</h6>
+                                        <p class="small text-muted mb-0">
+                                            Direct USB or serial port connection.
+                                        </p>
+                                        <input type="radio" name="scanner_type" value="serial" 
+                                               {% if tenant.barcode_scanner_type == 'serial' %}checked{% endif %} 
+                                               style="display: none;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Settings -->
+                        <div class="mb-3">
+                            <label class="form-label">Advanced Settings</label>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="suffix_char" class="form-label">Suffix Character</label>
+                                        <select class="form-select" id="suffix_char" name="suffix_char">
+                                            <option value="enter">Enter (Return)</option>
+                                            <option value="tab">Tab</option>
+                                            <option value="none">None</option>
+                                            <option value="custom">Custom Character</option>
+                                        </select>
+                                        <div class="form-text">Character sent after barcode scan</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="scan_delay" class="form-label">Scan Delay (ms)</label>
+                                        <input type="number" class="form-control" id="scan_delay" name="scan_delay" 
+                                               value="100" min="0" max="1000">
+                                        <div class="form-text">Delay between scans to prevent duplicates</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-lightbulb"></i> 
+                            <strong>Tip:</strong> For Keyboard Wedge scanners, just plug in and scan. 
+                            The scanner will automatically focus on the search field in POS.
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to Settings
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Save Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Scanner Test Area -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Test Scanner</h5>
+                </div>
+                <div class="card-body">
+                    <div class="scanner-test p-3 d-flex align-items-center justify-content-center">
+                        <div class="text-center">
+                            <i class="bi bi-upc-scan display-4 text-muted mb-3"></i>
+                            <p class="mb-2">Focus on this area and scan a barcode</p>
+                            <small class="text-muted" id="scanResult">No scan detected yet</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scanner Status -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Current Configuration</h5>
+                </div>
+                <div class="card-body">
+                    {% if tenant.barcode_scanner_type %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i>
+                        <strong>Scanner Configured</strong><br>
+                        <small>Type: {{ tenant.barcode_scanner_type|title }}</small>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Scanner Not Configured</strong><br>
+                        <small>Using default keyboard wedge settings</small>
+                    </div>
+                    {% endif %}
+
+                    <h6>Usage Instructions:</h6>
+                    <ol class="small">
+                        <li>Connect your barcode scanner</li>
+                        <li>Select the appropriate scanner type</li>
+                        <li>Save settings</li>
+                        <li>Test by scanning in the POS search field</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selectScanner(type) {
+    // Remove active class from all options
+    document.querySelectorAll('.scanner-option').forEach(option => {
+        option.classList.remove('active');
+    });
+    
+    // Add active class to selected option
+    event.currentTarget.classList.add('active');
+    
+    // Check the corresponding radio button
+    const radio = event.currentTarget.querySelector('input[type="radio"]');
+    radio.checked = true;
+}
+
+// Test barcode scanning
+document.addEventListener('DOMContentLoaded', function() {
+    let barcodeBuffer = '';
+    let barcodeTimeout;
+    
+    document.addEventListener('keydown', function(e) {
+        // Clear previous timeout
+        clearTimeout(barcodeTimeout);
+        
+        // If Enter key is pressed, process the barcode
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (barcodeBuffer.length >= 3) { // Minimum barcode length
+                document.getElementById('scanResult').textContent = `Scanned: ${barcodeBuffer}`;
+                document.getElementById('scanResult').className = 'text-success';
+                
+                // Clear after 3 seconds
+                setTimeout(() => {
+                    document.getElementById('scanResult').textContent = 'No scan detected yet';
+                    document.getElementById('scanResult').className = 'text-muted';
+                }, 3000);
+            }
+            barcodeBuffer = '';
+            return;
+        }
+        
+        // Accumulate characters for barcode
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            barcodeBuffer += e.key;
+            
+            // Set timeout to process barcode if no more input comes
+            barcodeTimeout = setTimeout(() => {
+                if (barcodeBuffer.length >= 6) { // Minimum barcode length
+                    document.getElementById('scanResult').textContent = `Scanned: ${barcodeBuffer}`;
+                    document.getElementById('scanResult').className = 'text-success';
+                    
+                    // Clear after 3 seconds
+                    setTimeout(() => {
+                        document.getElementById('scanResult').textContent = 'No scan detected yet';
+                        document.getElementById('scanResult').className = 'text-muted';
+                    }, 3000);
+                }
+                barcodeBuffer = '';
+            }, 100);
+        }
+    });
+});
+</script>
+{% endblock %}
+

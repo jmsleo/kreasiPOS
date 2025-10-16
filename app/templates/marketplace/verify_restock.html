@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Verify Restock Order</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>Detail Pemesanan</h6>
+                    <table class="table table-bordered">
+                        <tr>
+                            <th>Tenant</th>
+                            <td>{{ order.tenant.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Produk</th>
+                            <td>{{ order.marketplace_item.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Kuantitas</th>
+                            <td>{{ order.quantity }}</td>
+                        </tr>
+                        <tr>
+                            <th>Jumlah Total</th>
+                            <td>{{ "Rp {:,.0f}".format(order.total_amount) }}</td>
+                        </tr>
+                        <tr>
+                            <th>Bukti Pembayaran</th>
+                            <td>
+                                {% if order.payment_proof_url %}
+                                <img src="{{ order.payment_proof_url }}" alt="Payment Proof" class="img-fluid" style="max-width: 300px;">
+                                <br>
+                                <a href="{{ order.payment_proof_url }}" target="_blank">Lihat Gambar Penuh</a>
+                                {% else %}
+                                <span class="text-danger">Tidak ada bukti pembayaran yang diunggah</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if order.notes %}
+                        <tr>
+                            <th>Tenant Notes</th>
+                            <td>{{ order.notes }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.status.label(class="form-label") }}
+                        {{ form.status(class="form-select") }}
+                        {% for error in form.status.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.admin_notes.label(class="form-label") }}
+                        {{ form.admin_notes(class="form-control", rows=4) }}
+                        {% for error in form.admin_notes.errors %}
+                            <span class="text-danger">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('marketplace.admin_restock_orders') }}" class="btn btn-secondary">Back to List</a>
+                        <button type="submit" class="btn btn-primary">Submit Verification</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

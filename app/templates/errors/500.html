@@ -1,0 +1,47 @@
+{% extends "errors/base_error.html" %}
+
+{% block error_title %}Server Error - KreasiPOS Enterprise{% endblock %}
+
+{% block error_content %}
+<div class="error-icon text-danger">
+    <i class="bi bi-exclamation-triangle"></i>
+</div>
+
+<h1 class="error-code">500</h1>
+<h2 class="h3 mb-4">Internal Server Error</h2>
+
+<p class="text-muted mb-4">
+    Something went wrong on our servers. We're working to fix the issue.
+    Please try again later or contact support if the problem persists.
+</p>
+
+<div class="error-actions">
+    <a href="{{ url_for('sales.pos') }}" class="btn btn-primary me-3">
+        <i class="bi bi-house"></i> Go Home
+    </a>
+    <button onclick="history.back()" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i> Go Back
+    </button>
+    <button onclick="location.reload()" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-clockwise"></i> Try Again
+    </button>
+</div>
+
+<div class="mt-4">
+    <small class="text-muted">
+        Our technical team has been notified. We apologize for the inconvenience.
+    </small>
+</div>
+
+{% if debug and error %}
+<div class="error-details mt-4 text-start">
+    <strong>Error Type:</strong> {{ error.__class__.__name__ }}<br>
+    <strong>Error Message:</strong> {{ error }}<br>
+    <strong>Timestamp:</strong> <span id="current-time"></span>
+</div>
+
+<script>
+    document.getElementById('current-time').textContent = new Date().toLocaleString();
+</script>
+{% endif %}
+{% endblock %}
