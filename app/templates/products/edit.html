@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Produk - Inventory Management</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        .image-preview {
+            max-width: 200px;
+            max-height: 200px;
+            margin-top: 10px;
+            display: none;
+        }
+        .required:after {
+            content: " *";
+            color: red;
+        }
+        .form-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3 mb-0">
+                <i class="fas fa-edit me-2"></i>Edit Produk
+            </h1>
+            <a href="{{ url_for('products.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-1"></i> Kembali
+            </a>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'danger' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Informasi Produk</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" enctype="multipart/form-data" id="productForm">
+                            {{ form.hidden_tag() }}
+                            
+                            <!-- Basic Information Section -->
+                            <div class="form-section">
+                                <h6 class="mb-3">Informasi Dasar</h6>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="name" class="form-label required">Nama Produk</label>
+                                        {{ form.name(class="form-control", placeholder="Masukkan nama produk") }}
+                                        {% if form.name.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.name.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="sku" class="form-label">SKU</label>
+                                        {{ form.sku(class="form-control", placeholder="Kode SKU produk") }}
+                                        {% if form.sku.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.sku.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="barcode" class="form-label">Barcode</label>
+                                        {{ form.barcode(class="form-control", placeholder="Kode barcode") }}
+                                        {% if form.barcode.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.barcode.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="category_id" class="form-label">Kategori</label>
+                                        {{ form.category_id(class="form-select") }}
+                                        {% if form.category_id.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.category_id.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="description" class="form-label">Deskripsi</label>
+                                    {{ form.description(class="form-control", rows="3", placeholder="Deskripsi produk (opsional)") }}
+                                    {% if form.description.errors %}
+                                        <div class="text-danger small">
+                                            {% for error in form.description.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Pricing Section -->
+                            <div class="form-section">
+                                <h6 class="mb-3">Harga & Biaya</h6>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="price" class="form-label required">Harga Jual</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">Rp</span>
+                                            {{ form.price(class="form-control", placeholder="0") }}
+                                        </div>
+                                        {% if form.price.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.price.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="cost_price" class="form-label">Harga Beli</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">Rp</span>
+                                            {{ form.cost_price(class="form-control", placeholder="0") }}
+                                        </div>
+                                        {% if form.cost_price.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.cost_price.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Inventory Section -->
+                            <div class="form-section">
+                                <h6 class="mb-3">Manajemen Stok</h6>
+                                
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="stock_quantity" class="form-label required">Stok Saat Ini</label>
+                                        {{ form.stock_quantity(class="form-control", type="number", min="0") }}
+                                        {% if form.stock_quantity.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.stock_quantity.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="col-md-4 mb-3">
+                                        <label for="stock_alert" class="form-label required">Stok Peringatan</label>
+                                        {{ form.stock_alert(class="form-control", type="number", min="0") }}
+                                        <small class="form-text text-muted">Stok minimum sebelum peringatan</small>
+                                        {% if form.stock_alert.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.stock_alert.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="col-md-4 mb-3">
+                                        <label for="unit" class="form-label">Satuan</label>
+                                        {{ form.unit(class="form-control", placeholder="pcs, kg, etc") }}
+                                        {% if form.unit.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.unit.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="carton_quantity" class="form-label">Jumlah per Karton</label>
+                                        {{ form.carton_quantity(class="form-control", type="number", min="0") }}
+                                        <small class="form-text text-muted">Isi 0 jika tidak menggunakan sistem karton</small>
+                                        {% if form.carton_quantity.errors %}
+                                            <div class="text-danger small">
+                                                {% for error in form.carton_quantity.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Image Upload Section -->
+                            <div class="form-section">
+                                <h6 class="mb-3">Gambar Produk</h6>
+                                
+                                <div class="mb-3">
+                                    <label for="image" class="form-label">Unggah Gambar</label>
+                                    {{ form.image(class="form-control", accept="image/*") }}
+                                    <small class="form-text text-muted">
+                                        Format: JPG, PNG, GIF. Maksimal 5MB.
+                                    </small>
+                                    {% if form.image.errors %}
+                                        <div class="text-danger small">
+                                            {% for error in form.image.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Current Image Preview -->
+                                {% if product.image_url %}
+                                    <div class="mb-3">
+                                        <label class="form-label">Gambar Saat Ini</label>
+                                        <div>
+                                            <img src="{{ product.image_url }}" alt="Current product image" 
+                                                 class="img-thumbnail" style="max-height: 200px;">
+                                            <small class="d-block text-muted mt-1">
+                                                Gambar yang saat ini digunakan
+                                            </small>
+                                        </div>
+                                    </div>
+                                {% endif %}
+
+                                <!-- New Image Preview -->
+                                <div id="imagePreviewContainer" class="mb-3" style="display: none;">
+                                    <label class="form-label">Pratinjau Gambar Baru</label>
+                                    <div>
+                                        <img id="imagePreview" src="#" alt="Image preview" 
+                                             class="img-thumbnail" style="max-height: 200px;">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Status Section -->
+                            <div class="form-section">
+                                <h6 class="mb-3">Status</h6>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        {{ form.is_active(class="form-check-input", role="switch") }}
+                                        <label class="form-check-label" for="is_active">
+                                            Produk Aktif
+                                        </label>
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        Nonaktifkan untuk menyembunyikan produk dari penjualan
+                                    </small>
+                                    {% if form.is_active.errors %}
+                                        <div class="text-danger small">
+                                            {% for error in form.is_active.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Form Actions -->
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('products.index') }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-times me-1"></i> Batal
+                                </a>
+                                
+                                <div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-1"></i> Simpan Perubahan
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Image preview functionality
+        document.getElementById('image').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('imagePreview');
+            const previewContainer = document.getElementById('imagePreviewContainer');
+            
+            if (file) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    previewContainer.style.display = 'block';
+                }
+                
+                reader.readAsDataURL(file);
+            } else {
+                previewContainer.style.display = 'none';
+            }
+        });
+
+        // Form validation
+        document.getElementById('productForm').addEventListener('submit', function(e) {
+            const requiredFields = this.querySelectorAll('[required]');
+            let valid = true;
+            
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    valid = false;
+                    field.classList.add('is-invalid');
+                } else {
+                    field.classList.remove('is-invalid');
+                }
+            });
+            
+            if (!valid) {
+                e.preventDefault();
+                alert('Harap lengkapi semua field yang wajib diisi!');
+            }
+        });
+
+        // Format currency inputs
+        function formatCurrency(input) {
+            input.addEventListener('blur', function() {
+                const value = parseFloat(this.value.replace(/[^\d]/g, ''));
+                if (!isNaN(value)) {
+                    this.value = value.toLocaleString('id-ID');
+                }
+            });
+            
+            input.addEventListener('focus', function() {
+                this.value = this.value.replace(/[^\d]/g, '');
+            });
+        }
+
+        // Apply currency formatting to price fields
+        const priceFields = document.querySelectorAll('input[name="price"], input[name="cost_price"]');
+        priceFields.forEach(formatCurrency);
+    </script>
+</body>
+</html>
