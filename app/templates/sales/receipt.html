@@ -33,6 +33,22 @@
             background: white !important;
         }
     }
+    .printer-status {
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        font-size: 0.9em;
+    }
+    .printer-connected {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    .printer-disconnected {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
 </style>
 {% endblock %}
 
@@ -44,18 +60,29 @@
                 <i class="bi bi-receipt"></i> Struk {{ sale.receipt_number }}
             </h1>
             <small class="text-muted">Detail Penjualan dan Informasi Transaksi</small>
+            
+            <!-- Printer Status Indicator -->
+            <div id="printerStatus" class="printer-status printer-disconnected mt-2">
+                <i class="bi bi-printer"></i> <span id="printerStatusText">Checking printer connection...</span>
+            </div>
         </div>
         <div class="col-auto">
             <div class="btn-group">
                 <button onclick="window.print()" class="btn btn-outline-primary">
-                    <i class="bi bi-printer"></i> Print
+                    <i class="bi bi-printer"></i> Print Browser
+                </button>
+                <button onclick="reprintReceipt()" class="btn btn-primary">
+                    <i class="bi bi-printer-fill"></i> Reprint Thermal
                 </button>
                 <a href="{{ url_for('sales.download_receipt_pdf', sale_id=sale.id) }}" 
                    class="btn btn-outline-secondary">
                     <i class="bi bi-download"></i> PDF
                 </a>
-                <a href="{{ url_for('sales.history') }}" class="btn btn-outline-info">
-                    <i class="bi bi-arrow-left"></i> Back to History
+                <button onclick="testPrinter()" class="btn btn-outline-info" title="Test Printer Connection">
+                    <i class="bi bi-gear"></i> Test
+                </button>
+                <a href="{{ url_for('sales.history') }}" class="btn btn-outline-dark">
+                    <i class="bi bi-arrow-left"></i> Back
                 </a>
             </div>
         </div>
@@ -72,7 +99,7 @@
                     <hr class="my-2">
                     <p class="mb-1"><strong>RECEIPT: {{ sale.receipt_number }}</strong></p>
                     <p class="mb-0 text-muted small">
-                        {{ sale.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                        {{ sale.local_created_at.strftime('%Y-%m-%d %H:%M:%S') }}
                     </p>
                 </div>
 
@@ -113,12 +140,12 @@
                                     <td class="small">
                                         {{ item.product.name }}
                                         {% if item.quantity > 1 %}
-                                        <br><small class="text-muted">@ ${{ "%.2f"|format(item.unit_price) }}</small>
+                                        <br><small class="text-muted">@ Rp{{ "%.0f"|format(item.unit_price) }}</small>
                                         {% endif %}
                                     </td>
                                     <td class="small text-center">{{ item.quantity }}</td>
-                                    <td class="small text-end">${{ "%.2f"|format(item.unit_price) }}</td>
-                                    <td class="small text-end">${{ "%.2f"|format(item.total_price) }}</td>
+                                    <td class="small text-end">Rp{{ "%.0f"|format(item.unit_price) }}</td>
+                                    <td class="small text-end">Rp{{ "%.0f"|format(item.total_price) }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -127,23 +154,24 @@
 
                     <!-- Totals -->
                     <div class="receipt-totals p-3 rounded">
+                        {% set subtotal = sale.total_amount - sale.tax_amount + sale.discount_amount %}
                         <div class="row mb-1">
                             <div class="col">Subtotal:</div>
-                            <div class="col-auto">Rp{{ "%.2f"|format(sale.total_amount - sale.tax_amount) }}</div>
+                            <div class="col-auto">Rp{{ "%.0f"|format(subtotal) }}</div>
                         </div>
                         <div class="row mb-1">
-                            <div class="col">Tax (10%):</div>
-                            <div class="col-auto">Rp{{ "%.2f"|format(sale.tax_amount) }}</div>
+                            <div class="col">Tax:</div>
+                            <div class="col-auto">Rp{{ "%.0f"|format(sale.tax_amount) }}</div>
                         </div>
                         {% if sale.discount_amount > 0 %}
                         <div class="row mb-1">
                             <div class="col">Discount:</div>
-                            <div class="col-auto">-Rp{{ "%.2f"|format(sale.discount_amount) }}</div>
+                            <div class="col-auto">-Rp{{ "%.0f"|format(sale.discount_amount) }}</div>
                         </div>
                         {% endif %}
                         <div class="row mb-1 fw-bold">
                             <div class="col">TOTAL:</div>
-                            <div class="col-auto">Rp{{ "%.2f"|format(sale.total_amount) }}</div>
+                            <div class="col-auto">Rp{{ "%.0f"|format(sale.total_amount) }}</div>
                         </div>
                         <div class="row">
                             <div class="col">Payment:</div>
@@ -174,7 +202,7 @@
                         <p class="text-muted small">Please keep this receipt for your records</p>
                         <hr class="my-2">
                         <p class="text-muted small">
-                            Generated on {{ sale.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            Generated on {{ sale.local_created_at.strftime('%Y-%m-%d %H:%M') }}
                         </p>
                     </div>
                 </div>
@@ -183,13 +211,19 @@
             <!-- Action Buttons for Mobile -->
             <div class="text-center mt-3 no-print">
                 <div class="btn-group">
-                    <button onclick="window.print()" class="btn btn-primary">
-                        <i class="bi bi-printer"></i> Print Receipt
+                    <button onclick="reprintReceipt()" class="btn btn-primary">
+                        <i class="bi bi-printer-fill"></i> Reprint Thermal
                     </button>
-                    <button onclick="reprintReceipt()" class="btn btn-outline-primary">
-                        <i class="bi bi-printer-fill"></i> Reprint
+                    <button onclick="window.print()" class="btn btn-outline-primary">
+                        <i class="bi bi-printer"></i> Print Browser
+                    </button>
+                    <button onclick="testPrinter()" class="btn btn-outline-info">
+                        <i class="bi bi-gear"></i> Test
                     </button>
                 </div>
+                
+                <!-- Print Status Messages -->
+                <div id="printStatus" class="mt-2"></div>
             </div>
         </div>
     </div>
@@ -197,25 +231,215 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/qz-tray.js') }}"></script>
+<script src="{{ url_for('static', filename='js/qz_printer.js') }}"></script>
 <script>
-    function reprintReceipt() {
-        fetch(`/sales/receipt/{{ sale.id }}/print`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Receipt sent to printer successfully');
-                } else {
-                    alert('Print failed: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Error: ' + error);
-            });
-    }
+// Global variables for printer status
+let printerConnected = false;
 
-    // Auto-print on page load if URL has print parameter
-    if (window.location.search.includes('print=true')) {
-        window.print();
+// Update printer status display
+function updatePrinterStatus(connected, message = '') {
+    const statusElement = document.getElementById('printerStatus');
+    const statusText = document.getElementById('printerStatusText');
+    
+    printerConnected = connected;
+    
+    if (connected) {
+        statusElement.className = 'printer-status printer-connected';
+        statusText.innerHTML = '<i class="bi bi-check-circle"></i> Thermal printer connected';
+    } else {
+        statusElement.className = 'printer-status printer-disconnected';
+        statusText.innerHTML = '<i class="bi bi-exclamation-triangle"></i> ' + (message || 'Thermal printer not connected');
     }
+}
+
+// Show status message
+function showStatusMessage(message, type = 'info') {
+    const statusDiv = document.getElementById('printStatus');
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    statusDiv.innerHTML = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // Auto hide after 5 seconds
+    setTimeout(() => {
+        const alert = statusDiv.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+// Main reprint function
+async function reprintReceipt() {
+    console.log('🖨️ Starting receipt reprint...');
+    
+    // Show loading state
+    showStatusMessage('Preparing receipt for printing...', 'info');
+    
+    try {
+        // First, get receipt data from server
+        const response = await fetch(`/sales/{{ sale.id }}/receipt/data`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch receipt data');
+        }
+        
+        const receiptData = await response.json();
+        console.log('📄 Received receipt data:', receiptData);
+        
+        // Check if QZ Tray functions are available
+        if (typeof printReceiptWithQZ !== 'function') {
+            throw new Error('QZ Tray printer functions not available. Please make sure QZ Tray is running.');
+        }
+        
+        // Attempt to print using QZ Tray
+        const printResult = await printReceiptWithQZ(receiptData);
+        
+        if (printResult.success) {
+            console.log('✅ Reprint successful');
+            showStatusMessage('Receipt sent to thermal printer successfully!', 'success');
+            
+            // Log the reprint action to server
+            fetch(`/sales/{{ sale.id }}/receipt/print`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(receiptData)
+            }).catch(err => console.log('Reprint logging failed:', err));
+            
+        } else {
+            throw new Error(printResult.message || 'Print failed');
+        }
+        
+    } catch (error) {
+        console.error('❌ Reprint failed:', error);
+        
+        let errorMessage = error.message;
+        if (errorMessage.includes('QZ Tray') || errorMessage.includes('connect')) {
+            errorMessage = 'Thermal printer not available. Please ensure QZ Tray is running and try again.';
+        }
+        
+        showStatusMessage(`Reprint failed: ${errorMessage}`, 'error');
+        
+        // Fallback: open print dialog
+        setTimeout(() => {
+            if (confirm('Thermal printer unavailable. Would you like to print using browser instead?')) {
+                window.print();
+            }
+        }, 1000);
+    }
+}
+
+// Test printer connection
+async function testPrinter() {
+    console.log('🧪 Testing printer connection...');
+    showStatusMessage('Testing printer connection...', 'info');
+    
+    try {
+        if (typeof printTestPageWithQZ !== 'function') {
+            throw new Error('QZ Tray printer functions not available');
+        }
+        
+        const result = await printTestPageWithQZ();
+        
+        if (result.success) {
+            showStatusMessage('Printer test successful! Thermal printer is working correctly.', 'success');
+            updatePrinterStatus(true);
+        } else {
+            throw new Error(result.message || 'Test print failed');
+        }
+        
+    } catch (error) {
+        console.error('❌ Printer test failed:', error);
+        showStatusMessage(`Printer test failed: ${error.message}`, 'error');
+        updatePrinterStatus(false, error.message);
+    }
+}
+
+// Check printer status on page load
+async function checkPrinterStatus() {
+    try {
+        if (typeof getQZConnectionStatus !== 'function') {
+            updatePrinterStatus(false, 'QZ Tray not detected');
+            return;
+        }
+        
+        const status = getQZConnectionStatus();
+        console.log('🔌 Printer connection status:', status);
+        
+        if (status.isConnected) {
+            updatePrinterStatus(true);
+        } else {
+            updatePrinterStatus(false, 'QZ Tray not connected');
+            
+            // Try to connect
+            if (typeof connectToQZ === 'function') {
+                console.log('🔌 Attempting to connect to QZ Tray...');
+                try {
+                    await connectToQZ();
+                    updatePrinterStatus(true);
+                } catch (connectError) {
+                    console.log('QZ Tray connection failed:', connectError);
+                    updatePrinterStatus(false, 'QZ Tray connection failed');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error checking printer status:', error);
+        updatePrinterStatus(false, 'Error checking printer status');
+    }
+}
+
+// Auto-print on page load if URL has print parameter
+if (window.location.search.includes('print=true')) {
+    // Wait a bit for QZ Tray to initialize, then attempt reprint
+    setTimeout(() => {
+        console.log('🖨️ Auto-print triggered by URL parameter');
+        reprintReceipt();
+    }, 1500);
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Check printer status after a short delay
+    setTimeout(checkPrinterStatus, 1000);
+    
+    // Optional: Periodically check printer status
+    setInterval(checkPrinterStatus, 30000); // Every 30 seconds
+});
+
+// Keyboard shortcut for reprint (Ctrl + P)
+document.addEventListener('keydown', function(event) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'p') {
+        event.preventDefault(); // Prevent browser print
+        reprintReceipt();
+    }
+});
+
+// Add help tooltip
+document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltip for test button
+    const testButton = document.querySelector('button[onclick="testPrinter()"]');
+    if (testButton) {
+        testButton.setAttribute('data-bs-toggle', 'tooltip');
+        testButton.setAttribute('data-bs-placement', 'top');
+        testButton.setAttribute('title', 'Test thermal printer connection');
+    }
+    
+    // Initialize Bootstrap tooltips
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
+});
 </script>
 {% endblock %}

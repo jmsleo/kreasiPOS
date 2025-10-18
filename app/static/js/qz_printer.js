@@ -1,18 +1,35 @@
-// posrss/app/static/js/qz_printer.js - UPDATED FOR INDONESIA WITH IMPROVED CONNECTION
+// posrss/app/static/js/qz_printer.js - COMPLETELY FIXED INITIALIZATION
 
 // Konfigurasi QZ Tray
 qz.api.setPromiseType(function promise(resolver) { return new Promise(resolver); });
 
-let qzConnection = null;
+// Inisialisasi variabel di level paling atas dengan nilai default
+let qzConnection = false;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 3;
 
-// Improved connection function with retry logic
+// Safe initialization function
+function initializeQZConnection() {
+    if (typeof qzConnection === 'undefined' || qzConnection === null) {
+        qzConnection = false;
+    }
+    return qzConnection;
+}
+
+// Improved connection function dengan initialization yang aman
 async function connectToQZ() {
+    // Pastikan inisialisasi
+    initializeQZConnection();
+    
     if (qz.websocket.isActive()) {
         console.log("✅ QZ Tray is already connected.");
         qzConnection = true;
         return Promise.resolve();
+    }
+
+    // Reset connection attempts jika sudah melebihi max
+    if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
+        connectionAttempts = 0;
     }
 
     connectionAttempts++;
@@ -44,14 +61,18 @@ async function connectToQZ() {
     }
 }
 
-// Enhanced printer finding with better fallback
+// Enhanced printer finding with safe initialization
 async function findPrinter(name = 'receipt') {
     try {
+        console.log("🖨️ Looking for printers...");
+        
+        // Pastikan koneksi sudah established
         await connectToQZ();
+        
         const printers = await qz.printers.find();
         console.log("🖨️ Available printers:", printers);
         
-        if (printers.length === 0) {
+        if (!printers || printers.length === 0) {
             throw new Error("No printers found on the system");
         }
         
@@ -66,7 +87,7 @@ async function findPrinter(name = 'receipt') {
         // Try to find specific printer types
         for (const term of searchTerms) {
             const foundPrinter = printers.find(p => 
-                p.toLowerCase().includes(term)
+                p && p.toLowerCase && p.toLowerCase().includes(term)
             );
             if (foundPrinter) {
                 console.log(`✅ Found specific printer: ${foundPrinter}`);
@@ -84,6 +105,7 @@ async function findPrinter(name = 'receipt') {
     }
 }
 
+// Format receipt function
 function formatReceiptForQZ(receiptData) {
     console.log("📝 Formatting receipt data:", receiptData);
     
@@ -95,7 +117,7 @@ function formatReceiptForQZ(receiptData) {
     // Header - Center align
     data.push('\x1B' + '\x61' + '\x31'); // Center align
     data.push('\x1B' + '\x21' + '\x30'); // Double height & width
-    data.push(`${receiptData.store_name}\n\n`);
+    data.push(`${receiptData.store_name || 'Store'}\n\n`);
     data.push('\x1B' + '\x21' + '\x00'); // Normal text
     data.push("KreasiPOS powered by KreasiX\n");
     data.push("====================\n\n");
@@ -114,9 +136,9 @@ function formatReceiptForQZ(receiptData) {
     data.push('\n');
 
     // Transaction Info
-    data.push(`No: ${receiptData.receipt_number}\n`);
-    data.push(`Tanggal: ${receiptData.date}\n`);
-    data.push(`Kasir: ${receiptData.cashier}\n`);
+    data.push(`No: ${receiptData.receipt_number || 'N/A'}\n`);
+    data.push(`Tanggal: ${receiptData.date || new Date().toLocaleString('id-ID')}\n`);
+    data.push(`Kasir: ${receiptData.cashier || 'System'}\n`);
     data.push("--------------------------------\n");
 
     // Items Header
@@ -124,32 +146,34 @@ function formatReceiptForQZ(receiptData) {
     data.push("--------------------------------\n");
 
     // Items
-    receiptData.items.forEach(item => {
-        // Format nama item (maksimal 18 karakter)
-        let name = item.name;
-        if (name.length > 18) {
-            name = name.substring(0, 15) + '...';
-        }
-        
-        // Format quantity (3 digit)
-        let qty = item.quantity.toString();
-        qty = qty.padStart(3, ' ');
-        
-        // Format harga (8 digit)
-        let price = formatNoCurrency(item.unit_price).padStart(8, ' ');
-        
-        // Format total (9 digit)
-        let total = formatNoCurrency(item.total_price).padStart(6, ' ');
-        
-        let line = `${name.padEnd(18)} ${qty} ${price}\n${total}\n`;
-        data.push(line);
-    });
+    if (receiptData.items && Array.isArray(receiptData.items)) {
+        receiptData.items.forEach(item => {
+            // Format nama item (maksimal 18 karakter)
+            let name = item.name || 'Unknown Item';
+            if (name.length > 18) {
+                name = name.substring(0, 15) + '...';
+            }
+            
+            // Format quantity (3 digit)
+            let qty = (item.quantity || 0).toString();
+            qty = qty.padStart(3, ' ');
+            
+            // Format harga (8 digit)
+            let price = formatNoCurrency(item.unit_price || 0).padStart(8, ' ');
+            
+            // Format total (9 digit)
+            let total = formatNoCurrency(item.total_price || 0).padStart(6, ' ');
+            
+            let line = `${name.padEnd(18)} ${qty} ${price}\n${total}\n`;
+            data.push(line);
+        });
+    }
 
     data.push("--------------------------------\n");
 
     // Totals - Right align
     data.push('\x1B' + '\x61' + '\x32'); // Right align
-    data.push(`Subtotal: ${formatCurrency(receiptData.subtotal).padStart(12, ' ')}\n`);
+    data.push(`Subtotal: ${formatCurrency(receiptData.subtotal || 0).padStart(12, ' ')}\n`);
     
     if (receiptData.tax > 0) {
         data.push(`Pajak: ${formatDiskon(receiptData.tax).padStart(15, ' ')}\n`);
@@ -160,17 +184,17 @@ function formatReceiptForQZ(receiptData) {
     }
     
     data.push('\x1B' + '\x21' + '\x18'); // Emphasized text
-    data.push(`TOTAL: ${formatCurrency(receiptData.grand_total).padStart(15, ' ')}\n`);
+    data.push(`TOTAL: ${formatCurrency(receiptData.grand_total || 0).padStart(15, ' ')}\n`);
     data.push('\x1B' + '\x21' + '\x00'); // Normal text
     data.push('\n');
 
     // Payment Info
     data.push('\x1B' + '\x61' + '\x30'); // Left align
-    data.push(`Pembayaran: ${receiptData.payment_method.toUpperCase()}\n`);
+    data.push(`Pembayaran: ${(receiptData.payment_method || 'cash').toUpperCase()}\n`);
     
     if (receiptData.payment_method === 'cash') {
-        data.push(`Tunai: ${formatCurrency(receiptData.amount_paid)}\n`);
-        data.push(`Kembali: ${formatCurrency(receiptData.change)}\n`);
+        data.push(`Tunai: ${formatCurrency(receiptData.amount_paid || receiptData.grand_total || 0)}\n`);
+        data.push(`Kembali: ${formatCurrency(receiptData.change || 0)}\n`);
     }
     
     data.push('\n');
@@ -191,7 +215,7 @@ function formatReceiptForQZ(receiptData) {
     return data;
 }
 
-// Helper function untuk format currency Indonesia
+// Helper functions
 function formatCurrency(amount) {
     return 'Rp ' + Math.round(amount).toLocaleString('id-ID');
 }
@@ -204,6 +228,62 @@ function formatDiskon(amount) {
     return Math.round(amount).toLocaleString('id-ID')+'%';
 }
 
+// Enhanced print function dengan safe initialization
+async function printReceiptWithQZ(receiptData) {
+    try {
+        console.log("🖨️ Starting print process...");
+        
+        // Pastikan inisialisasi
+        initializeQZConnection();
+        
+        // Ensure connection is established
+        await connectToQZ();
+        
+        const printerName = await findPrinter();
+        
+        if (!printerName) {
+            console.error("❌ No printer found");
+            return { success: false, message: "No printer found. Please check your printer connections." };
+        }
+
+        console.log(`🖨️ Using printer: ${printerName}`);
+        
+        // Create printer config dengan pengaturan thermal printer
+        const config = qz.configs.create(printerName, {
+            encoding: 'UTF-8',
+            units: 'mm',
+            size: { width: 58, height: 200 }, // 58mm thermal paper
+            margins: { top: 0, right: 0, bottom: 0, left: 0 }
+        });
+        
+        const data = formatReceiptForQZ(receiptData);
+        
+        console.log("📤 Sending data to printer...");
+        await qz.print(config, data);
+        console.log("✅ Receipt sent to printer successfully!");
+        
+        return { success: true, message: 'Receipt printed successfully.' };
+
+    } catch (err) {
+        console.error("❌ Printing failed:", err);
+        
+        // Reset connection on error for next attempt
+        qzConnection = false;
+        
+        let errorMessage = err.toString();
+        if (errorMessage.includes('QZ Tray')) {
+            errorMessage = 'Could not connect to QZ Tray. Please make sure it is running and try again.';
+        } else if (errorMessage.includes('Cannot access')) {
+            errorMessage = 'Printer initialization error. Please refresh the page and try again.';
+        } else if (errorMessage.includes('No printers')) {
+            errorMessage = 'No printers found. Please check if your printer is connected and try again.';
+        }
+        
+        return { success: false, message: errorMessage };
+    }
+}
+
+// Test print function dengan safe initialization
 async function printTestPageWithQZ() {
     console.log("🧪 Starting test print...");
     
@@ -231,57 +311,35 @@ async function printTestPageWithQZ() {
     return await printReceiptWithQZ(testData);
 }
 
-// Enhanced print function with better error handling
-async function printReceiptWithQZ(receiptData) {
+// Add connection status check function dengan safe initialization
+function getQZConnectionStatus() {
+    // Pastikan inisialisasi
+    initializeQZConnection();
+    
     try {
-        console.log("🖨️ Starting print process...");
-        
-        // Ensure connection is established
-        await connectToQZ();
-        
-        const printerName = await findPrinter();
-        
-        if (!printerName) {
-            console.error("❌ No printer found");
-            return { success: false, message: "No printer found. Please check your printer connections." };
-        }
-
-        console.log(`🖨️ Using printer: ${printerName}`);
-        
-        // Create printer config with specific settings for thermal printers
-        const config = qz.configs.create(printerName, {
-            encoding: 'UTF-8',
-            units: 'mm',
-            size: { width: 58, height: 200 }, // 58mm thermal paper
-            margins: { top: 0, right: 0, bottom: 0, left: 0 }
-        });
-        
-        const data = formatReceiptForQZ(receiptData);
-        
-        console.log("📤 Sending data to printer...");
-        await qz.print(config, data);
-        console.log("✅ Receipt sent to printer successfully!");
-        
-        return { success: true, message: 'Receipt printed successfully.' };
-
-    } catch (err) {
-        console.error("❌ Printing failed:", err);
-        
-        // Reset connection on error for next attempt
-        qzConnection = false;
-        
-        let errorMessage = err.toString();
-        if (errorMessage.includes('QZ Tray')) {
-            errorMessage = 'Could not connect to QZ Tray. Please make sure it is running and try again.';
-        }
-        
-        return { success: false, message: errorMessage };
+        const isActive = qz.websocket.isActive();
+        return {
+            isConnected: isActive,
+            connectionObject: qzConnection,
+            attempts: connectionAttempts
+        };
+    } catch (error) {
+        console.error('Error getting QZ connection status:', error);
+        return {
+            isConnected: false,
+            connectionObject: false,
+            attempts: connectionAttempts,
+            error: error.message
+        };
     }
 }
 
-// Enhanced auto-connect with better error handling
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("🔌 Auto-connecting to QZ Tray...");
+// Enhanced auto-connect dengan safe initialization
+function initializeQZTray() {
+    console.log("🔌 Initializing QZ Tray...");
+    
+    // Pastikan inisialisasi variabel
+    initializeQZConnection();
     
     // Try to connect with a delay to ensure page is fully loaded
     setTimeout(async () => {
@@ -293,15 +351,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Don't show error immediately, will retry when printing is needed
         }
     }, 1000);
-});
-
-// Add connection status check function
-function getQZConnectionStatus() {
-    return {
-        isConnected: qz.websocket.isActive(),
-        connectionObject: qzConnection,
-        attempts: connectionAttempts
-    };
 }
 
 // Export functions for global use
@@ -309,5 +358,12 @@ window.printReceiptWithQZ = printReceiptWithQZ;
 window.printTestPageWithQZ = printTestPageWithQZ;
 window.connectToQZ = connectToQZ;
 window.getQZConnectionStatus = getQZConnectionStatus;
+window.initializeQZTray = initializeQZTray;
+
+// Initialize when script loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("🖨️ QZ Printer module loaded, initializing...");
+    initializeQZTray();
+});
 
 console.log("🖨️ Enhanced QZ Printer module loaded successfully");

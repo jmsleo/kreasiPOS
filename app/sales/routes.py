@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import render_template, request, redirect, send_file, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from app.sales import bp
 from app.sales.forms import SaleForm, CustomerSelectForm
@@ -8,6 +8,11 @@ from app.middleware.tenant_middleware import tenant_required
 from app.utils.timezone import get_user_timezone, convert_utc_to_user_timezone
 import uuid
 from datetime import datetime
+import io
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import mm
+from reportlab.lib.units import mm
+from reportlab.graphics.barcode import code128
 
 @bp.route('/')
 @login_required
@@ -36,9 +41,8 @@ def history():
         .paginate(page=page, per_page=20, error_out=False)
     
     # Convert timestamps to user timezone
-    user_timezone = get_user_timezone()
     for sale in sales.items:
-        sale.local_created_at = convert_utc_to_user_timezone(sale.created_at, user_timezone)
+        sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
     
     return render_template('sales/history.html', sales=sales, date_filter=date_filter, payment_filter=payment_filter)
 
@@ -177,6 +181,49 @@ def view_sale(sale_id):
     
     return render_template('sales/view.html', sale=sale)
 
+@bp.route('/<sale_id>/receipt/data')
+@login_required
+@tenant_required
+def receipt_data(sale_id):
+    """API endpoint to get receipt data for printing"""
+    sale = Sale.query.filter_by(
+        id=sale_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    # PERBAIKAN: Gunakan convert_utc_to_user_timezone tanpa parameter kedua
+    local_created_at = convert_utc_to_user_timezone(sale.created_at)
+    
+    # Prepare receipt data
+    items_data = []
+    for item in sale.items:
+        items_data.append({
+            'name': item.product.name,
+            'quantity': item.quantity,
+            'unit_price': float(item.unit_price),
+            'total_price': float(item.total_price)
+        })
+    
+    receipt_data = {
+        'store_name': current_user.tenant.name,
+        'store_address': current_user.tenant.address or '',
+        'store_phone': current_user.tenant.phone or '',
+        'receipt_number': sale.receipt_number,
+        'date': local_created_at.strftime('%Y-%m-%d %H:%M:%S'),  # Gunakan yang sudah dikonversi
+        'cashier': sale.user.username,
+        'items': items_data,
+        'subtotal': float(sale.total_amount - sale.tax_amount + sale.discount_amount),
+        'tax': float(sale.tax_amount),
+        'discount': float(sale.discount_amount),
+        'grand_total': float(sale.total_amount),
+        'payment_method': sale.payment_method,
+        'amount_paid': float(sale.total_amount),
+        'change': 0.0,
+        'customer_name': sale.customer.name if sale.customer else 'Walk-in Customer'
+    }
+    
+    return jsonify(receipt_data)
+
 @bp.route('/<sale_id>/receipt')
 @login_required
 @tenant_required
@@ -188,8 +235,7 @@ def receipt(sale_id):
     ).first_or_404()
     
     # Convert timestamp to user timezone
-    user_timezone = get_user_timezone()
-    sale.local_created_at = convert_utc_to_user_timezone(sale.created_at, user_timezone)
+    sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
     
     return render_template('sales/receipt.html', sale=sale)
 
@@ -337,3 +383,121 @@ def daily_report():
                          top_products=top_products,
                          start_date=start_date,
                          end_date=end_date)
+
+# --- FUNGSI BARU UNTUK ROUTE PDF ---
+@bp.route('/<sale_id>/receipt/download_pdf')
+@login_required
+@tenant_required
+def download_receipt_pdf(sale_id):
+    """Generate and download PDF receipt"""
+    sale = Sale.query.filter_by(
+        id=sale_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    # Convert timestamp to user timezone
+    sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
+    
+    # Generate PDF content
+    pdf_buffer = _generate_receipt_pdf_content(sale)
+    
+    return send_file(
+        pdf_buffer,
+        as_attachment=True,
+        download_name=f"receipt_{sale.receipt_number}.pdf",
+        mimetype='application/pdf'
+    )
+
+# --- FUNGSI BARU UNTUK ROUTE PRINT API ---
+@bp.route('/<sale_id>/receipt/print', methods=['GET', 'POST'])
+@login_required
+@tenant_required
+def print_receipt(sale_id):
+    """
+    API endpoint to trigger a receipt reprint.
+    Ini adalah route yang hilang yang dipanggil oleh `fetch` JavaScript
+    di template sales/receipt.html
+    """
+    sale = Sale.query.filter_by(
+        id=sale_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    try:
+        # --- TITIK INTEGRASI PRINTER ---
+        # Di sinilah Anda akan memanggil layanan printer Anda yang sebenarnya.
+        # Contoh:
+        # from app.services.printer_service import PrinterService
+        # printer_config = current_user.tenant.printer_settings 
+        # p_service = PrinterService(config=printer_config)
+        # p_service.print_sale(sale) 
+        
+        # Untuk saat ini, kita simulasikan sukses dan log ke konsol
+        current_app.logger.info(f"Reprint job triggered for receipt: {sale.receipt_number} by {current_user.username}")
+        
+        # Kembalikan JSON sukses sesuai harapan JavaScript
+        return jsonify({
+            'success': True, 
+            'message': f"Receipt {sale.receipt_number} sent to printer (simulation)."
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to trigger reprint for receipt {sale.id}: {str(e)}")
+        # Kembalikan JSON error
+        return jsonify({
+            'success': False, 
+            'message': f"Print failed: {str(e)}"
+        }), 500
+
+
+# --- FUNGSI HELPER BARU UNTUK GENERATE PDF (ENTERPRISE GRADE) ---
+def _generate_receipt_pdf_content(sale: Sale) -> io.BytesIO:
+    """
+    Membuat konten PDF untuk struk menggunakan reportlab
+    """
+    buffer = io.BytesIO()
+    
+    # Tentukan ukuran kertas struk (80mm width)
+    receipt_width = 80 * mm
+    receipt_height = 297 * mm 
+    
+    p = canvas.Canvas(buffer, pagesize=(receipt_width, receipt_height))
+    
+    # Tentukan titik awal
+    x_margin = 5 * mm
+    x_margin_right = receipt_width - x_margin
+    y_pos = receipt_height - 10 * mm
+    
+    # Tentukan tinggi baris
+    line_height_small = 3.5 * mm
+    line_height_normal = 4.5 * mm
+    line_height_large = 6 * mm
+    
+    # Helper untuk menggambar baris
+    def draw_line(text, font, size, y_offset, align='left'):
+        nonlocal y_pos
+        y_pos -= y_offset
+        p.setFont(font, size)
+        if align == 'center':
+            p.drawCentredString(receipt_width / 2, y_pos, text)
+        elif align == 'right':
+            p.drawRightString(x_margin_right, y_pos, text)
+        else: # left
+            p.drawString(x_margin, y_pos, text)
+        return y_pos
+
+    # Header Tenant
+    tenant_name = sale.tenant.name
+    tenant_address = sale.tenant.address or 'Store Address'
+    tenant_phone = sale.tenant.phone or 'N/A'
+    
+    draw_line(tenant_name, 'Helvetica-Bold', 12, line_height_large, 'center')
+    draw_line(tenant_address, 'Helvetica', 8, line_height_small, 'center')
+    draw_line(f"Tel: {tenant_phone}", 'Helvetica', 8, line_height_small, 'center')
+    
+    y_pos -= 2 * mm
+    p.line(x_margin, y_pos, x_margin_right, y_pos)
+    
+    # Info Struk - PERBAIKAN: Gunakan sale.local_created_at yang sudah dikonversi
+    draw_line(f"RECEIPT: {sale.receipt_number}", 'Helvetica-Bold', 9, line_height_normal, 'center')
+    draw_line(sale.local_created_at.strftime('%Y-%m-%d %H:%M:%S'), 'Helvetica', 8, line_height_small, 'center')
