@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Nilai Inventory - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-dollar-sign me-2"></i>Breakdown Nilai Inventory
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('raw_materials.index') }}">
+                            <i class="fas fa-boxes me-1"></i>Bahan Baku
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">Nilai Inventory</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('raw_materials.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Nilai Inventory
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                Rp {{ "{:,.2f}".format(total_value) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Total Bahan Baku
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ inventory_data|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-boxes fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Nilai Stok Rendah
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {% set low_stock_value = inventory_data|selectattr('material.is_low_stock')|sum(attribute='value') %}
+                                Rp {{ "{:,.2f}".format(low_stock_value) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Rata-rata per Bahan
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {% if inventory_data|length > 0 %}
+                                Rp {{ "{:,.2f}".format(total_value / inventory_data|length) }}
+                                {% else %}
+                                Rp 0
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calculator fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Breakdown -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-chart-pie me-2"></i>Breakdown Nilai Inventory per Bahan Baku
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if inventory_data %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="dataTable" width="100%" cellspacing="0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Nama Bahan</th>
+                                    <th>Stok</th>
+                                    <th>Harga Cost</th>
+                                    <th>Nilai Inventory</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in inventory_data %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-box me-2 text-primary"></i>
+                                            <strong>{{ item.material.name }}</strong>
+                                        </div>
+                                        <small class="text-muted">{{ item.material.unit }}</small>
+                                    </td>
+                                    <td>{{ "%.2f"|format(item.material.stock_quantity) }}</td>
+                                    <td>
+                                        {% if item.material.cost_price %}
+                                        Rp {{ "{:,.2f}".format(item.material.cost_price) }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>Rp {{ "{:,.2f}".format(item.value) }}</strong>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Chart Visualization -->
+                    <div class="row mt-4">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="m-0 font-weight-bold text-primary">
+                                        <i class="fas fa-chart-bar me-2"></i>Distribusi Nilai Inventory
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container" style="position: relative; height:300px;">
+                                        <!-- This would typically be filled with a JavaScript chart -->
+                                        <div class="text-center text-muted py-5">
+                                            <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                                            <p>Chart akan ditampilkan di sini</p>
+                                            <small>Integrasikan dengan library chart seperti Chart.js</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="m-0 font-weight-bold text-primary">
+                                        <i class="fas fa-info-circle me-2"></i>Saran
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="small">
+                                        <p class="mb-2">
+                                            <strong>Rekomendasi:</strong>
+                                        </p>
+                                        <ul class="mb-0">
+                                            <li>Fokus pada bahan dengan nilai inventory tinggi</li>
+                                            <li>Monitor bahan dengan persentase besar</li>
+                                            <li>Optimasi pembelian untuk bahan bernilai tinggi</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-boxes fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Tidak ada data inventory</h5>
+                        <p class="text-muted">Tidak ada bahan baku aktif untuk dianalisis.</p>
+                        <a href="{{ url_for('raw_materials.create') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Tambah Bahan Baku
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add interactive features
+document.addEventListener('DOMContentLoaded', function() {
+    // Highlight rows with high percentage
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        const percentageCell = row.querySelector('.progress-bar');
+        if (percentageCell) {
+            const percentage = parseFloat(percentageCell.style.width);
+            if (percentage > 30) {
+                row.classList.add('table-info');
+            } else if (percentage > 15) {
+                row.classList.add('table-warning');
+            }
+        }
+        
+        // Add click event to material names
+        const materialName = row.querySelector('strong');
+        if (materialName) {
+            materialName.style.cursor = 'pointer';
+            materialName.title = 'Klik untuk melihat detail';
+            materialName.addEventListener('click', function() {
+                const materialId = this.closest('tr').querySelector('td:first-child').textContent;
+                // You could navigate to edit page or show details
+                console.log('Clicked material:', materialId);
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

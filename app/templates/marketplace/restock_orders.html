@@ -44,6 +44,7 @@
                             <th>Tanggal Pesan</th>
                             <th>Produk</th>
                             <th>Kuantitas</th>
+                            <th>Tujuan</th> <!-- KOLOM BARU -->
                             <th>Jumlah Total</th>
                             <th>Status</th>
                             <th>Admin Notes</th>
@@ -61,6 +62,19 @@
                                 {% endif %}
                             </td>
                             <td>{{ order.quantity }}</td>
+                            <td> <!-- KOLOM TUJUAN BARU -->
+                                {% if order.destination_type == 'product' %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-box-seam"></i> Produk
+                                    </span>
+                                    <br><small class="text-muted">Untuk dijual</small>
+                                {% else %}
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-gear"></i> Bahan Baku
+                                    </span>
+                                    <br><small class="text-muted">Untuk produksi</small>
+                                {% endif %}
+                            </td>
                             <td>{{ "Rp {:,.0f}".format(order.total_amount) }}</td>
                             <td>
                                 {% if order.status.value == 'pending' %}
@@ -117,6 +131,20 @@
                                         <tr>
                                             <th>Kuantitas:</th>
                                             <td>{{ order.quantity }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Tujuan:</th> <!-- BARU DI MODAL -->
+                                            <td>
+                                                {% if order.destination_type == 'product' %}
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-box-seam"></i> Produk (Untuk Dijual)
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-info">
+                                                        <i class="bi bi-gear"></i> Bahan Baku (Untuk Produksi)
+                                                    </span>
+                                                {% endif %}
+                                            </td>
                                         </tr>
                                         <tr>
                                             <th>Harga per item:</th>

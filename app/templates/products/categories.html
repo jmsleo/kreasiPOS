@@ -253,28 +253,18 @@
             </div>
             <form method="POST" action="{{ url_for('products.create_category') }}">
                 <div class="modal-body">
-                    {{ form.hidden_tag() }}
+                    <!-- HAPUS BARIS INI: {{ form.hidden_tag() }} -->
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
                     <div class="mb-3">
                         <label for="name" class="form-label">Category Name</label>
-                        {{ form.name(class="form-control", placeholder="Enter category name") }}
-                        {% if form.name.errors %}
-                            <div class="text-danger small">
-                                {% for error in form.name.errors %}
-                                    {{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                        <!-- GANTI INI: {{ form.name(class="form-control", placeholder="Enter category name") }} -->
+                        <input type="text" class="form-control" id="name" name="name" placeholder="Enter category name" required>
                     </div>
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
-                        {{ form.description(class="form-control", rows="3", placeholder="Optional category description") }}
-                        {% if form.description.errors %}
-                            <div class="text-danger small">
-                                {% for error in form.description.errors %}
-                                    {{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                        <!-- GANTI INI: {{ form.description(class="form-control", rows="3", placeholder="Optional category description") }} -->
+                        <textarea class="form-control" id="description" name="description" rows="3" placeholder="Optional category description"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -324,16 +314,16 @@
 
 {% block scripts %}
 <script>
-// Store URLs in a data attribute in the HTML body
-document.body.dataset.updateUrl = "{{ url_for('products.update_category', category_id=0) }}";
-document.body.dataset.deleteUrl = "{{ url_for('products.delete_category', category_id=0) }}";
+// Store URLs in a data attribute in the HTML body - PERBAIKI PARAMETER
+document.body.dataset.updateUrl = "{{ url_for('products.update_category', id=0) }}";
+document.body.dataset.deleteUrl = "{{ url_for('products.delete_category', id=0) }}";
 
 function editCategory(categoryId, categoryName, categoryDescription) {
     document.getElementById('editCategoryId').value = categoryId;
     document.getElementById('editCategoryName').value = categoryName;
     document.getElementById('editCategoryDescription').value = categoryDescription || '';
     
-    // Set form action using base URL
+    // Set form action using base URL - PERBAIKI PARAMETER
     const updateUrl = document.body.dataset.updateUrl.replace('/0', '/' + categoryId);
     document.getElementById('editCategoryForm').action = updateUrl;
     

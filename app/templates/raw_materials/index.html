@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+
+{% block title %}Bahan Baku - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-boxes me-2"></i>Manajemen Bahan Baku
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">Bahan Baku</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('raw_materials.create') }}" class="btn btn-primary me-2">
+                <i class="fas fa-plus me-2"></i>Tambah Bahan Baku
+            </a>
+            <a href="{{ url_for('raw_materials.export') }}" class="btn btn-success">
+                <i class="fas fa-download me-2"></i>Export
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Cards -->
+    {% if low_stock_materials %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-left-warning shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Peringatan Stok Rendah
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for material in low_stock_materials %}
+                        <div class="col-md-3 mb-2">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-box text-warning me-2"></i>
+                                <div>
+                                    <strong>{{ material.name }}</strong><br>
+                                    <small class="text-muted">
+                                        Stok: {{ "%.2f"|format(material.stock_quantity) }} {{ material.unit }} | 
+                                        Minimal: {{ "%.2f"|format(material.stock_alert) }} {{ material.unit }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('raw_materials.low_stock') }}" class="btn btn-warning btn-sm">
+                            <i class="fas fa-list me-1"></i>Lihat Detail Stok Rendah
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+   <!-- Di bagian Search and Filter -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('raw_materials.index') }}" class="row g-3" id="searchForm">
+                    <div class="col-md-6">
+                        <label for="search" class="form-label">Cari Bahan Baku</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   value="{{ search }}" placeholder="Nama bahan baku, SKU, atau deskripsi...">
+                            <button class="btn btn-outline-primary" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="include_inactive" 
+                                   name="include_inactive" value="true" 
+                                   {% if include_inactive %}checked{% endif %}>
+                            <label class="form-check-label" for="include_inactive">
+                                Tampilkan yang non-aktif
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="d-grid gap-2 mt-4">
+                            <a href="{{ url_for('raw_materials.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-refresh me-1"></i>Reset
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- PERBAIKAN: Tambahkan hidden field untuk page -->
+                    <input type="hidden" name="page" value="1">
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Raw Materials Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-list me-2"></i>Daftar Bahan Baku
+                    </h6>
+                    <div class="btn-group">
+                        <a href="{{ url_for('raw_materials.low_stock') }}" class="btn btn-warning btn-sm">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Stok Rendah
+                        </a>
+                        <a href="{{ url_for('raw_materials.usage_report') }}" class="btn btn-info btn-sm">
+                            <i class="fas fa-chart-bar me-1"></i>Laporan
+                        </a>
+                        <a href="{{ url_for('raw_materials.inventory_value') }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-dollar-sign me-1"></i>Nilai Inventory
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if raw_materials.items %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="dataTable" width="100%" cellspacing="0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nama Bahan</th>
+                                    <th>SKU</th>
+                                    <th>Unit</th>
+                                    <th>Harga Cost</th>
+                                    <th>Stok</th>
+                                    <th>Nilai Inventory</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for material in raw_materials.items %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-box me-2 text-primary"></i>
+                                            <div>
+                                                <strong>{{ material.name }}</strong>
+                                                {% if material.description %}
+                                                <br><small class="text-muted">{{ material.description[:50] }}{% if material.description|length > 50 %}...{% endif %}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ material.sku or '-' }}</td>
+                                    <td>{{ material.unit }}</td>
+                                    <td>
+                                        {% if material.cost_price %}
+                                        Rp {{ "{:,.2f}".format(material.cost_price) }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="me-2 {% if material.is_low_stock() %}text-warning{% endif %}">
+                                                {{ "%.2f"|format(material.stock_quantity) }}
+                                            </span>
+                                            {% if material.is_low_stock() %}
+                                            <i class="fas fa-exclamation-triangle text-warning" 
+                                               title="Stok rendah! Minimal: {{ "%.2f"|format(material.stock_alert) }}"></i>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">min. {{ "%.2f"|format(material.stock_alert) }}</small>
+                                    </td>
+                                    <td>
+                                        {% if material.cost_price %}
+                                        <strong>Rp {{ "{:,.2f}".format((material.cost_price or 0) * (material.stock_quantity or 0)) }}</strong>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if material.is_active %}
+                                        <span class="badge bg-success">Aktif</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Non-aktif</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('raw_materials.edit', raw_material_id=material.id) }}" 
+                                               class="btn btn-outline-primary" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            
+                                            <!-- Toggle Status Button -->
+                                            <form method="POST" 
+                                                  action="{{ url_for('raw_materials.toggle_status', raw_material_id=material.id) }}"
+                                                  class="d-inline">
+                                                <button type="submit" class="btn btn-outline-{% if material.is_active %}warning{% else %}success{% endif %}" 
+                                                        title="{% if material.is_active %}Nonaktifkan{% else %}Aktifkan{% endif %}">
+                                                    <i class="fas fa-{% if material.is_active %}pause{% else %}play{% endif %}"></i>
+                                                </button>
+                                            </form>
+
+                                           <!-- Delete Button -->
+{% if material.is_active %}
+    {% set can_delete = material.bom_items.count() == 0 %}
+    {% if can_delete %}
+    <form method="POST" 
+          action="{{ url_for('raw_materials.delete', raw_material_id=material.id) }}"
+          class="d-inline"
+          onsubmit="return confirm('Apakah Anda yakin ingin menghapus {{ material.name }}?');">
+        <button type="submit" class="btn btn-outline-danger" title="Hapus">
+            <i class="fas fa-trash"></i>
+        </button>
+    </form>
+    {% else %}
+    <button class="btn btn-outline-secondary" 
+            title="Tidak dapat menghapus - bahan digunakan dalam {{ material.bom_items.count() }} BOM"
+            disabled>
+        <i class="fas fa-trash"></i>
+    </button>
+    {% endif %}
+{% else %}
+<button class="btn btn-outline-secondary" 
+        title="Tidak dapat menghapus - bahan non-aktif"
+        disabled>
+    <i class="fas fa-trash"></i>
+</button>
+{% endif %}
+
+                                        <!-- Stock Update Modal -->
+                                        <div class="modal fade" id="stockModal{{ material.id }}" tabindex="-1">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">Update Stok - {{ material.name }}</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <form method="POST" 
+                                                          action="{{ url_for('raw_materials.update_stock', raw_material_id=material.id) }}">
+                                                        <div class="modal-body">
+                                                            <div class="alert alert-info">
+                                                                <i class="fas fa-info-circle me-2"></i>
+                                                                Stok saat ini: <strong>{{ "%.2f"|format(material.stock_quantity) }} {{ material.unit }}</strong>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Operasi Stok</label>
+                                                                <select name="operation" class="form-select" required>
+                                                                    <option value="add">Tambah Stok</option>
+                                                                    <option value="subtract">Kurangi Stok</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Jumlah</label>
+                                                                <input type="number" name="quantity" 
+                                                                       class="form-control" min="0.01" step="0.01" 
+                                                                       placeholder="0.00" required>
+                                                                <small class="form-text text-muted">
+                                                                    Gunakan titik (.) untuk bilangan desimal
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                                            <button type="submit" class="btn btn-primary">Update Stok</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if raw_materials.pages > 1 %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if raw_materials.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('raw_materials.index', page=raw_materials.prev_num, search=search, include_inactive=include_inactive) }}">
+                                    &laquo;
+                                </a>
+                            </li>
+                            {% endif %}
+
+                            {% for page_num in raw_materials.iter_pages() %}
+                                {% if page_num %}
+                                    <li class="page-item {% if page_num == raw_materials.page %}active{% endif %}">
+                                        <a class="page-link" href="{{ url_for('raw_materials.index', page=page_num, search=search, include_inactive=include_inactive) }}">
+                                            {{ page_num }}
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if raw_materials.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('raw_materials.index', page=raw_materials.next_num, search=search, include_inactive=include_inactive) }}">
+                                    &raquo;
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-boxes fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Tidak ada bahan baku</h5>
+                        <p class="text-muted">Mulai dengan menambahkan bahan baku pertama Anda.</p>
+                        <a href="{{ url_for('raw_materials.create') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Tambah Bahan Baku
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mt-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Bahan Baku
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ raw_materials.total }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-boxes fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Bahan Aktif
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ raw_materials.items|selectattr('is_active')|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Stok Rendah
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ low_stock_materials|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Nilai Inventory
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                Rp {{ "{:,.2f}".format(total_inventory_value) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search');
+    if (searchInput) {
+        searchInput.focus();
+    }
+    
+    // PERBAIKAN: Handle checkbox change untuk submit form otomatis
+    const includeInactiveCheckbox = document.getElementById('include_inactive');
+    if (includeInactiveCheckbox) {
+        includeInactiveCheckbox.addEventListener('change', function() {
+            // Reset ke halaman 1 ketika filter berubah
+            document.querySelector('input[name="page"]').value = 1;
+            document.getElementById('searchForm').submit();
+        });
+    }
+});
+
+// Confirm stock update
+document.querySelectorAll('form[action*="update_stock"]').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        const operation = this.querySelector('select[name="operation"]').value;
+        const quantity = parseFloat(this.querySelector('input[name="quantity"]').value);
+        const action = operation === 'add' ? 'menambah' : 'mengurangi';
+        
+        if (!confirm(`Apakah Anda yakin ingin ${action} stok sebanyak ${quantity}?`)) {
+            e.preventDefault();
+        }
+    });
+});
+
+// Confirm status toggle
+document.querySelectorAll('form[action*="toggle_status"]').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        const button = this.querySelector('button');
+        const action = button.title.toLowerCase();
+        
+        if (!confirm(`Apakah Anda yakin ingin ${action} bahan baku ini?`)) {
+            e.preventDefault();
+        }
+    });
+});
+
+// PERBAIKAN: Handle pagination dengan menjaga filter
+document.querySelectorAll('.pagination a').forEach(link => {
+    link.addEventListener('click', function(e) {
+        // Tambahkan parameter filter ke URL pagination
+        const url = new URL(this.href);
+        const searchForm = document.getElementById('searchForm');
+        const formData = new FormData(searchForm);
+        
+        // Tambahkan parameter dari form ke URL
+        for (const [key, value] of formData.entries()) {
+            if (key !== 'page') { // Jangan timpa parameter page dari pagination
+                url.searchParams.set(key, value);
+            }
+        }
+        
+        this.href = url.toString();
+    });
+});
+</script>
+{% endblock %}

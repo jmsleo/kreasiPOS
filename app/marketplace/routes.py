@@ -5,8 +5,8 @@ import uuid
 import os
 from datetime import datetime
 from . import bp
-from .forms import MarketplaceItemForm, RestockOrderForm, RestockVerificationForm, PaymentMethodForm,TenantAddressForm
-from ..models import MarketplaceItem, Product, db, PaymentMethod,RestockOrder, RestockStatus, Tenant
+from .forms import MarketplaceItemForm, RestockOrderForm, RestockVerificationForm, PaymentMethodForm, TenantAddressForm
+from ..models import DestinationType, MarketplaceItem, Product, RawMaterial, db, PaymentMethod,RestockOrder, RestockStatus, Tenant
 from ..superadmin.routes import superadmin_required
 from app.services.s3_service import S3Service  # Import S3Service
 
@@ -27,7 +27,7 @@ def index():
 @bp.route('/restock/<string:item_id>', methods=['GET', 'POST'])
 @login_required
 def restock_item(item_id):
-    """Proses restock item dengan pembayaran dan verifikasi."""
+    """Proses restock item dengan pembayaran dan verifikasi, support untuk produk dan bahan baku."""
     try:
         item_to_restock = MarketplaceItem.query.get_or_404(item_id)
         
@@ -119,13 +119,14 @@ def restock_item(item_id):
                                         tenant=tenant,
                                         title=f"Restock {item_to_restock.name}")
                 
-                # Buat restock order
+                # Buat restock order dengan destination_type
                 restock_order = RestockOrder(
                     id=str(uuid.uuid4()),
                     tenant_id=current_user.tenant_id,
                     marketplace_item_id=item_id,
                     quantity=quantity,
                     total_amount=total_amount,
+                    destination_type=form.destination_type.data,  # Simpan pilihan tujuan
                     shipping_address=shipping_address,
                     shipping_city=shipping_city,
                     shipping_postal_code=shipping_postal_code,
@@ -138,7 +139,9 @@ def restock_item(item_id):
                 db.session.add(restock_order)
                 db.session.commit()
                 
-                flash('Order restock berhasil dibuat. Silakan tunggu verifikasi admin.', 'success')
+                # Pesan sukses berdasarkan tujuan
+                destination_message = "produk untuk dijual" if form.destination_type.data == 'product' else "bahan baku untuk produksi"
+                flash(f'Order restock berhasil dibuat sebagai {destination_message}. Silakan tunggu verifikasi admin.', 'success')
                 return redirect(url_for('marketplace.restock_orders'))
                 
             except Exception as e:
@@ -162,7 +165,7 @@ def restock_item(item_id):
         current_app.logger.error(f"Error in restock_item route: {str(e)}")
         flash('Terjadi error saat mengakses halaman restock.', 'danger')
         return redirect(url_for('marketplace.index'))
-
+    
 @bp.route('/restock-orders')
 @login_required
 def restock_orders():
@@ -403,7 +406,7 @@ def admin_restock_orders():
 @login_required
 @superadmin_required
 def verify_restock_order(order_id):
-    """Verifikasi restock order oleh admin."""
+    """Verifikasi restock order oleh admin dengan support untuk product dan raw_material."""
     restock_order = RestockOrder.query.get_or_404(order_id)
     form = RestockVerificationForm()
     
@@ -415,37 +418,88 @@ def verify_restock_order(order_id):
             restock_order.verified_at = datetime.utcnow()
             restock_order.admin_notes = form.admin_notes.data
             
-            # Jika status verified, tambahkan stok ke produk tenant
+            # Jika status verified, proses berdasarkan destination_type
             if new_status == RestockStatus.VERIFIED:
-                existing_product = Product.query.filter_by(
-                    tenant_id=restock_order.tenant_id, 
-                    name=restock_order.marketplace_item.name
-                ).first()
+                if restock_order.destination_type == 'product':
+                    # Kode untuk produk (seperti sebelumnya)
+                    existing_product = Product.query.filter_by(
+                        tenant_id=restock_order.tenant_id, 
+                        name=restock_order.marketplace_item.name
+                    ).first()
+                    
+                    if existing_product:
+                        existing_product.stock_quantity += restock_order.quantity
+                        flash(f'Stok produk "{existing_product.name}" berhasil ditambahkan.', 'success')
+                        current_app.logger.info(f"Updated product stock: {existing_product.name}, new stock: {existing_product.stock_quantity}")
+                    else:
+                        new_product = Product(
+                            id=str(uuid.uuid4()),
+                            name=restock_order.marketplace_item.name,
+                            description=restock_order.marketplace_item.description,
+                            price=restock_order.marketplace_item.price,
+                            cost_price=restock_order.marketplace_item.price * 0.8,
+                            stock_quantity=restock_order.quantity,
+                            sku=restock_order.marketplace_item.sku or f"PROD-{uuid.uuid4().hex[:8]}",
+                            tenant_id=restock_order.tenant_id,
+                            image_url=restock_order.marketplace_item.image_url,
+                            requires_stock_tracking=True
+                        )
+                        db.session.add(new_product)
+                        flash(f'Produk baru "{new_product.name}" berhasil dibuat.', 'success')
+                        current_app.logger.info(f"Created new product: {new_product.name}, stock: {new_product.stock_quantity}")
                 
-                if existing_product:
-                    existing_product.stock_quantity += restock_order.quantity
-                else:
-                    new_product = Product(
-                        id=str(uuid.uuid4()),
-                        name=restock_order.marketplace_item.name,
-                        description=restock_order.marketplace_item.description,
-                        price=restock_order.marketplace_item.price,
-                        stock_quantity=restock_order.quantity,
-                        sku=restock_order.marketplace_item.sku,
+                elif restock_order.destination_type == 'raw_material':
+                    # PERBAIKAN: Pastikan bahan baku benar-benar dibuat dengan logging detail
+                    current_app.logger.info(f"Processing raw material restock for tenant: {restock_order.tenant_id}, item: {restock_order.marketplace_item.name}")
+                    
+                    existing_raw_material = RawMaterial.query.filter_by(
                         tenant_id=restock_order.tenant_id,
-                        image_url=restock_order.marketplace_item.image_url
-                    )
-                    db.session.add(new_product)
+                        name=restock_order.marketplace_item.name
+                    ).first()
+                    
+                    if existing_raw_material:
+                        # Update stok bahan baku yang sudah ada
+                        old_stock = existing_raw_material.stock_quantity
+                        existing_raw_material.stock_quantity += restock_order.quantity
+                        existing_raw_material.cost_price = restock_order.marketplace_item.price  # Update harga terbaru
+                        existing_raw_material.is_active = True  # Pastikan aktif
+                        flash(f'Stok bahan baku "{existing_raw_material.name}" berhasil ditambahkan.', 'success')
+                        current_app.logger.info(f"Updated raw material: {existing_raw_material.name}, stock: {old_stock} -> {existing_raw_material.stock_quantity}")
+                    else:
+                        # Buat bahan baku baru
+                        new_raw_material = RawMaterial(
+                            id=str(uuid.uuid4()),
+                            name=restock_order.marketplace_item.name,
+                            description=restock_order.marketplace_item.description,
+                            sku=restock_order.marketplace_item.sku or f"RM-{uuid.uuid4().hex[:8]}",
+                            unit='pcs',  # Default unit
+                            cost_price=restock_order.marketplace_item.price,
+                            stock_quantity=restock_order.quantity,
+                            stock_alert=10,  # Default alert
+                            tenant_id=restock_order.tenant_id,
+                            is_active=True
+                        )
+                        db.session.add(new_raw_material)
+                        flash(f'Bahan baku baru "{new_raw_material.name}" berhasil dibuat.', 'success')
+                        current_app.logger.info(f"Created new raw material: {new_raw_material.name}, stock: {new_raw_material.stock_quantity}, tenant: {new_raw_material.tenant_id}")
                 
-                # Kurangi stok dari marketplace item
+                # Kurangi stok dari marketplace item (untuk kedua jenis)
+                old_marketplace_stock = restock_order.marketplace_item.stock
                 restock_order.marketplace_item.stock -= restock_order.quantity
+                current_app.logger.info(f"Updated marketplace item stock: {old_marketplace_stock} -> {restock_order.marketplace_item.stock}")
+                
+                # Commit perubahan
+                db.session.commit()
+                
+                status_message = "verified" if new_status == RestockStatus.VERIFIED else "rejected"
+                flash(f'Restock order has been {status_message}.', 'success')
+                return redirect(url_for('marketplace.admin_restock_orders'))
             
-            db.session.commit()
-            
-            status_message = "verified" if new_status == RestockStatus.VERIFIED else "rejected"
-            flash(f'Restock order has been {status_message}.', 'success')
-            return redirect(url_for('marketplace.admin_restock_orders'))
-            
+            else:  # Jika status rejected, hanya update status
+                db.session.commit()
+                flash('Restock order has been rejected.', 'success')
+                return redirect(url_for('marketplace.admin_restock_orders'))
+                
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Error verifying restock order: {str(e)}")

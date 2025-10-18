@@ -52,112 +52,7 @@
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Scanner Configuration</h5>
-                </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ url_for('settings.barcode_scanner') }}" id="scannerForm">
-                        <div class="mb-4">
-                            <label class="form-label">Scanner Type</label>
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <div class="scanner-option {% if tenant.barcode_scanner_type == 'keyboard' or not tenant.barcode_scanner_type %}active{% endif %}" 
-                                         onclick="selectScanner('keyboard')">
-                                        <div class="scanner-icon text-primary">
-                                            <i class="bi bi-keyboard"></i>
-                                        </div>
-                                        <h6>Keyboard Wedge</h6>
-                                        <p class="small text-muted mb-0">
-                                            Most common type. Scanner acts as keyboard input.
-                                        </p>
-                                        <input type="radio" name="scanner_type" value="keyboard" 
-                                               {% if tenant.barcode_scanner_type == 'keyboard' or not tenant.barcode_scanner_type %}checked{% endif %} 
-                                               style="display: none;">
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="scanner-option {% if tenant.barcode_scanner_type == 'bluetooth' %}active{% endif %}" 
-                                         onclick="selectScanner('bluetooth')">
-                                        <div class="scanner-icon text-success">
-                                            <i class="bi bi-bluetooth"></i>
-                                        </div>
-                                        <h6>Bluetooth</h6>
-                                        <p class="small text-muted mb-0">
-                                            Wireless Bluetooth barcode scanners.
-                                        </p>
-                                        <input type="radio" name="scanner_type" value="bluetooth" 
-                                               {% if tenant.barcode_scanner_type == 'bluetooth' %}checked{% endif %} 
-                                               style="display: none;">
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="scanner-option {% if tenant.barcode_scanner_type == 'serial' %}active{% endif %}" 
-                                         onclick="selectScanner('serial')">
-                                        <div class="scanner-icon text-warning">
-                                            <i class="bi bi-usb-plug"></i>
-                                        </div>
-                                        <h6>Serial/USB</h6>
-                                        <p class="small text-muted mb-0">
-                                            Direct USB or serial port connection.
-                                        </p>
-                                        <input type="radio" name="scanner_type" value="serial" 
-                                               {% if tenant.barcode_scanner_type == 'serial' %}checked{% endif %} 
-                                               style="display: none;">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Advanced Settings -->
-                        <div class="mb-3">
-                            <label class="form-label">Advanced Settings</label>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="suffix_char" class="form-label">Suffix Character</label>
-                                        <select class="form-select" id="suffix_char" name="suffix_char">
-                                            <option value="enter">Enter (Return)</option>
-                                            <option value="tab">Tab</option>
-                                            <option value="none">None</option>
-                                            <option value="custom">Custom Character</option>
-                                        </select>
-                                        <div class="form-text">Character sent after barcode scan</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="scan_delay" class="form-label">Scan Delay (ms)</label>
-                                        <input type="number" class="form-control" id="scan_delay" name="scan_delay" 
-                                               value="100" min="0" max="1000">
-                                        <div class="form-text">Delay between scans to prevent duplicates</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="alert alert-info">
-                            <i class="bi bi-lightbulb"></i> 
-                            <strong>Tip:</strong> For Keyboard Wedge scanners, just plug in and scan. 
-                            The scanner will automatically focus on the search field in POS.
-                        </div>
-
-                        <div class="d-flex justify-content-between">
-                            <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-left"></i> Back to Settings
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-save"></i> Save Settings
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
+        <div class="col-mb-4">
             <!-- Scanner Test Area -->
             <div class="card mb-4">
                 <div class="card-header">
@@ -177,28 +72,14 @@
             <!-- Scanner Status -->
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Current Configuration</h5>
+                    <h5 class="card-title mb-0">Instuctions</h5>
                 </div>
                 <div class="card-body">
-                    {% if tenant.barcode_scanner_type %}
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle"></i>
-                        <strong>Scanner Configured</strong><br>
-                        <small>Type: {{ tenant.barcode_scanner_type|title }}</small>
-                    </div>
-                    {% else %}
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong>Scanner Not Configured</strong><br>
-                        <small>Using default keyboard wedge settings</small>
-                    </div>
-                    {% endif %}
-
                     <h6>Usage Instructions:</h6>
                     <ol class="small">
                         <li>Connect your barcode scanner</li>
-                        <li>Select the appropriate scanner type</li>
-                        <li>Save settings</li>
+                        <li>Read your scanner manual</li>
+                        <li>Try it with scanning any barcode</li>
                         <li>Test by scanning in the POS search field</li>
                     </ol>
                 </div>

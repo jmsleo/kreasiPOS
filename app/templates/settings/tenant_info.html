@@ -95,29 +95,7 @@
                             <div class="form-text">Business tax identification number</div>
                         </div>
 
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="currency" class="form-label">Currency</label>
-                                    <select class="form-select" id="currency" name="currency">
-                                        <option value="IDR" {% if tenant.currency == 'IDR' %}selected{% endif %}>Indonesian Rupiah (IDR)</option>
-                                        <option value="USD" {% if tenant.currency == 'USD' %}selected{% endif %}>US Dollar (USD)</option>
-                                        <option value="EUR" {% if tenant.currency == 'EUR' %}selected{% endif %}>Euro (EUR)</option>
-                                        <option value="SGD" {% if tenant.currency == 'SGD' %}selected{% endif %}>Singapore Dollar (SGD)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="timezone" class="form-label">Timezone</label>
-                                    <select class="form-select" id="timezone" name="timezone">
-                                        <option value="Asia/Jakarta" {% if tenant.timezone == 'Asia/Jakarta' %}selected{% endif %}>Jakarta (WIB)</option>
-                                        <option value="Asia/Makassar" {% if tenant.timezone == 'Asia/Makassar' %}selected{% endif %}>Makassar (WITA)</option>
-                                        <option value="Asia/Jayapura" {% if tenant.timezone == 'Asia/Jayapura' %}selected{% endif %}>Jayapura (WIT)</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
+                    
 
                         <div class="d-flex justify-content-between">
                             <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">

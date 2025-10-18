@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% block title %}Create BOM - {{ product.name }} - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-list-alt me-2"></i>Create Bill of Materials
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('products.index') }}">
+                            <i class="fas fa-cubes me-1"></i>Products
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('products.edit', id=product.id) }}">
+                            {{ product.name }}
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">Create BOM</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('products.edit', id=product.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Product
+            </a>
+        </div>
+    </div>
+
+    <!-- Product Info Card -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-info-circle me-2"></i>Product Information
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-2 text-center">
+                    {% if product.image_url %}
+                    <img src="{{ product.image_url }}" alt="{{ product.name }}" 
+                         class="img-thumbnail" style="width: 100px; height: 100px; object-fit: cover;">
+                    {% else %}
+                    <div class="bg-light rounded d-flex align-items-center justify-content-center" 
+                         style="width: 100px; height: 100px;">
+                        <i class="fas fa-cube text-muted fa-2x"></i>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="col-md-10">
+                    <h4>{{ product.name }}</h4>
+                    <p class="text-muted mb-1">SKU: {{ product.sku }}</p>
+                    <p class="mb-1">
+                        <strong>Selling Price:</strong> 
+                        <span class="text-success">Rp {{ "{:,.0f}".format(product.price) }}</span>
+                    </p>
+                    {% if product.cost_price %}
+                    <p class="mb-1">
+                        <strong>Current Cost:</strong> 
+                        Rp {{ "{:,.0f}".format(product.cost_price) }}
+                    </p>
+                    {% endif %}
+                    <p class="mb-0">
+                        <strong>BOM Cost:</strong> 
+                        <span id="bomTotalCost" class="text-info">Rp 0</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOM Form -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-cogs me-2"></i>BOM Configuration
+            </h6>
+            <button type="button" class="btn btn-success btn-sm" id="addItemBtn">
+                <i class="fas fa-plus me-1"></i>Add Material
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('bom.create_bom', product_id=product.id) }}" id="bomForm">
+                {{ form.hidden_tag() }}
+                
+                <!-- BOM Items Container -->
+                <div id="bomItemsContainer">
+                    <div class="bom-item row mb-3 border-bottom pb-3">
+                        <div class="col-md-5">
+                            <label class="form-label required">Raw Material</label>
+                            <select name="items-0-raw_material_id" class="form-select raw-material-select" required>
+                                <option value="">Select Raw Material</option>
+                                {% for material in raw_materials %}
+                                <option value="{{ material.id }}" 
+                                        data-cost="{{ material.cost_price or 0 }}"
+                                        data-unit="{{ material.unit }}">
+                                    {{ material.name }} ({{ material.unit }}) - Stock: {{ material.stock_quantity }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label required">Quantity</label>
+                            <input type="number" name="items-0-quantity" class="form-control quantity-input" 
+                                   step="0.001" min="0.001" required placeholder="0.000">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Unit</label>
+                            <input type="text" name="items-0-unit" class="form-control unit-display" readonly>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Cost</label>
+                            <div class="input-group">
+                                <span class="input-group-text">Rp</span>
+                                <input type="text" class="form-control item-cost-display" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-danger btn-sm remove-item" disabled>
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cost Summary -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="notes" class="form-label">BOM Notes</label>
+                            {{ form.notes(class="form-control", rows="3", placeholder="Optional notes for this BOM...") }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Cost Summary</h6>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Total BOM Cost:</span>
+                                    <strong id="totalBomCost" class="text-success">Rp 0</strong>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Selling Price:</span>
+                                    <strong class="text-info">Rp {{ "{:,.0f}".format(product.price) }}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Gross Profit:</span>
+                                    <strong id="grossProfit" class="text-success">Rp 0</strong>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Profit Margin:</span>
+                                    <strong id="profitMargin" class="text-success">0%</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{{ url_for('products.edit', id=product.id) }}" class="btn btn-secondary">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Save BOM
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Available Raw Materials -->
+    <div class="card shadow">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-boxes me-2"></i>Available Raw Materials
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Unit</th>
+                            <th>Cost Price</th>
+                            <th>Current Stock</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for material in raw_materials %}
+                        <tr>
+                            <td>{{ material.name }}</td>
+                            <td>{{ material.unit }}</td>
+                            <td>Rp {{ "{:,.0f}".format(material.cost_price or 0) }}</td>
+                            <td>{{ material.stock_quantity }}</td>
+                            <td>
+                                {% if material.stock_quantity <= material.stock_alert %}
+                                <span class="badge bg-warning">Low Stock</span>
+                                {% else %}
+                                <span class="badge bg-success">Available</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let itemCounter = 1;
+
+// Add new BOM item
+document.getElementById('addItemBtn').addEventListener('click', function() {
+    const container = document.getElementById('bomItemsContainer');
+    const newItem = document.querySelector('.bom-item').cloneNode(true);
+    
+    // Update input names
+    const inputs = newItem.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        const name = input.getAttribute('name');
+        if (name) {
+            input.setAttribute('name', name.replace('items-0-', `items-${itemCounter}-`));
+        }
+    });
+    
+    // Clear values
+    newItem.querySelector('.raw-material-select').value = '';
+    newItem.querySelector('.quantity-input').value = '';
+    newItem.querySelector('.unit-display').value = '';
+    newItem.querySelector('.item-cost-display').value = '';
+    newItem.querySelector('.remove-item').disabled = false;
+    
+    container.appendChild(newItem);
+    itemCounter++;
+});
+
+// Remove BOM item
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-item') || e.target.closest('.remove-item')) {
+        const btn = e.target.classList.contains('remove-item') ? e.target : e.target.closest('.remove-item');
+        const item = btn.closest('.bom-item');
+        
+        // Don't remove the last item
+        const allItems = document.querySelectorAll('.bom-item');
+        if (allItems.length > 1) {
+            item.remove();
+            calculateTotalCost();
+        }
+    }
+});
+
+// Calculate item cost when material or quantity changes
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('raw-material-select') || e.target.classList.contains('quantity-input')) {
+        const item = e.target.closest('.bom-item');
+        calculateItemCost(item);
+        calculateTotalCost();
+    }
+});
+
+function calculateItemCost(item) {
+    const materialSelect = item.querySelector('.raw-material-select');
+    const quantityInput = item.querySelector('.quantity-input');
+    const unitDisplay = item.querySelector('.unit-display');
+    const costDisplay = item.querySelector('.item-cost-display');
+    
+    const selectedOption = materialSelect.options[materialSelect.selectedIndex];
+    const costPerUnit = parseFloat(selectedOption.getAttribute('data-cost')) || 0;
+    const quantity = parseFloat(quantityInput.value) || 0;
+    const unit = selectedOption.getAttribute('data-unit') || '';
+    
+    // Update unit display
+    unitDisplay.value = unit;
+    
+    // Calculate and display cost
+    const totalCost = costPerUnit * quantity;
+    costDisplay.value = totalCost.toLocaleString('id-ID');
+}
+
+function calculateTotalCost() {
+    let totalCost = 0;
+    const items = document.querySelectorAll('.bom-item');
+    
+    items.forEach(item => {
+        const materialSelect = item.querySelector('.raw-material-select');
+        const quantityInput = item.querySelector('.quantity-input');
+        
+        if (materialSelect.value && quantityInput.value) {
+            const selectedOption = materialSelect.options[materialSelect.selectedIndex];
+            const costPerUnit = parseFloat(selectedOption.getAttribute('data-cost')) || 0;
+            const quantity = parseFloat(quantityInput.value) || 0;
+            totalCost += costPerUnit * quantity;
+        }
+    });
+    
+    // Update displays
+    document.getElementById('totalBomCost').textContent = 'Rp ' + totalCost.toLocaleString('id-ID');
+    document.getElementById('bomTotalCost').textContent = 'Rp ' + totalCost.toLocaleString('id-ID');
+    
+    // Calculate profit
+    const sellingPrice = {{ product.price }};
+    const grossProfit = sellingPrice - totalCost;
+    const profitMargin = sellingPrice > 0 ? (grossProfit / sellingPrice * 100) : 0;
+    
+    document.getElementById('grossProfit').textContent = 'Rp ' + grossProfit.toLocaleString('id-ID');
+    document.getElementById('profitMargin').textContent = profitMargin.toFixed(1) + '%';
+    
+    // Color code profit
+    const profitElement = document.getElementById('grossProfit');
+    const marginElement = document.getElementById('profitMargin');
+    
+    if (grossProfit < 0) {
+        profitElement.className = 'text-danger';
+        marginElement.className = 'text-danger';
+    } else if (grossProfit < (sellingPrice * 0.2)) {
+        profitElement.className = 'text-warning';
+        marginElement.className = 'text-warning';
+    } else {
+        profitElement.className = 'text-success';
+        marginElement.className = 'text-success';
+    }
+}
+
+// Form validation
+document.getElementById('bomForm').addEventListener('submit', function(e) {
+    const items = document.querySelectorAll('.bom-item');
+    let hasValidItems = false;
+    
+    items.forEach(item => {
+        const materialSelect = item.querySelector('.raw-material-select');
+        const quantityInput = item.querySelector('.quantity-input');
+        
+        if (materialSelect.value && quantityInput.value && parseFloat(quantityInput.value) > 0) {
+            hasValidItems = true;
+        }
+    });
+    
+    if (!hasValidItems) {
+        e.preventDefault();
+        alert('Please add at least one valid raw material with quantity greater than 0.');
+        return false;
+    }
+    
+    const totalCost = parseFloat(document.getElementById('totalBomCost').textContent.replace(/[^\d.-]/g, '')) || 0;
+    if (totalCost <= 0) {
+        e.preventDefault();
+        alert('Total BOM cost must be greater than 0.');
+        return false;
+    }
+});
+
+// Initialize first item calculation
+document.addEventListener('DOMContentLoaded', function() {
+    calculateTotalCost();
+});
+</script>
+{% endblock %}

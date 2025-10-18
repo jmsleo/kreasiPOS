@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Stok Rendah - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-exclamation-triangle me-2 text-warning"></i>Bahan Baku Stok Rendah
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('raw_materials.index') }}">
+                            <i class="fas fa-boxes me-1"></i>Bahan Baku
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">Stok Rendah</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('raw_materials.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali ke Daftar
+            </a>
+        </div>
+    </div>
+
+    <!-- Low Stock Materials -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-list me-2"></i>Daftar Bahan Baku Stok Rendah
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if low_stock_materials %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Terdapat <strong>{{ low_stock_materials|length }}</strong> bahan baku dengan stok rendah yang perlu perhatian.
+                        Total nilai inventory stok rendah: <strong>Rp {{ "{:,.2f}".format(total_low_stock_value) }}</strong>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="dataTable" width="100%" cellspacing="0">
+                            <thead class="table-warning">
+                                <tr>
+                                    <th>Nama Bahan</th>
+                                    <th>SKU</th>
+                                    <th>Unit</th>
+                                    <th>Stok Saat Ini</th>
+                                    <th>Minimal Stok</th>
+                                    <th>Kekurangan</th>
+                                    <th>Harga Cost</th>
+                                    <th>Nilai Inventory</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for material in low_stock_materials %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-box me-2 text-warning"></i>
+                                            <strong>{{ material.name }}</strong>
+                                        </div>
+                                    </td>
+                                    <td>{{ material.sku or '-' }}</td>
+                                    <td>{{ material.unit }}</td>
+                                    <td class="text-warning">
+                                        <strong>{{ "%.2f"|format(material.stock_quantity) }}</strong>
+                                    </td>
+                                    <td>{{ "%.2f"|format(material.stock_alert) }}</td>
+                                    <td class="text-danger">
+                                        <strong>{{ "%.2f"|format(material.stock_alert - material.stock_quantity) }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if material.cost_price %}
+                                        Rp {{ "{:,.2f}".format(material.cost_price) }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if material.cost_price %}
+                                        Rp {{ "{:,.2f}".format((material.cost_price or 0) * (material.stock_quantity or 0)) }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('raw_materials.edit', raw_material_id=material.id) }}" 
+                                               class="btn btn-outline-primary" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-warning" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#stockModal{{ material.id }}"
+                                                    title="Update Stok">
+                                                <i class="fas fa-warehouse"></i>
+                                            </button>
+                                        </div>
+
+                                        <!-- Stock Update Modal -->
+                                        <div class="modal fade" id="stockModal{{ material.id }}" tabindex="-1">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">Update Stok - {{ material.name }}</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <form method="POST" 
+                                                          action="{{ url_for('raw_materials.update_stock', raw_material_id=material.id) }}">
+                                                        <div class="modal-body">
+                                                            <div class="alert alert-info">
+                                                                <i class="fas fa-info-circle me-2"></i>
+                                                                Stok saat ini: <strong>{{ "%.2f"|format(material.stock_quantity) }} {{ material.unit }}</strong><br>
+                                                                Minimal yang dibutuhkan: <strong>{{ "%.2f"|format(material.stock_alert) }} {{ material.unit }}</strong><br>
+                                                                Kekurangan: <strong class="text-danger">{{ "%.2f"|format(material.stock_alert - material.stock_quantity) }} {{ material.unit }}</strong>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Operasi Stok</label>
+                                                                <select name="operation" class="form-select" required>
+                                                                    <option value="add">Tambah Stok</option>
+                                                                    <option value="subtract">Kurangi Stok</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Jumlah</label>
+                                                                <input type="number" name="quantity" 
+                                                                       class="form-control" min="0.01" step="0.01" 
+                                                                       placeholder="0.00" required>
+                                                                <small class="form-text text-muted">
+                                                                    Gunakan titik (.) untuk bilangan desimal
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                                            <button type="submit" class="btn btn-primary">Update Stok</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card border-warning">
+                                <div class="card-body">
+                                    <h6 class="card-title text-warning">
+                                        <i class="fas fa-chart-pie me-2"></i>Ringkasan
+                                    </h6>
+                                    <div class="small">
+                                        <p class="mb-1">Total bahan baku stok rendah: <strong>{{ low_stock_materials|length }}</strong></p>
+                                        <p class="mb-1">Rata-rata kekurangan stok: <strong>
+                                            {{ "%.2f"|format((low_stock_materials|sum(attribute='stock_alert') - low_stock_materials|sum(attribute='stock_quantity')) / low_stock_materials|length if low_stock_materials|length > 0 else 0) }}
+                                        </strong> unit</p>
+                                        <p class="mb-0">Total nilai inventory stok rendah: <strong>Rp {{ "{:,.2f}".format(total_low_stock_value) }}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-info">
+                                <div class="card-body">
+                                    <h6 class="card-title text-info">
+                                        <i class="fas fa-lightbulb me-2"></i>Rekomendasi
+                                    </h6>
+                                    <div class="small">
+                                        <p class="mb-1">Segera lakukan restock untuk bahan-bahan di atas</p>
+                                        <p class="mb-1">Pertimbangkan untuk menyesuaikan alert level jika sering terjadi</p>
+                                        <p class="mb-0">Monitor bahan dengan nilai inventory tinggi terlebih dahulu</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h5 class="text-success">Semua Stok Aman</h5>
+                        <p class="text-muted">Tidak ada bahan baku dengan stok rendah saat ini.</p>
+                        <a href="{{ url_for('raw_materials.index') }}" class="btn btn-primary">
+                            <i class="fas fa-boxes me-2"></i>Lihat Semua Bahan Baku
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-focus quantity input when modal opens
+document.addEventListener('DOMContentLoaded', function() {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        modal.addEventListener('shown.bs.modal', function() {
+            const input = this.querySelector('input[name="quantity"]');
+            if (input) {
+                input.focus();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

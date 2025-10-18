@@ -41,7 +41,7 @@
     <!-- Settings Cards -->
     <div class="row g-4">
         <!-- Business Information -->
-        <div class="col-md-6 col-lg-3">
+        <div class="col-md-6 col-lg-6">
             <a href="{{ url_for('settings.tenant_info') }}" class="card-link">
                 <div class="card settings-card h-100">
                     <div class="card-body text-center">
@@ -84,47 +84,12 @@
                         </div>
                         <h5 class="card-title">Barcode Scanner</h5>
                         <p class="card-text text-muted small">
-                            Konfigurasikan pengaturan dan preferensi scanner barcode
+                            Konfigurasikan scanner barcode
                         </p>
                     </div>
                 </div>
             </a>
         </div>
-
-        <!-- System Status -->
-        <div class="col-md-6 col-lg-3">
-            <div class="card settings-card h-100">
-                <div class="card-body text-center">
-                    <div class="text-info settings-icon">
-                        <i class="bi bi-info-circle"></i>
-                    </div>
-                    <h5 class="card-title">Status Sistem</h5>
-                    <div class="text-start small">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Bisnis:</span>
-                            <span class="badge bg-success">{{ tenant.name }}</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Printer:</span>
-                            {% if tenant.printer_settings %}
-                                <span class="badge bg-success">Terkonfigurasi</span>
-                            {% else %}
-                                <span class="badge bg-warning">Belum Diatur</span>
-                            {% endif %}
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>Scanner:</span>
-                            {% if tenant.barcode_scanner_type %}
-                                <span class="badge bg-success">{{ tenant.barcode_scanner_type|title }}</span>
-                            {% else %}
-                                <span class="badge bg-warning">Belum Diatur</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Recent Activity -->
     <div class="row mt-5">

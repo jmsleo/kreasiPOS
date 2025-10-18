@@ -8,7 +8,7 @@ from app.models import User, Tenant
 class LoginForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Password', validators=[DataRequired()])
-    remember_me = BooleanField('Remember Me')
+    remember_me = BooleanField('Remember Me', default=False)  # Set default value
     submit = SubmitField('Sign In')
 
 class RegistrationForm(FlaskForm):

@@ -1,380 +1,649 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Produk - Inventory Management</title>
-    
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-    <style>
-        .image-preview {
-            max-width: 200px;
-            max-height: 200px;
-            margin-top: 10px;
-            display: none;
-        }
-        .required:after {
-            content: " *";
-            color: red;
-        }
-        .form-section {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container-fluid py-4">
-        <!-- Header -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h3 mb-0">
-                <i class="fas fa-edit me-2"></i>Edit Produk
+{% extends "base.html" %}
+
+{% block title %}Edit Product - {{ product.name }} - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-edit me-2"></i>Edit Product
             </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('products.index') }}">
+                            <i class="fas fa-cubes me-1"></i>Products
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">{{ product.name }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
             <a href="{{ url_for('products.index') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-1"></i> Kembali
+                <i class="fas fa-arrow-left me-2"></i>Back to Products
             </a>
         </div>
+    </div>
 
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'danger' else 'success' }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <div class="row">
-            <div class="col-lg-8 mx-auto">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Informasi Produk</h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST" enctype="multipart/form-data" id="productForm">
-                            {{ form.hidden_tag() }}
-                            
-                            <!-- Basic Information Section -->
-                            <div class="form-section">
-                                <h6 class="mb-3">Informasi Dasar</h6>
-                                
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label for="name" class="form-label required">Nama Produk</label>
-                                        {{ form.name(class="form-control", placeholder="Masukkan nama produk") }}
-                                        {% if form.name.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.name.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    <div class="col-md-6 mb-3">
-                                        <label for="sku" class="form-label">SKU</label>
-                                        {{ form.sku(class="form-control", placeholder="Kode SKU produk") }}
-                                        {% if form.sku.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.sku.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label for="barcode" class="form-label">Barcode</label>
-                                        {{ form.barcode(class="form-control", placeholder="Kode barcode") }}
-                                        {% if form.barcode.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.barcode.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    <div class="col-md-6 mb-3">
-                                        <label for="category_id" class="form-label">Kategori</label>
-                                        {{ form.category_id(class="form-select") }}
-                                        {% if form.category_id.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.category_id.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label for="description" class="form-label">Deskripsi</label>
-                                    {{ form.description(class="form-control", rows="3", placeholder="Deskripsi produk (opsional)") }}
-                                    {% if form.description.errors %}
-                                        <div class="text-danger small">
-                                            {% for error in form.description.errors %}
-                                                {{ error }}
-                                            {% endfor %}
-                                        </div>
+    <!-- Product Info Summary -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-info-circle me-2"></i>Current Product Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-2 text-center">
+                            {% if product.image_url %}
+                            <img src="{{ product.image_url }}" alt="{{ product.name }}" 
+                                 class="img-thumbnail" style="width: 80px; height: 80px; object-fit: cover;">
+                            {% else %}
+                            <div class="bg-light rounded d-flex align-items-center justify-content-center" 
+                                 style="width: 80px; height: 80px;">
+                                <i class="fas fa-cube text-muted"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-10">
+                            <h4>{{ product.name }}</h4>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <p class="mb-1"><strong>SKU:</strong> {{ product.sku }}</p>
+                                    <p class="mb-1">
+                                        <strong>Price:</strong> 
+                                        <span class="text-success">Rp {{ "{:,.0f}".format(product.price) }}</span>
+                                    </p>
+                                    {% if product.cost_price %}
+                                    <p class="mb-1">
+                                        <strong>Cost:</strong> 
+                                        Rp {{ "{:,.0f}".format(product.cost_price) }}
+                                    </p>
                                     {% endif %}
                                 </div>
-                            </div>
-
-                            <!-- Pricing Section -->
-                            <div class="form-section">
-                                <h6 class="mb-3">Harga & Biaya</h6>
-                                
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label for="price" class="form-label required">Harga Jual</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">Rp</span>
-                                            {{ form.price(class="form-control", placeholder="0") }}
-                                        </div>
-                                        {% if form.price.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.price.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
+                                <div class="col-md-4">
+                                    <p class="mb-1">
+                                        <strong>Stock:</strong> 
+                                        {% if product.requires_stock_tracking %}
+                                        {{ product.stock_quantity }} {{ product.unit }}
+                                        {% else %}
+                                        <span class="text-muted">No Tracking</span>
                                         {% endif %}
-                                    </div>
-                                    
-                                    <div class="col-md-6 mb-3">
-                                        <label for="cost_price" class="form-label">Harga Beli</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">Rp</span>
-                                            {{ form.cost_price(class="form-control", placeholder="0") }}
-                                        </div>
-                                        {% if form.cost_price.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.cost_price.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Category:</strong> 
+                                        {% if product.category %}
+                                        {{ product.category.name }}
+                                        {% else %}
+                                        <span class="text-muted">Uncategorized</span>
                                         {% endif %}
-                                    </div>
+                                    </p>
                                 </div>
-                            </div>
-
-                            <!-- Inventory Section -->
-                            <div class="form-section">
-                                <h6 class="mb-3">Manajemen Stok</h6>
-                                
-                                <div class="row">
-                                    <div class="col-md-4 mb-3">
-                                        <label for="stock_quantity" class="form-label required">Stok Saat Ini</label>
-                                        {{ form.stock_quantity(class="form-control", type="number", min="0") }}
-                                        {% if form.stock_quantity.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.stock_quantity.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
+                                <div class="col-md-4">
+                                    <p class="mb-1">
+                                        <strong>Status:</strong> 
+                                        {% if product.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
                                         {% endif %}
-                                    </div>
-                                    
-                                    <div class="col-md-4 mb-3">
-                                        <label for="stock_alert" class="form-label required">Stok Peringatan</label>
-                                        {{ form.stock_alert(class="form-control", type="number", min="0") }}
-                                        <small class="form-text text-muted">Stok minimum sebelum peringatan</small>
-                                        {% if form.stock_alert.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.stock_alert.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
+                                    </p>
+                                    <p class="mb-0">
+                                        <strong>BOM:</strong> 
+                                        {% if product.has_bom %}
+                                        <span class="badge bg-info">Enabled</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Disabled</span>
                                         {% endif %}
-                                    </div>
-                                    
-                                    <div class="col-md-4 mb-3">
-                                        <label for="unit" class="form-label">Satuan</label>
-                                        {{ form.unit(class="form-control", placeholder="pcs, kg, etc") }}
-                                        {% if form.unit.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.unit.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label for="carton_quantity" class="form-label">Jumlah per Karton</label>
-                                        {{ form.carton_quantity(class="form-control", type="number", min="0") }}
-                                        <small class="form-text text-muted">Isi 0 jika tidak menggunakan sistem karton</small>
-                                        {% if form.carton_quantity.errors %}
-                                            <div class="text-danger small">
-                                                {% for error in form.carton_quantity.errors %}
-                                                    {{ error }}
-                                                {% endfor %}
-                                            </div>
-                                        {% endif %}
-                                    </div>
+                                    </p>
                                 </div>
                             </div>
-
-                            <!-- Image Upload Section -->
-                            <div class="form-section">
-                                <h6 class="mb-3">Gambar Produk</h6>
-                                
-                                <div class="mb-3">
-                                    <label for="image" class="form-label">Unggah Gambar</label>
-                                    {{ form.image(class="form-control", accept="image/*") }}
-                                    <small class="form-text text-muted">
-                                        Format: JPG, PNG, GIF. Maksimal 5MB.
-                                    </small>
-                                    {% if form.image.errors %}
-                                        <div class="text-danger small">
-                                            {% for error in form.image.errors %}
-                                                {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-
-                                <!-- Current Image Preview -->
-                                {% if product.image_url %}
-                                    <div class="mb-3">
-                                        <label class="form-label">Gambar Saat Ini</label>
-                                        <div>
-                                            <img src="{{ product.image_url }}" alt="Current product image" 
-                                                 class="img-thumbnail" style="max-height: 200px;">
-                                            <small class="d-block text-muted mt-1">
-                                                Gambar yang saat ini digunakan
-                                            </small>
-                                        </div>
-                                    </div>
-                                {% endif %}
-
-                                <!-- New Image Preview -->
-                                <div id="imagePreviewContainer" class="mb-3" style="display: none;">
-                                    <label class="form-label">Pratinjau Gambar Baru</label>
-                                    <div>
-                                        <img id="imagePreview" src="#" alt="Image preview" 
-                                             class="img-thumbnail" style="max-height: 200px;">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Status Section -->
-                            <div class="form-section">
-                                <h6 class="mb-3">Status</h6>
-                                
-                                <div class="mb-3">
-                                    <div class="form-check form-switch">
-                                        {{ form.is_active(class="form-check-input", role="switch") }}
-                                        <label class="form-check-label" for="is_active">
-                                            Produk Aktif
-                                        </label>
-                                    </div>
-                                    <small class="form-text text-muted">
-                                        Nonaktifkan untuk menyembunyikan produk dari penjualan
-                                    </small>
-                                    {% if form.is_active.errors %}
-                                        <div class="text-danger small">
-                                            {% for error in form.is_active.errors %}
-                                                {{ error }}
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-
-                            <!-- Form Actions -->
-                            <div class="d-flex justify-content-between align-items-center">
-                                <a href="{{ url_for('products.index') }}" class="btn btn-outline-secondary">
-                                    <i class="fas fa-times me-1"></i> Batal
-                                </a>
-                                
-                                <div>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-save me-1"></i> Simpan Perubahan
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
+                        </div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-cogs me-2"></i>Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    {% if product.has_bom %}
+                    <a href="{{ url_for('bom.view_bom', product_id=product.id) }}" class="btn btn-info w-100 mb-2">
+                        <i class="fas fa-list-alt me-2"></i>View BOM
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('bom.create_bom', product_id=product.id) }}" class="btn btn-outline-info w-100 mb-2">
+                        <i class="fas fa-list-alt me-2"></i>Create BOM
+                    </a>
+                    {% endif %}
+                    
+                    <form method="POST" action="{{ url_for('products.toggle_status', id=product.id) }}" class="d-inline w-100 mb-2">
+                        <button type="submit" class="btn {% if product.is_active %}btn-warning{% else %}btn-success{% endif %} w-100">
+                            {% if product.is_active %}
+                            <i class="fas fa-pause me-2"></i>Deactivate
+                            {% else %}
+                            <i class="fas fa-play me-2"></i>Activate
+                            {% endif %}
+                        </button>
+                    </form>
+                    
+                    {% if product.sale_items.count() == 0 %}
+                    <form method="POST" action="{{ url_for('products.delete', id=product.id) }}" 
+                          class="d-inline w-100"
+                          onsubmit="return confirm('Are you sure you want to delete {{ product.name }}? This action cannot be undone.');">
+                        <button type="submit" class="btn btn-danger w-100">
+                            <i class="fas fa-trash me-2"></i>Delete Product
+                        </button>
+                    </form>
+                    {% else %}
+                    <button class="btn btn-danger w-100" disabled title="Cannot delete product with sales history">
+                        <i class="fas fa-trash me-2"></i>Delete Product
+                    </button>
+                    <small class="text-muted">Has sales history</small>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Edit Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-edit me-2"></i>Edit Product Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('products.edit', id=product.id) }}" enctype="multipart/form-data" id="productForm">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="name" class="form-label required">
+                                        <i class="fas fa-tag me-1"></i>Product Name
+                                    </label>
+                                    {{ form.name(class="form-control", placeholder="Enter product name") }}
+                                    {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.name.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="category_id" class="form-label">
+                                        <i class="fas fa-folder me-1"></i>Category
+                                    </label>
+                                    {{ form.category_id(class="form-select") }}
+                                    {% if form.category_id.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.category_id.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SKU and Barcode -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="sku" class="form-label">
+                                        <i class="fas fa-barcode me-1"></i>SKU
+                                    </label>
+                                    {{ form.sku(class="form-control", placeholder="Stock keeping unit") }}
+                                    <small class="form-text text-muted">Unique identifier for this product</small>
+                                    {% if form.sku.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.sku.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="barcode" class="form-label">
+                                        <i class="fas fa-qrcode me-1"></i>Barcode
+                                    </label>
+                                    {{ form.barcode(class="form-control", placeholder="Optional barcode") }}
+                                    {% if form.barcode.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.barcode.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pricing -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="price" class="form-label required">
+                                        <i class="fas fa-money-bill-wave me-1"></i>Selling Price
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">Rp</span>
+                                        {{ form.price(class="form-control", placeholder="0", step="0.01", min="0") }}
+                                    </div>
+                                    {% if form.price.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.price.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="cost_price" class="form-label">
+                                        <i class="fas fa-receipt me-1"></i>Cost Price
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">Rp</span>
+                                        {{ form.cost_price(class="form-control", placeholder="0", step="0.01", min="0") }}
+                                    </div>
+                                    <small class="form-text text-muted">Purchase cost for profit calculation</small>
+                                    {% if form.cost_price.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.cost_price.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Unit and Packaging -->
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="unit" class="form-label">
+                                        <i class="fas fa-weight me-1"></i>Unit
+                                    </label>
+                                    {{ form.unit(class="form-select") }}
+                                    {% if form.unit.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.unit.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="carton_quantity" class="form-label">
+                                        <i class="fas fa-box me-1"></i>Pieces per Carton
+                                    </label>
+                                    {{ form.carton_quantity(class="form-control", placeholder="1", min="1") }}
+                                    <small class="form-text text-muted">For bulk packaging</small>
+                                    {% if form.carton_quantity.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.carton_quantity.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check form-switch mt-4 pt-2">
+                                    {{ form.requires_stock_tracking(class="form-check-input") }}
+                                    <label class="form-check-label" for="requires_stock_tracking">
+                                        Enable Stock Tracking
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stock Fields (Conditional) -->
+                        <div id="stockFields" class="row mb-4" style="display: {% if product.requires_stock_tracking %}block{% else %}none{% endif %};">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="stock_quantity" class="form-label">Current Stock</label>
+                                    {{ form.stock_quantity(class="form-control", placeholder="0", min="0") }}
+                                    {% if form.stock_quantity.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.stock_quantity.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="stock_alert" class="form-label">Low Stock Alert</label>
+                                    {{ form.stock_alert(class="form-control", placeholder="10", min="0") }}
+                                    <small class="form-text text-muted">Alert when stock reaches this level</small>
+                                    {% if form.stock_alert.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.stock_alert.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BOM and Image -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    {{ form.has_bom(class="form-check-input") }}
+                                    <label class="form-check-label" for="has_bom">
+                                        Use Bill of Materials (BOM)
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Enable if this product is made from raw materials
+                                    {% if product.has_bom and active_bom %}
+                                    <br><span class="text-info">
+                                        <i class="fas fa-check me-1"></i>BOM is configured
+                                    </span>
+                                    {% endif %}
+                                </small>
+                                
+                                {% if product.has_bom and active_bom %}
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <strong>BOM Cost:</strong> Rp {{ "{:,.0f}".format(active_bom.calculate_total_cost()) }}<br>
+                                        <strong>Items:</strong> {{ active_bom.items.count() }} materials
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="image" class="form-label">
+                                        <i class="fas fa-image me-1"></i>Product Image
+                                    </label>
+                                    {{ form.image(class="form-control", accept="image/*") }}
+                                    <small class="form-text text-muted">
+                                        {% if product.image_url %}
+                                        Current image: <a href="{{ product.image_url }}" target="_blank">View</a>
+                                        {% else %}
+                                        Upload product image (JPG/PNG, max 5MB)
+                                        {% endif %}
+                                    </small>
+                                    {% if form.image.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.image.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="form-group mb-4">
+                            <label for="description" class="form-label">
+                                <i class="fas fa-align-left me-1"></i>Description
+                            </label>
+                            {{ form.description(class="form-control", rows="3", placeholder="Enter product description...") }}
+                            {% if form.description.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.description.errors %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Status -->
+                        <div class="form-check form-switch mb-4">
+                            {{ form.is_active(class="form-check-input") }}
+                            <label class="form-check-label" for="is_active">
+                                Product is Active
+                            </label>
+                            <small class="form-text text-muted d-block">
+                                Inactive products won't appear in POS and product lists
+                            </small>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('products.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i>Update Product
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview & Info Card -->
+        <div class="col-lg-4">
+            <!-- Preview Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-eye me-2"></i>Product Preview
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    <div id="imagePreview" class="mb-3">
+                        {% if product.image_url %}
+                        <img id="previewImage" src="{{ product.image_url }}" class="img-thumbnail" 
+                             style="max-width: 200px; max-height: 200px;">
+                        {% else %}
+                        <div id="noImagePreview" class="text-muted">
+                            <i class="fas fa-cube fa-3x mb-2"></i>
+                            <p>No image selected</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <h6 id="previewName">{{ product.name }}</h6>
+                    <p class="text-muted small" id="previewSku">SKU: {{ product.sku }}</p>
+                    <p class="text-success" id="previewPrice">Rp {{ "{:,.0f}".format(product.price) }}</p>
+                    <div class="mt-3">
+                        {% if product.requires_stock_tracking %}
+                        <span class="badge bg-info">Stock Tracking</span>
+                        {% endif %}
+                        {% if product.has_bom %}
+                        <span class="badge bg-warning">BOM Enabled</span>
+                        {% endif %}
+                        {% if product.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sales Info Card -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-chart-bar me-2"></i>Sales Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="display-6 text-primary">{{ product.sale_items.count() }}</div>
+                        <small class="text-muted">Total Sales</small>
+                    </div>
+                    <div class="small">
+    <p class="mb-1">
+        <strong>Last Sale:</strong><br>
+        {% if product.last_sale_item %}
+        {{ product.last_sale_item.sale.created_at.strftime('%d %b %Y') }}
+        {% else %}
+        <span class="text-muted">No sales yet</span>
+        {% endif %}
+    </p>
+    <p class="mb-0">
+        <strong>Total Revenue:</strong><br>
+        <span class="text-success">
+            Rp {{ "{:,.0f}".format(product.total_revenue) }}
+        </span>
+    </p>
+</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Toggle stock fields based on stock tracking checkbox
+document.getElementById('requires_stock_tracking').addEventListener('change', function() {
+    const stockFields = document.getElementById('stockFields');
+    if (this.checked) {
+        stockFields.style.display = 'block';
+    } else {
+        stockFields.style.display = 'none';
+        
+        // Reset stock values when disabling tracking
+        document.getElementById('stock_quantity').value = 0;
+        document.getElementById('stock_alert').value = 0;
+    }
+});
+
+// Image preview for new image upload
+document.getElementById('image').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById('imagePreview');
+    const noPreview = document.getElementById('noImagePreview');
+    const previewImage = document.getElementById('previewImage');
     
-    <script>
-        // Image preview functionality
-        document.getElementById('image').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            const preview = document.getElementById('imagePreview');
-            const previewContainer = document.getElementById('imagePreviewContainer');
-            
-            if (file) {
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    previewContainer.style.display = 'block';
-                }
-                
-                reader.readAsDataURL(file);
-            } else {
-                previewContainer.style.display = 'none';
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // Create image element if it doesn't exist
+            if (!previewImage) {
+                const img = document.createElement('img');
+                img.id = 'previewImage';
+                img.className = 'img-thumbnail';
+                img.style.maxWidth = '200px';
+                img.style.maxHeight = '200px';
+                preview.innerHTML = '';
+                preview.appendChild(img);
             }
-        });
-
-        // Form validation
-        document.getElementById('productForm').addEventListener('submit', function(e) {
-            const requiredFields = this.querySelectorAll('[required]');
-            let valid = true;
+            document.getElementById('previewImage').src = e.target.result;
             
-            requiredFields.forEach(field => {
-                if (!field.value.trim()) {
-                    valid = false;
-                    field.classList.add('is-invalid');
-                } else {
-                    field.classList.remove('is-invalid');
-                }
-            });
-            
-            if (!valid) {
-                e.preventDefault();
-                alert('Harap lengkapi semua field yang wajib diisi!');
+            // Hide no image message
+            if (noPreview) {
+                noPreview.style.display = 'none';
             }
-        });
-
-        // Format currency inputs
-        function formatCurrency(input) {
-            input.addEventListener('blur', function() {
-                const value = parseFloat(this.value.replace(/[^\d]/g, ''));
-                if (!isNaN(value)) {
-                    this.value = value.toLocaleString('id-ID');
-                }
-            });
-            
-            input.addEventListener('focus', function() {
-                this.value = this.value.replace(/[^\d]/g, '');
-            });
         }
+        reader.readAsDataURL(file);
+    } else {
+        // Show no image message if no file selected and no existing image
+        if (!'{{ product.image_url }}' && noPreview) {
+            noPreview.style.display = 'block';
+            if (previewImage) {
+                previewImage.style.display = 'none';
+            }
+        }
+    }
+});
 
-        // Apply currency formatting to price fields
-        const priceFields = document.querySelectorAll('input[name="price"], input[name="cost_price"]');
-        priceFields.forEach(formatCurrency);
-    </script>
-</body>
-</html>
+// Live preview updates
+document.getElementById('name').addEventListener('input', function() {
+    document.getElementById('previewName').textContent = this.value || 'Product Name';
+});
+
+document.getElementById('sku').addEventListener('input', function() {
+    document.getElementById('previewSku').textContent = 'SKU: ' + (this.value || 'No SKU');
+});
+
+document.getElementById('price').addEventListener('input', function() {
+    const price = parseFloat(this.value) || 0;
+    document.getElementById('previewPrice').textContent = 'Rp ' + price.toLocaleString('id-ID');
+});
+
+// BOM warning when disabling
+document.getElementById('has_bom').addEventListener('change', function() {
+    if (!this.checked && {{ product.has_bom|lower }} && {{ product.bom_headers.count() > 0 }}) {
+        if (!confirm('Disabling BOM will remove all existing BOM configurations for this product. Continue?')) {
+            this.checked = true;
+        }
+    }
+});
+
+// Form validation
+document.getElementById('productForm').addEventListener('submit', function(e) {
+    const price = parseFloat(document.getElementById('price').value);
+    if (price <= 0) {
+        e.preventDefault();
+        alert('Please enter a valid selling price greater than 0.');
+        return false;
+    }
+    
+    const stockTracking = document.getElementById('requires_stock_tracking').checked;
+    if (stockTracking) {
+        const stockQuantity = parseInt(document.getElementById('stock_quantity').value);
+        if (stockQuantity < 0) {
+            e.preventDefault();
+            alert('Stock quantity cannot be negative.');
+            return false;
+        }
+    }
+    
+    // Warn if disabling BOM with existing configuration
+    const hasBom = document.getElementById('has_bom').checked;
+    const existingBom = {{ product.has_bom|lower }} && {{ product.bom_headers.count() > 0 }};
+    if (!hasBom && existingBom) {
+        if (!confirm('Are you sure you want to disable BOM? All existing BOM configurations will be deleted.')) {
+            e.preventDefault();
+            return false;
+        }
+    }
+});
+
+// Initialize preview with current values
+document.addEventListener('DOMContentLoaded', function() {
+    // Update preview with current form values
+    document.getElementById('previewName').textContent = document.getElementById('name').value || 'Product Name';
+    document.getElementById('previewSku').textContent = 'SKU: ' + (document.getElementById('sku').value || 'No SKU');
+    
+    const price = parseFloat(document.getElementById('price').value) || 0;
+    document.getElementById('previewPrice').textContent = 'Rp ' + price.toLocaleString('id-ID');
+    
+    // Handle image preview for existing image
+    {% if product.image_url %}
+    const noPreview = document.getElementById('noImagePreview');
+    if (noPreview) {
+        noPreview.style.display = 'none';
+    }
+    {% endif %}
+});
+</script>
+{% endblock %}

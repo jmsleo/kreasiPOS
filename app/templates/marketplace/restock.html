@@ -49,6 +49,55 @@
                         <input type="text" class="form-control" id="totalAmount" value="{{ "Rp {:,.0f}".format(item.price) }}" readonly>
                     </div>
 
+                    <!-- TAMBAHKAN BAGIAN INI: Destination Type Selection -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-bullseye"></i> Tujuan Pembelian</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        {{ form.destination_type.label(class="form-label") }}
+                                        {{ form.destination_type(class="form-select") }}
+                                        {% for error in form.destination_type.errors %}
+                                            <span class="text-danger">{{ error }}</span>
+                                        {% endfor %}
+                                        <small class="form-text text-muted">
+                                            Pilih "Produk" jika ingin dijual langsung ke pelanggan, "Bahan Baku" jika untuk diproduksi menjadi produk lain
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Informasi berdasarkan pilihan -->
+                            <div id="product-info" class="alert alert-success mt-3" style="display: none;">
+                                <div class="d-flex">
+                                    <div class="flex-shrink-0">
+                                        <i class="bi bi-box-seam fs-4"></i>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="alert-heading">Produk untuk Dijual</h6>
+                                        <p class="mb-0">Item akan ditambahkan ke daftar <strong>produk</strong> Anda dan siap untuk dijual langsung kepada pelanggan.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="raw-material-info" class="alert alert-info mt-3" style="display: none;">
+                                <div class="d-flex">
+                                    <div class="flex-shrink-0">
+                                        <i class="bi bi-gear fs-4"></i>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="alert-heading">Bahan Baku untuk Produksi</h6>
+                                        <p class="mb-0">Item akan ditambahkan ke inventaris <strong>bahan baku</strong> dan dapat digunakan untuk memproduksi produk lainnya.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- AKHIR BAGIAN YANG DITAMBAHKAN -->
+
                     <!-- Shipping Address Section -->
                     <div class="card mb-4">
                         <div class="card-header">
@@ -210,6 +259,34 @@ document.addEventListener('DOMContentLoaded', function() {
         
         useDefaultCheckbox.addEventListener('change', toggleAddress);
         toggleAddress();
+    }
+
+    // TAMBAHKAN: Toggle destination type info
+    const destinationSelect = document.querySelector('#destination_type');
+    const productInfo = document.querySelector('#product-info');
+    const rawMaterialInfo = document.querySelector('#raw-material-info');
+    
+    function updateDestinationInfo() {
+        const value = destinationSelect.value;
+        
+        if (value === 'product') {
+            productInfo.style.display = 'block';
+            rawMaterialInfo.style.display = 'none';
+        } else if (value === 'raw_material') {
+            productInfo.style.display = 'none';
+            rawMaterialInfo.style.display = 'block';
+        } else {
+            productInfo.style.display = 'none';
+            rawMaterialInfo.style.display = 'none';
+        }
+    }
+    
+    // Initial setup
+    updateDestinationInfo();
+    
+    // Update on change
+    if (destinationSelect) {
+        destinationSelect.addEventListener('change', updateDestinationInfo);
     }
 });
 </script>

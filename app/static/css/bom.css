@@ -1,0 +1,116 @@
+/* BOM Management Styles */
+.bom-section {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1.5rem;
+    margin-top: 1rem;
+    background-color: #f8f9fa;
+}
+
+.bom-item {
+    transition: all 0.3s ease;
+    border-left: 4px solid #007bff;
+}
+
+.bom-item:hover {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transform: translateY(-1px);
+}
+
+.bom-total-cost {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #28a745;
+    padding: 1rem;
+    background-color: #d4edda;
+    border-radius: 0.375rem;
+    border: 1px solid #c3e6cb;
+}
+
+.raw-material-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m1 6 7 7 7-7'/%3e%3c/svg%3e");
+}
+
+.bom-validation-panel {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 0.5rem;
+}
+
+.bom-validation-results {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.bom-item-remove {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.bom-item:hover .bom-item-remove {
+    opacity: 1;
+}
+
+.bom-cost-breakdown {
+    background-color: #e9ecef;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.bom-availability-check {
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.bom-availability-check.available {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+.bom-availability-check.unavailable {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.bom-quantity-input {
+    width: 100px;
+}
+
+.bom-unit-badge {
+    background-color: #6c757d;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+}
+
+/* Animation for adding new BOM items */
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.bom-item-new {
+    animation: slideInDown 0.3s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .bom-item .row > div {
+        margin-bottom: 0.5rem;
+    }
+    
+    .bom-quantity-input {
+        width: 80px;
+    }
+}

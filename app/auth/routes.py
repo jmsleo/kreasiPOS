@@ -29,16 +29,22 @@ def login():
             flash('Invalid email or password', 'danger')
             return redirect(url_for('auth.login'))
         
-        # PERBAIKAN: Cek status TENANT bukan user.is_active
-        if user.tenant and not user.tenant.is_active:
-            flash('Your business account has been deactivated. Please contact administrator.', 'warning')
+        # PERBAIKAN: Cek apakah user aktif terlebih dahulu
+        if not user.is_active:
+            flash('Your account has been deactivated. Please contact administrator.', 'warning')
             return redirect(url_for('auth.login'))
         
-        # PERBAIKAN: Tambahkan pengecekan jika user tidak memiliki tenant
-        if not user.tenant:
-            flash('Your account is not associated with any business. Please contact administrator.', 'warning')
-            return redirect(url_for('auth.login'))
+        # PERBAIKAN: Cek tenant hanya jika user bukan superadmin
+        if not user.is_superadmin:
+            if not user.tenant:
+                flash('Your account is not associated with any business. Please contact administrator.', 'warning')
+                return redirect(url_for('auth.login'))
+            
+            if not user.tenant.is_active:
+                flash('Your business account has been deactivated. Please contact administrator.', 'warning')
+                return redirect(url_for('auth.login'))
         
+        # Login user dengan atau tanpa remember me
         login_user(user, remember=form.remember_me.data)
         user.last_login = datetime.utcnow()
         db.session.commit()

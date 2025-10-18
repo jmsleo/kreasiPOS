@@ -1,262 +1,503 @@
-from flask import render_template, redirect, url_for, flash, request, jsonify
+from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from app.products import bp
-from app.products.forms import ProductForm, CategoryForm
-from app.models import Product, Category, db
+from app.products.forms import ProductForm, CategoryForm, ProductSearchForm
+from app.models import BOMHeader, Product, Category, db
+from app.services.bom_service import BOMService
+from app.middleware.tenant_middleware import tenant_required
 from app.services.s3_service import S3Service
-import os
+from app.utils.timezone import get_user_timezone, convert_utc_to_user_timezone
+import uuid
 
+try:
+    from app.services.bom_service import BOMService
+except ImportError:
+    # Fallback jika BOMService belum diimplementasi
+    class BOMService:
+        @staticmethod
+        def get_bom_by_product(product_id):
+            return BOMHeader.query.filter_by(product_id=product_id, is_active=True).first()
+        
+        @staticmethod
+        def delete_bom(bom_id):
+            bom = BOMHeader.query.get(bom_id)
+            if bom:
+                db.session.delete(bom)
+                db.session.commit()
+        
+        @staticmethod
+        def validate_bom_availability(bom_id, quantity):
+            # Implementasi sederhana
+            bom = BOMHeader.query.get(bom_id)
+            if not bom:
+                return False, "BOM not found"
+            
+            for item in bom.items:
+                required = item.quantity * quantity
+                if item.raw_material.stock_quantity < required:
+                    return False, f"Insufficient {item.raw_material.name}"
+            return True, "All materials available"
+        
 @bp.route('/')
 @login_required
+@tenant_required
 def index():
+    """Products listing page - FIXED: Include inactive products with filter"""
+    search_form = ProductSearchForm()
     page = request.args.get('page', 1, type=int)
+    category_id = request.args.get('category_id', '')
     search = request.args.get('search', '')
-    category_filter = request.args.get('category', '')
-    stock_status = request.args.get('stock_status', '')
+    show_inactive = request.args.get('show_inactive', False, type=bool)
     
+    # Build query - FIXED: Add option to show inactive products
     query = Product.query.filter_by(tenant_id=current_user.tenant_id)
     
-    # Apply filters
+    # Only filter by active status if not showing inactive
+    if not show_inactive:
+        query = query.filter_by(is_active=True)
+    
+    if category_id:
+        query = query.filter_by(category_id=category_id)
+    
     if search:
-        query = query.filter(Product.name.ilike(f'%{search}%'))
-    
-    if category_filter:
-        query = query.filter_by(category_id=category_filter)
-    
-    if stock_status == 'low':
-        query = query.filter(Product.stock_quantity <= Product.stock_alert)
-    elif stock_status == 'out':
-        query = query.filter(Product.stock_quantity == 0)
-    elif stock_status == 'normal':
-        query = query.filter(Product.stock_quantity > Product.stock_alert)
+        search_term = f"%{search}%"
+        query = query.filter(
+            db.or_(
+                Product.name.ilike(search_term),
+                Product.sku.ilike(search_term),
+                Product.barcode.ilike(search_term)
+            )
+        )
     
     products = query.order_by(Product.name).paginate(
         page=page, per_page=20, error_out=False
     )
     
-    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).all()
+    # Get categories for filter
+    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all()
     
-    # Statistics
-    total_products = Product.query.filter_by(tenant_id=current_user.tenant_id).count()
-    active_products = Product.query.filter_by(tenant_id=current_user.tenant_id, is_active=True).count()
-    low_stock_count = Product.query.filter(
+    # FIXED: Low stock query - hanya untuk products yang active dan require stock tracking
+    low_stock_products = Product.query.filter(
         Product.tenant_id == current_user.tenant_id,
+        Product.is_active == True,  # Only active products for alerts
+        Product.requires_stock_tracking == True,
         Product.stock_quantity <= Product.stock_alert,
-        Product.stock_quantity > 0
-    ).count()
-    out_of_stock_count = Product.query.filter_by(
-        tenant_id=current_user.tenant_id, 
-        stock_quantity=0
-    ).count()
+        Product.stock_quantity > 0  # Tidak termasuk yang stock 0
+    ).all()
+    
+    # Out of stock products (only active)
+    out_of_stock_products = Product.query.filter(
+        Product.tenant_id == current_user.tenant_id,
+        Product.is_active == True,  # Only active products
+        Product.requires_stock_tracking == True,
+        Product.stock_quantity == 0
+    ).all()
+    
+    # Get BOM availability issues (only active products with BOM)
+    bom_issues = []
+    bom_products = Product.query.filter_by(
+        tenant_id=current_user.tenant_id,
+        is_active=True,  # Only active products
+        has_bom=True
+    ).all()
+    
+    for product in bom_products:
+        if not product.check_bom_availability():
+            bom_issues.append(product)
     
     return render_template('products/index.html',
                          products=products,
                          categories=categories,
-                         total_products=total_products,
-                         active_products=active_products,
-                         low_stock_count=low_stock_count,
-                         out_of_stock_count=out_of_stock_count)
+                         search_form=search_form,
+                         search=search,
+                         category_id=category_id,
+                         show_inactive=show_inactive,
+                         low_stock_products=low_stock_products,
+                         out_of_stock_products=out_of_stock_products,
+                         bom_issues=bom_issues)
 
 @bp.route('/create', methods=['GET', 'POST'])
 @login_required
+@tenant_required
 def create():
+    """Create new product - FIXED STOCK HANDLING"""
     form = ProductForm()
-    
+
     # Populate category choices
-    form.category_id.choices = [('', 'Select Category')] + [
-        (str(cat.id), cat.name) for cat in 
-        Category.query.filter_by(tenant_id=current_user.tenant_id).all()
-    ]
-    
+    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all()
+    form.category_id.choices = [('', 'Select Category')] + [(c.id, c.name) for c in categories]
+
     if form.validate_on_submit():
         try:
+            # Generate SKU if not provided
+            sku = form.sku.data
+            if not sku:
+                sku = f"PRD-{str(uuid.uuid4())[:8].upper()}"
+
+            # Handle image upload
+            image_url = None
+            if form.image.data:
+                s3_service = S3Service()
+                image_url = s3_service.upload_product_image(form.image.data, f"product_{sku}")
+
+            # FIXED: Handle stock quantity properly
+            stock_quantity = form.stock_quantity.data if form.requires_stock_tracking.data else 0
+            stock_alert = form.stock_alert.data if form.requires_stock_tracking.data else 0
+
+            # Validate stock cannot be negative
+            if stock_quantity < 0:
+                flash('Stock quantity cannot be negative.', 'danger')
+                return render_template('products/create.html', form=form)
+
             product = Product(
+                tenant_id=current_user.tenant_id,
                 name=form.name.data,
                 description=form.description.data,
-                sku=form.sku.data,
+                sku=sku,
                 barcode=form.barcode.data,
                 price=form.price.data,
                 cost_price=form.cost_price.data,
-                stock_quantity=form.stock_quantity.data,
-                stock_alert=form.stock_alert.data,
+                stock_quantity=stock_quantity,
+                stock_alert=stock_alert,
                 unit=form.unit.data,
                 carton_quantity=form.carton_quantity.data,
-                category_id=form.category_id.data or None,
-                is_active=form.is_active.data,
-                tenant_id=current_user.tenant_id
+                category_id=form.category_id.data if form.category_id.data else None,
+                image_url=image_url,
+                requires_stock_tracking=form.requires_stock_tracking.data,
+                has_bom=form.has_bom.data,
+                is_active=form.is_active.data
             )
-            
-            # Handle image upload
-            if form.image.data:
-                s3_service = S3Service()
-                image_url = s3_service.upload_product_image(form.image.data, product.id)
-                product.image_url = image_url
-            
+
             db.session.add(product)
             db.session.commit()
-            
-            flash('Product created successfully!', 'success')
+
+            # Refresh product untuk memastikan data terbaru
+            db.session.refresh(product)
+
+            flash(f'Product "{product.name}" has been created successfully. Stock: {product.stock_quantity}', 'success')
+
+            # If BOM is enabled, redirect to BOM configuration
+            if form.has_bom.data:
+                flash('Please configure the BOM (Bill of Materials) for this product.', 'info')
+                return redirect(url_for('bom.create_bom', product_id=product.id))
+
             return redirect(url_for('products.index'))
-            
+
         except Exception as e:
             db.session.rollback()
             flash(f'Error creating product: {str(e)}', 'danger')
-    
+            current_app.logger.error(f'Error creating product: {str(e)}')
+
     return render_template('products/create.html', form=form)
 
-@bp.route('/edit/<product_id>', methods=['GET', 'POST'])
+@bp.route('/<id>/edit', methods=['GET', 'POST'])
 @login_required
-def edit(product_id):
-    product = Product.query.filter_by(
-        id=product_id, 
-        tenant_id=current_user.tenant_id
-    ).first_or_404()
-    
+@tenant_required
+def edit(id):
+    """Edit existing product - FIXED STOCK HANDLING"""
+    product = Product.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
+
     form = ProductForm(obj=product)
-    form.category_id.choices = [('', 'Select Category')] + [
-        (str(cat.id), cat.name) for cat in 
-        Category.query.filter_by(tenant_id=current_user.tenant_id).all()
-    ]
-    
+
+    # Populate category choices
+    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all()
+    form.category_id.choices = [('', 'Select Category')] + [(c.id, c.name) for c in categories]
+
     if form.validate_on_submit():
         try:
+            # Check if BOM status is changing
+            bom_status_changed = product.has_bom != form.has_bom.data
+
             product.name = form.name.data
             product.description = form.description.data
             product.sku = form.sku.data
             product.barcode = form.barcode.data
             product.price = form.price.data
             product.cost_price = form.cost_price.data
-            product.stock_quantity = form.stock_quantity.data
-            product.stock_alert = form.stock_alert.data
             product.unit = form.unit.data
             product.carton_quantity = form.carton_quantity.data
-            product.category_id = form.category_id.data or None
-            product.is_active = form.is_active.data
-            
+            product.category_id = form.category_id.data if form.category_id.data else None
+
             # Handle image upload
             if form.image.data:
-                s3_service = S3Service()
-                image_url = s3_service.upload_product_image(form.image.data, product.id)
-                product.image_url = image_url
-            
+                try:
+                    s3_service = S3Service()
+                    image_url = s3_service.upload_product_image(form.image.data, f"product_{product.sku}")
+                    if image_url:
+                        product.image_url = image_url
+                except Exception as upload_error:
+                    current_app.logger.error(f"Image upload failed: {str(upload_error)}")
+
+            product.requires_stock_tracking = form.requires_stock_tracking.data
+            product.has_bom = form.has_bom.data
+            product.is_active = form.is_active.data
+
+            # FIXED: Update stock fields dengan validasi
+            if form.requires_stock_tracking.data:
+                if form.stock_quantity.data < 0:
+                    flash('Stock quantity cannot be negative.', 'danger')
+                    return render_template('products/edit.html', form=form, product=product)
+                
+                product.stock_quantity = form.stock_quantity.data
+                product.stock_alert = form.stock_alert.data
+            else:
+                # Jika stock tracking dimatikan, set stock ke 0
+                product.stock_quantity = 0
+                product.stock_alert = 0
+
+            # If BOM is disabled, clean up existing BOM
+            if not form.has_bom.data and product.bom_headers.count() > 0:
+                for bom in product.bom_headers:
+                    db.session.delete(bom)
+                flash('Existing BOM has been removed.', 'info')
+
             db.session.commit()
-            flash('Product updated successfully!', 'success')
+
+            flash(f'Product "{product.name}" has been updated successfully. Stock: {product.stock_quantity}', 'success')
+
+            # If BOM was just enabled and no BOM exists, redirect to BOM creation
+            if form.has_bom.data and bom_status_changed and product.bom_headers.count() == 0:
+                flash('Please configure the BOM (Bill of Materials) for this product.', 'info')
+                return redirect(url_for('bom.create_bom', product_id=product.id))
+
             return redirect(url_for('products.index'))
-            
+
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating product: {str(e)}', 'danger')
-    
-    return render_template('products/edit.html', form=form, product=product)
+            current_app.logger.error(f'Error updating product: {str(e)}')
 
-@bp.route('/delete/<product_id>', methods=['POST'])
+    # Set nilai form untuk stock tracking
+    if not product.requires_stock_tracking:
+        form.stock_quantity.data = 0
+        form.stock_alert.data = 0
+
+    active_bom = None
+    if product.has_bom:
+        try:
+            active_bom = BOMService.get_bom_by_product(product.id)
+        except:
+            active_bom = BOMHeader.query.filter_by(product_id=product.id, is_active=True).first()
+
+    return render_template('products/edit.html', form=form, product=product, active_bom=active_bom)
+
+@bp.route('/<id>/delete', methods=['POST'])
 @login_required
-def delete(product_id):
-    product = Product.query.filter_by(
-        id=product_id, 
-        tenant_id=current_user.tenant_id
-    ).first_or_404()
+@tenant_required
+def delete(id):
+    """Delete product"""
+    product = Product.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
     
     try:
+        # Check if product has sales
+        if product.sale_items.count() > 0:
+            flash('Cannot delete product that has sales history.', 'danger')
+            return redirect(url_for('products.index'))
+        
+        # Delete associated BOMs first
+        if product.has_bom:
+            for bom in product.bom_headers:
+                BOMService.delete_bom(bom.id)
+        
+        product_name = product.name
         db.session.delete(product)
         db.session.commit()
-        flash('Product deleted successfully!', 'success')
+        
+        flash(f'Product "{product_name}" has been deleted successfully.', 'success')
+        
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting product: {str(e)}', 'danger')
+        current_app.logger.error(f'Error deleting product: {str(e)}')
+    
+    return redirect(url_for('products.index'))
+
+@bp.route('/<id>/toggle_status', methods=['POST'])
+@login_required
+@tenant_required
+def toggle_status(id):
+    """Toggle product active status"""
+    product = Product.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
+    
+    try:
+        product.is_active = not product.is_active
+        db.session.commit()
+        
+        status = 'activated' if product.is_active else 'deactivated'
+        flash(f'Product "{product.name}" has been {status}.', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating product status: {str(e)}', 'danger')
+        current_app.logger.error(f'Error updating product status: {str(e)}')
     
     return redirect(url_for('products.index'))
 
 @bp.route('/categories')
 @login_required
+@tenant_required
 def categories():
-    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).all()
-    form = CategoryForm()
-    return render_template('products/categories.html', categories=categories, form=form)
-
-@bp.route('/categories/create', methods=['POST'])
-@login_required
-def create_category():
-    form = CategoryForm()
-    if form.validate_on_submit():
-        category = Category(
-            name=form.name.data,
-            description=form.description.data,
-            tenant_id=current_user.tenant_id
-        )
-        db.session.add(category)
-        db.session.commit()
-        flash('Category created successfully!', 'success')
-    return redirect(url_for('products.categories'))
-
-@bp.route('/categories/update/<int:category_id>', methods=['POST'])
-@login_required
-def update_category(category_id):
-    category = Category.query.filter_by(
-        id=category_id, 
-        tenant_id=current_user.tenant_id
-    ).first_or_404()
+    """Categories management page"""
+    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all()
+    form = CategoryForm()  # Tambahkan ini
     
+    return render_template('products/categories.html', categories=categories, form=form)
+@bp.route('/categories/create', methods=['GET', 'POST'])
+@login_required
+@tenant_required
+def create_category():
+    """Create new category"""
     form = CategoryForm()
+    
     if form.validate_on_submit():
         try:
-            category.name = form.name.data
-            category.description = form.description.data
+            category = Category(
+                tenant_id=current_user.tenant_id,
+                name=form.name.data,
+                description=form.description.data
+            )
+            
+            db.session.add(category)
             db.session.commit()
-            flash('Category updated successfully!', 'success')
+            
+            flash(f'Category "{category.name}" has been created successfully.', 'success')
+            return redirect(url_for('products.categories'))
+            
         except Exception as e:
             db.session.rollback()
-            flash(f'Error updating category: {str(e)}', 'danger')
+            flash(f'Error creating category: {str(e)}', 'danger')
+            current_app.logger.error(f'Error creating category: {str(e)}')
     
-    return redirect(url_for('products.categories'))
+    return render_template('products/create_category.html', form=form)
 
-@bp.route('/categories/delete/<int:category_id>', methods=['POST'])
+@bp.route('/categories/<id>/update', methods=['POST'])
 @login_required
-def delete_category(category_id):
-    category = Category.query.filter_by(
-        id=category_id, 
-        tenant_id=current_user.tenant_id
-    ).first_or_404()
-    
-    # Check if category has products
-    product_count = Product.query.filter_by(category_id=category_id).count()
-    if product_count > 0:
-        flash('Cannot delete category that has products assigned to it.', 'danger')
-        return redirect(url_for('products.categories'))
+@tenant_required
+def update_category(id):
+    """Update category - API endpoint for AJAX updates"""
+    category = Category.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
     
     try:
+        category.name = request.form.get('name')
+        category.description = request.form.get('description')
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'Category "{category.name}" has been updated successfully.'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+@bp.route('/categories/<id>/delete', methods=['POST'])
+@login_required
+@tenant_required
+def delete_category(id):
+    """Delete category"""
+    category = Category.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
+    
+    try:
+        # Check if category has products
+        if category.products.count() > 0:
+            flash('Cannot delete category that has products. Please move products to another category first.', 'danger')
+            return redirect(url_for('products.categories'))
+        
+        category_name = category.name
         db.session.delete(category)
         db.session.commit()
-        flash('Category deleted successfully!', 'success')
+        
+        flash(f'Category "{category_name}" has been deleted successfully.', 'success')
+        
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting category: {str(e)}', 'danger')
+        current_app.logger.error(f'Error deleting category: {str(e)}')
     
     return redirect(url_for('products.categories'))
 
 @bp.route('/api/search')
 @login_required
+@tenant_required
 def api_search():
-    query = request.args.get('q', '')
-    if not query:
-        return jsonify([])
+    """API endpoint for product search (for POS)"""
+    search = request.args.get('q', '')
     
     products = Product.query.filter(
         Product.tenant_id == current_user.tenant_id,
         Product.is_active == True,
         db.or_(
-            Product.name.ilike(f'%{query}%'),
-            Product.sku.ilike(f'%{query}%'),
-            Product.barcode.ilike(f'%{query}%')
+            Product.name.ilike(f'%{search}%'),
+            Product.sku.ilike(f'%{search}%'),
+            Product.barcode.ilike(f'%{search}%')
         )
     ).limit(10).all()
     
-    return jsonify([{
-        'id': p.id,
-        'name': p.name,
-        'price': float(p.price),
-        'stock_quantity': p.stock_quantity,
-        'image_url': p.image_url,
-        'sku': p.sku,
-        'barcode': p.barcode
-    } for p in products])
+    results = []
+    for product in products:
+        # Check BOM availability if applicable
+        bom_available = True
+        if product.has_bom:
+            bom_available = product.check_bom_availability()
+        
+        results.append({
+            'id': product.id,
+            'name': product.name,
+            'price': product.price,
+            'stock_quantity': product.stock_quantity,
+            'requires_stock_tracking': product.requires_stock_tracking,
+            'has_bom': product.has_bom,
+            'bom_available': bom_available,
+            'image_url': product.image_url,
+            'sku': product.sku,
+            'barcode': product.barcode
+        })
+    
+    return jsonify(results)
+
+@bp.route('/api/<product_id>')
+@login_required
+@tenant_required
+def api_get_product(product_id):
+    """API endpoint to get product details"""
+    product = Product.query.filter_by(
+        id=product_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    return jsonify(product.to_dict())
+
+@bp.route('/api/<product_id>/bom_validation')
+@login_required
+@tenant_required
+def api_bom_validation(product_id):
+    """API endpoint to validate BOM availability for a product"""
+    product = Product.query.filter_by(
+        id=product_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    if not product.has_bom:
+        return jsonify({'valid': True, 'message': 'Product does not use BOM'})
+    
+    quantity = request.args.get('quantity', 1, type=int)
+    
+    # PERBAIKAN: Gunakan query langsung sebagai fallback
+    try:
+        active_bom = BOMService.get_bom_by_product(product_id)
+    except:
+        active_bom = BOMHeader.query.filter_by(product_id=product_id, is_active=True).first()
+    
+    if not active_bom:
+        return jsonify({'valid': False, 'message': 'No active BOM found'})
+    
+    try:
+        # PERBAIKAN: Validasi langsung jika BOMService tidak tersedia
+        try:
+            is_valid, details = BOMService.validate_bom_availability(active_bom.id, quantity)
+            return jsonify({'valid': is_valid, 'details': details})
+        except:
+            # Fallback validation
+            is_available = product.check_bom_availability(quantity)
+            return jsonify({'valid': is_available, 'message': 'BOM availability checked'})
+    except Exception as e:
+        current_app.logger.error(f"BOM validation error: {str(e)}")
+        return jsonify({'valid': False, 'error': str(e)}), 500

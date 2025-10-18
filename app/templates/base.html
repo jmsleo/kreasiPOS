@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}KreasiPOS Enterprise{% endblock %}</title>
-    
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <!-- Custom CSS -->
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     
@@ -68,6 +69,11 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('products.index') }}">
                                 <i class="bi bi-box-seam"></i> Produk
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('raw_materials.index') }}">
+                                <i class="bi bi-basket3"></i> Bahan Baku
                             </a>
                         </li>
                         <li class="nav-item">
@@ -140,7 +146,7 @@
     
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/qz-tray.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/qz_printer.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

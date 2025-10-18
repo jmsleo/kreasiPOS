@@ -1,22 +1,36 @@
 from datetime import datetime
 import pytz
-from flask import current_app
+from flask import current_app, session
+from flask_login import current_user
 
-def get_local_timezone():
-    """Get the configured timezone for the application"""
-    timezone_name = current_app.config.get('TIMEZONE', 'Asia/Jakarta')
-    return pytz.timezone(timezone_name)
+def get_user_timezone():
+    """Get the timezone for the current user, defaulting to the application's timezone."""
+    # First, try to get timezone from the logged-in user's settings if available
+    if current_user and current_user.is_authenticated and hasattr(current_user, 'timezone') and current_user.timezone:
+        timezone_name = current_user.timezone
+    # Fallback to session if you store it there for non-logged-in users
+    elif 'timezone' in session:
+        timezone_name = session['timezone']
+    # Default to the application's configuration
+    else:
+        timezone_name = current_app.config.get('TIMEZONE', 'Asia/Jakarta')
+    
+    try:
+        return pytz.timezone(timezone_name)
+    except pytz.UnknownTimeZoneError:
+        # Fallback to a default timezone if the user's setting is invalid
+        return pytz.timezone(current_app.config.get('TIMEZONE', 'Asia/Jakarta'))
 
-def utc_to_local(utc_dt):
-    """Convert UTC datetime to local timezone"""
+def convert_utc_to_user_timezone(utc_dt):
+    """Convert a UTC datetime object to the user's local timezone."""
     if utc_dt is None:
         return None
     
     if utc_dt.tzinfo is None:
-        # Assume UTC if no timezone info
+        # Assume UTC if no timezone info is present
         utc_dt = pytz.utc.localize(utc_dt)
     
-    local_tz = get_local_timezone()
+    local_tz = get_user_timezone()
     return utc_dt.astimezone(local_tz)
 
 def local_to_utc(local_dt):
@@ -24,7 +38,7 @@ def local_to_utc(local_dt):
     if local_dt is None:
         return None
     
-    local_tz = get_local_timezone()
+    local_tz = get_user_timezone()
     
     if local_dt.tzinfo is None:
         # Assume local timezone if no timezone info
@@ -34,7 +48,7 @@ def local_to_utc(local_dt):
 
 def now_local():
     """Get current datetime in local timezone"""
-    local_tz = get_local_timezone()
+    local_tz = get_user_timezone()
     return datetime.now(local_tz)
 
 def now_utc():
@@ -46,7 +60,7 @@ def format_local_datetime(utc_dt, format_str='%Y-%m-%d %H:%M:%S'):
     if utc_dt is None:
         return ''
     
-    local_dt = utc_to_local(utc_dt)
+    local_dt = convert_utc_to_user_timezone(utc_dt)
     return local_dt.strftime(format_str)
 
 def format_local_date(utc_dt, format_str='%Y-%m-%d'):
@@ -54,7 +68,7 @@ def format_local_date(utc_dt, format_str='%Y-%m-%d'):
     if utc_dt is None:
         return ''
     
-    local_dt = utc_to_local(utc_dt)
+    local_dt = convert_utc_to_user_timezone(utc_dt)
     return local_dt.strftime(format_str)
 
 def format_local_time(utc_dt, format_str='%H:%M'):
@@ -62,5 +76,5 @@ def format_local_time(utc_dt, format_str='%H:%M'):
     if utc_dt is None:
         return ''
     
-    local_dt = utc_to_local(utc_dt)
+    local_dt = convert_utc_to_user_timezone(utc_dt)
     return local_dt.strftime(format_str)

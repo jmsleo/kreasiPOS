@@ -1,7 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, IntegerField, DecimalField, SelectField, HiddenField 
 from wtforms.validators import DataRequired, NumberRange, Optional
-from app.models import Product
+from app.models import Product, Customer
 
 class QuickSaleForm(FlaskForm):
     product_id = SelectField('Product', coerce=int, validators=[DataRequired()])
@@ -20,3 +20,10 @@ class SaleForm(FlaskForm):
                                validators=[DataRequired()])
     total_amount = DecimalField('Total Amount', places=2, validators=[DataRequired()])
     submit = SubmitField('Complete Sale')
+
+class CustomerSelectForm(FlaskForm):
+    customer = SelectField('Customer', coerce=int, validators=[Optional()])
+
+    def __init__(self, *args, **kwargs):
+        super(CustomerSelectForm, self).__init__(*args, **kwargs)
+        self.customer.choices = [('', 'Walk-in Customer')] + [(c.id, c.name) for c in Customer.query.order_by(Customer.name).all()]

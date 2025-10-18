@@ -17,7 +17,15 @@ class MarketplaceItemForm(FlaskForm):
 class RestockOrderForm(FlaskForm):
     """Form untuk restock order dengan opsi alamat"""
     quantity = IntegerField('Quantity', validators=[DataRequired(), NumberRange(min=1)])
-    
+    destination_type = SelectField(
+        'Simpan Sebagai', 
+        choices=[
+            ('product', '🛍️ Produk (Untuk Dijual Kembali)'),
+            ('raw_material', '🏭 Bahan Baku (Untuk Produksi)')
+        ], 
+        validators=[DataRequired()],
+        description='Pilih tujuan pembelian: Produk untuk dijual langsung, Bahan Baku untuk diproduksi'
+    )
     # Opsi alamat pengiriman
     use_default_address = BooleanField('Gunakan alamat default', default=True)
     shipping_address = TextAreaField('Alamat Pengiriman', validators=[Optional()])
@@ -25,7 +33,6 @@ class RestockOrderForm(FlaskForm):
     shipping_postal_code = StringField('Kode Pos Pengiriman', validators=[Optional()])
     shipping_phone = StringField('Telepon Pengiriman', validators=[Optional()])
     
-    # HAPUS FileRequired() - kita akan validasi manual di route
     payment_proof = FileField('Bukti Pembayaran', validators=[
         FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Hanya gambar dan PDF!')
     ])

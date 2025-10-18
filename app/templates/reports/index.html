@@ -83,6 +83,13 @@
 #topProductsList::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
 }
+
+/* Style untuk active metric button */
+.btn-group .btn.active {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
 </style>
 {% endblock %}
 
@@ -197,10 +204,10 @@
                     <i class="bi bi-bar-chart"></i> Tren Penjualan (7 Hari Terakhir)
                 </h5>
                 <div class="btn-group btn-group-sm">
-                    <button type="button" class="btn btn-outline-secondary active" data-metric="revenue">
+                    <button type="button" class="btn btn-outline-secondary active" data-metric="revenue" id="revenueBtn">
                         Pendapatan
                     </button>
-                    <button type="button" class="btn btn-outline-secondary" data-metric="count">
+                    <button type="button" class="btn btn-outline-secondary" data-metric="count" id="countBtn">
                         Jumlah Transaksi
                     </button>
                 </div>
@@ -346,12 +353,16 @@
 // Global variables
 let salesTrendChart = null;
 let currentMetric = 'revenue';
+let chartData = null; // Store chart data globally
 
 // Load dashboard data
 async function loadDashboardData() {
     try {
         const response = await fetch('{{ url_for("reports.dashboard_data") }}');
         const data = await response.json();
+        
+        // Store data globally for metric switching
+        chartData = data;
         
         updateStats(data);
         renderSalesTrendChart(data.daily_sales);
@@ -412,15 +423,21 @@ function renderSalesTrendChart(dailySales) {
         salesTrendChart.destroy();
     }
     
+    // Determine which data to show based on current metric
+    const dataToShow = currentMetric === 'revenue' ? revenueData : countData;
+    const labelText = currentMetric === 'revenue' ? 'Pendapatan (Rp)' : 'Jumlah Transaksi';
+    const borderColor = currentMetric === 'revenue' ? '#0d6efd' : '#28a745';
+    const backgroundColor = currentMetric === 'revenue' ? 'rgba(13, 110, 253, 0.1)' : 'rgba(40, 167, 69, 0.1)';
+    
     salesTrendChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [{
-                label: 'Revenue (Rp)',
-                data: revenueData,
-                borderColor: '#0d6efd',
-                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                label: labelText,
+                data: dataToShow,
+                borderColor: borderColor,
+                backgroundColor: backgroundColor,
                 tension: 0.4,
                 fill: true,
                 borderWidth: 2
@@ -436,7 +453,17 @@ function renderSalesTrendChart(dailySales) {
                 },
                 tooltip: {
                     mode: 'index',
-                    intersect: false
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            if (currentMetric === 'revenue') {
+                                return `${labelText}: Rp${value.toFixed(2)}`;
+                            } else {
+                                return `${labelText}: ${value}`;
+                            }
+                        }
+                    }
                 }
             },
             scales: {
@@ -446,7 +473,14 @@ function renderSalesTrendChart(dailySales) {
                         drawBorder: false
                     },
                     ticks: {
-                        maxTicksLimit: 6
+                        maxTicksLimit: 6,
+                        callback: function(value) {
+                            if (currentMetric === 'revenue') {
+                                return 'Rp' + value.toFixed(0);
+                            } else {
+                                return value;
+                            }
+                        }
                     }
                 },
                 x: {
@@ -468,12 +502,17 @@ function renderSalesTrendChart(dailySales) {
 }
 
 // Update chart based on selected metric
-function updateChartMetric() {
-    if (!salesTrendChart) return;
+function updateChartMetric(metric) {
+    if (!chartData || !chartData.daily_sales) return;
     
-    // In a real implementation, you would reload data or transform existing data
-    // For now, we'll just show a message
-    console.log('Switching to metric:', currentMetric);
+    currentMetric = metric;
+    
+    // Update button states
+    document.getElementById('revenueBtn').classList.toggle('active', metric === 'revenue');
+    document.getElementById('countBtn').classList.toggle('active', metric === 'count');
+    
+    // Re-render chart with new metric
+    renderSalesTrendChart(chartData.daily_sales);
 }
 
 // Render top products list
@@ -499,7 +538,7 @@ function renderTopProducts(topProducts) {
             <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
                 <div class="flex-grow-1">
                     <h6 class="mb-1">${product.name}</h6>
-                    <small class="text-muted">${quantity} sold • $${revenue.toFixed(2)}</small>
+                    <small class="text-muted">${quantity} sold • Rp${revenue.toFixed(2)}</small>
                 </div>
                 <div class="text-end">
                     <span class="badge bg-primary">#${index + 1}</span>
@@ -525,6 +564,15 @@ function showError(message) {
 // Initialize dashboard when page loads
 document.addEventListener('DOMContentLoaded', function() {
     loadDashboardData();
+    
+    // Add event listeners for metric buttons
+    document.getElementById('revenueBtn').addEventListener('click', function() {
+        updateChartMetric('revenue');
+    });
+    
+    document.getElementById('countBtn').addEventListener('click', function() {
+        updateChartMetric('count');
+    });
     
     // Refresh data every 5 minutes
     setInterval(loadDashboardData, 300000);

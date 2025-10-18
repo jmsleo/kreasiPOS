@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}Edit BOM - KreasiPOS Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-pencil"></i> Edit Bill of Materials (BOM)</h4>
+                    <small>Product: {{ bom.product.name }} | Version: {{ bom.version }}</small>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="bomForm">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- BOM Info -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Product</label>
+                                    <input type="text" class="form-control" value="{{ bom.product.name }}" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Version</label>
+                                    <input type="text" class="form-control" value="v{{ bom.version }}" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        {{ form.is_active(class="form-check-input") }}
+                                        {{ form.is_active.label(class="form-check-label") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <div class="mb-3">
+                                    {{ form.notes.label(class="form-label") }}
+                                    {{ form.notes(class="form-control" + (" is-invalid" if form.notes.errors else ""), rows="2") }}
+                                    {% for error in form.notes.errors %}
+                                        <div class="invalid-feedback">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Raw Materials Section -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Raw Materials Required</h5>
+                                <button type="button" class="btn btn-sm btn-success" onclick="addRawMaterial()">
+                                    <i class="bi bi-plus"></i> Add Material
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div id="rawMaterialsList">
+                                    <!-- Existing raw materials -->
+                                    {% for item in bom.items %}
+                                    <div class="row mb-3 raw-material-row" data-existing-id="{{ item.id }}">
+                                        <div class="col-md-4">
+                                            <select class="form-select raw-material-select" name="raw_material_id[]" required>
+                                                <option value="">Select Raw Material</option>
+                                                {% for material in raw_materials %}
+                                                <option value="{{ material.id }}" 
+                                                        data-cost="{{ material.cost_price or 0 }}" 
+                                                        data-unit="{{ material.unit }}"
+                                                        {% if material.id == item.raw_material_id %}selected{% endif %}>
+                                                    {{ material.name }} ({{ material.unit }}) - Rp {{ "{:,.0f}".format(material.cost_price or 0) }}
+                                                </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <input type="number" class="form-control quantity-input" 
+                                                   name="quantity[]" value="{{ item.quantity }}" 
+                                                   placeholder="Qty" step="0.001" min="0" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <input type="text" class="form-control unit-display" 
+                                                   value="{{ item.unit or item.raw_material.unit }}" readonly placeholder="Unit">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <input type="text" class="form-control cost-display" readonly placeholder="Cost">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRawMaterial(this)">
+                                                <i class="bi bi-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                        <input type="hidden" name="existing_item_id[]" value="{{ item.id }}">
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                
+                                <!-- Total Cost Display -->
+                                <div class="row mt-3">
+                                    <div class="col-md-6 offset-md-6">
+                                        <div class="card bg-light">
+                                            <div class="card-body">
+                                                <h6>Total Estimated Cost:</h6>
+                                                <h4 class="text-primary" id="totalCost">Rp 0</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('bom.index') }}" class="btn btn-secondary">Cancel</a>
+                            <div>
+                                <a href="{{ url_for('bom.view', id=bom.id) }}" class="btn btn-info me-2">View Details</a>
+                                {{ form.submit(class="btn btn-primary") }}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Raw Material Row Template -->
+<template id="rawMaterialTemplate">
+    <div class="row mb-3 raw-material-row">
+        <div class="col-md-4">
+            <select class="form-select raw-material-select" name="raw_material_id[]" required>
+                <option value="">Select Raw Material</option>
+                {% for material in raw_materials %}
+                <option value="{{ material.id }}" data-cost="{{ material.cost_price or 0 }}" data-unit="{{ material.unit }}">
+                    {{ material.name }} ({{ material.unit }}) - Rp {{ "{:,.0f}".format(material.cost_price or 0) }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <input type="number" class="form-control quantity-input" name="quantity[]" placeholder="Qty" step="0.001" min="0" required>
+        </div>
+        <div class="col-md-2">
+            <input type="text" class="form-control unit-display" readonly placeholder="Unit">
+        </div>
+        <div class="col-md-2">
+            <input type="text" class="form-control cost-display" readonly placeholder="Cost">
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeRawMaterial(this)">
+                <i class="bi bi-trash"></i> Remove
+            </button>
+        </div>
+        <input type="hidden" name="existing_item_id[]" value="">
+    </div>
+</template>
+
+<script>
+let materialCounter = 1000; // Start high to avoid conflicts with existing IDs
+
+function addRawMaterial() {
+    const template = document.getElementById('rawMaterialTemplate');
+    const clone = template.content.cloneNode(true);
+    
+    // Add unique identifiers
+    const row = clone.querySelector('.raw-material-row');
+    row.setAttribute('data-index', materialCounter++);
+    
+    // Add event listeners
+    const select = clone.querySelector('.raw-material-select');
+    const quantityInput = clone.querySelector('.quantity-input');
+    
+    select.addEventListener('change', updateRowCost);
+    quantityInput.addEventListener('input', updateRowCost);
+    
+    document.getElementById('rawMaterialsList').appendChild(clone);
+}
+
+function removeRawMaterial(button) {
+    button.closest('.raw-material-row').remove();
+    calculateTotalCost();
+}
+
+function updateRowCost(event) {
+    const row = event.target.closest('.raw-material-row');
+    const select = row.querySelector('.raw-material-select');
+    const quantityInput = row.querySelector('.quantity-input');
+    const unitDisplay = row.querySelector('.unit-display');
+    const costDisplay = row.querySelector('.cost-display');
+    
+    const selectedOption = select.options[select.selectedIndex];
+    if (selectedOption && selectedOption.value) {
+        const cost = parseFloat(selectedOption.dataset.cost || 0);
+        const unit = selectedOption.dataset.unit || '';
+        const quantity = parseFloat(quantityInput.value || 0);
+        
+        unitDisplay.value = unit;
+        const totalCost = cost * quantity;
+        costDisplay.value = 'Rp ' + totalCost.toLocaleString('id-ID');
+        
+        calculateTotalCost();
+    } else {
+        unitDisplay.value = '';
+        costDisplay.value = '';
+        calculateTotalCost();
+    }
+}
+
+function calculateTotalCost() {
+    let total = 0;
+    document.querySelectorAll('.raw-material-row').forEach(row => {
+        const select = row.querySelector('.raw-material-select');
+        const quantityInput = row.querySelector('.quantity-input');
+        
+        const selectedOption = select.options[select.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            const cost = parseFloat(selectedOption.dataset.cost || 0);
+            const quantity = parseFloat(quantityInput.value || 0);
+            total += cost * quantity;
+        }
+    });
+    
+    document.getElementById('totalCost').textContent = 'Rp ' + total.toLocaleString('id-ID');
+}
+
+// Initialize existing rows
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners to existing rows
+    document.querySelectorAll('.raw-material-row').forEach(row => {
+        const select = row.querySelector('.raw-material-select');
+        const quantityInput = row.querySelector('.quantity-input');
+        
+        select.addEventListener('change', updateRowCost);
+        quantityInput.addEventListener('input', updateRowCost);
+        
+        // Trigger initial calculation
+        updateRowCost({ target: select });
+    });
+    
+    calculateTotalCost();
+});
+
+// Form validation
+document.getElementById('bomForm').addEventListener('submit', function(e) {
+    const rows = document.querySelectorAll('.raw-material-row');
+    if (rows.length === 0) {
+        e.preventDefault();
+        alert('Please add at least one raw material to the BOM.');
+        return false;
+    }
+    
+    let hasValidMaterial = false;
+    rows.forEach(row => {
+        const select = row.querySelector('.raw-material-select');
+        const quantity = row.querySelector('.quantity-input');
+        if (select.value && quantity.value > 0) {
+            hasValidMaterial = true;
+        }
+    });
+    
+    if (!hasValidMaterial) {
+        e.preventDefault();
+        alert('Please select at least one raw material with valid quantity.');
+        return false;
+    }
+});
+</script>
+{% endblock %}

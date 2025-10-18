@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Tambah Bahan Baku - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-plus me-2"></i>Tambah Bahan Baku Baru
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('raw_materials.index') }}">
+                            <i class="fas fa-boxes me-1"></i>Bahan Baku
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">Tambah Baru</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('raw_materials.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali
+            </a>
+        </div>
+    </div>
+
+    <!-- Create Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-info-circle me-2"></i>Informasi Bahan Baku
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('raw_materials.create') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="name" class="form-label required">
+                                        <i class="fas fa-tag me-1"></i>Nama Bahan Baku
+                                    </label>
+                                    {{ form.name(class="form-control", placeholder="Masukkan nama bahan baku") }}
+                                    {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.name.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="sku" class="form-label">
+                                        <i class="fas fa-barcode me-1"></i>SKU
+                                    </label>
+                                    {{ form.sku(class="form-control", placeholder="Kode SKU (opsional)") }}
+                                    <small class="form-text text-muted">Kode unik untuk identifikasi</small>
+                                    {% if form.sku.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.sku.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Unit and Cost -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="unit" class="form-label required">
+                                        <i class="fas fa-weight me-1"></i>Satuan
+                                    </label>
+                                    {{ form.unit(class="form-select") }}
+                                    {% if form.unit.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.unit.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="cost_price" class="form-label">
+                                        <i class="fas fa-money-bill-wave me-1"></i>Harga Cost
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">Rp</span>
+                                        {{ form.cost_price(class="form-control", placeholder="0", step="0.01", min="0") }}
+                                    </div>
+                                    <small class="form-text text-muted">Harga beli per satuan</small>
+                                    {% if form.cost_price.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.cost_price.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stock Information -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="stock_quantity" class="form-label required">
+                                        <i class="fas fa-warehouse me-1"></i>Stok Awal
+                                    </label>
+                                    {{ form.stock_quantity(class="form-control", placeholder="0", min="0", step="0.01") }}
+                                    <small class="form-text text-muted">Gunakan titik (.) untuk bilangan desimal</small>
+                                    {% if form.stock_quantity.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.stock_quantity.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="stock_alert" class="form-label required">
+                                        <i class="fas fa-bell me-1"></i>Alert Stok Minimal
+                                    </label>
+                                    {{ form.stock_alert(class="form-control", placeholder="10", min="0", step="0.01") }}
+                                    <small class="form-text text-muted">Notifikasi ketika stok mencapai level ini</small>
+                                    {% if form.stock_alert.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.stock_alert.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="form-group mb-4">
+                            <label for="description" class="form-label">
+                                <i class="fas fa-align-left me-1"></i>Deskripsi
+                            </label>
+                            {{ form.description(class="form-control", rows="3", placeholder="Deskripsi bahan baku...") }}
+                            {% if form.description.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.description.errors %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('raw_materials.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Batal
+                            </a>
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i>Simpan Bahan Baku
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Card -->
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-lightbulb me-2"></i>Tips
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6 class="text-primary">
+                            <i class="fas fa-info-circle me-2"></i>Informasi Bahan Baku
+                        </h6>
+                        <p class="small text-muted">
+                            Bahan baku digunakan untuk Bill of Materials (BOM) produk. Pastikan informasi yang dimasukkan akurat.
+                        </p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6 class="text-primary">
+                            <i class="fas fa-warehouse me-2"></i>Manajemen Stok
+                        </h6>
+                        <p class="small text-muted">
+                            Setel alert stok minimal untuk mendapatkan notifikasi ketika stok hampir habis.
+                        </p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6 class="text-primary">
+                            <i class="fas fa-money-bill-wave me-2"></i>Harga Cost
+                        </h6>
+                        <p class="small text-muted">
+                            Harga cost digunakan untuk menghitung biaya produksi dan analisis profitabilitas.
+                        </p>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <small>
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                            <strong>Catatan:</strong> Bahan baku yang sudah digunakan dalam BOM tidak dapat dihapus, hanya dapat dinonaktifkan.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Form validation
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    
+    form.addEventListener('submit', function(e) {
+        const stockQuantity = parseFloat(document.getElementById('stock_quantity').value);
+        const stockAlert = parseFloat(document.getElementById('stock_alert').value);
+        
+        if (stockQuantity < 0) {
+            e.preventDefault();
+            alert('Stok tidak boleh negatif.');
+            return false;
+        }
+        
+        if (stockAlert < 0) {
+            e.preventDefault();
+            alert('Alert stok minimal tidak boleh negatif.');
+            return false;
+        }
+        
+        const costPrice = parseFloat(document.getElementById('cost_price').value);
+        if (costPrice < 0) {
+            e.preventDefault();
+            alert('Harga cost tidak boleh negatif.');
+            return false;
+        }
+    });
+    
+    // Auto-focus first field
+    document.getElementById('name').focus();
+});
+</script>
+{% endblock %}
