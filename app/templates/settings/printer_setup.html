@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Printer Setup - KreasiPOS Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('settings.index') }}">Settings</a></li>
+                    <li class="breadcrumb-item active">Printer Setup</li>
+                </ol>
+            </nav>
+            <h1 class="h2 mb-0">
+                <i class="bi bi-printer"></i> Printer Setup with QZ Tray
+            </h1>
+            <small class="text-muted">Client-side printing for your POS system</small>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">How Printing Works</h5>
+            <p>
+                This POS system uses <strong>QZ Tray</strong>, a client-side application, to connect to your local thermal printers. This allows you to print receipts directly from your browser, no matter where you are.
+            </p>
+            <hr>
+            <h6>Setup Instructions:</h6>
+            <ol>
+                <li>
+                    <strong>Install QZ Tray:</strong> If you haven't already, download and install the QZ Tray application on every computer that will be used for printing. You can download it from <a href="https://qz.io/download/" target="_blank">the official QZ Tray website</a>.
+                </li>
+                <li>
+                    <strong>Run QZ Tray:</strong> Make sure the QZ Tray application is running in the background on your computer before you start making sales. You should see its icon in your system tray.
+                </li>
+                <li>
+                    <strong>Connect your Printer:</strong> Ensure your thermal receipt printer is properly connected to your computer (via USB, Bluetooth, etc.) and is installed correctly in your operating system.
+                </li>
+                <li>
+                    <strong>Test Your Connection:</strong> Click the button below to send a test page to your printer. If it prints, you're all set!
+                </li>
+            </ol>
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> 
+                <strong>No Server-Side Configuration Needed:</strong> With this method, you no longer need to configure printer IP addresses in the settings. Printer selection is handled locally on each machine.
+            </div>
+        </div>
+        <div class="card-footer text-center">
+            <button class="btn btn-primary" id="testPrintBtn">
+                <i class="bi bi-printer-fill"></i> Send Test Print
+            </button>
+            <div id="testPrintStatus" class="mt-3" style="min-height: 2rem;"></div>
+        </div>
+        </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/qz-tray.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const testPrintBtn = document.getElementById('testPrintBtn');
+    const statusDiv = document.getElementById('testPrintStatus');
+
+    testPrintBtn.addEventListener('click', function() {
+        // Nonaktifkan tombol untuk mencegah klik ganda
+        testPrintBtn.disabled = true;
+        testPrintBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Printing...';
+        
+        statusDiv.innerHTML = '<div class="alert alert-secondary">Connecting to QZ Tray and sending test print...</div>';
+
+        printTestPageWithQZ().then(result => {
+            if (result.success) {
+                statusDiv.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${result.message}</div>`;
+            } else {
+                statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Test print failed: ${result.message}</div>`;
+            }
+        }).catch(err => {
+             statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> An error occurred: ${err.toString()}</div>`;
+        }).finally(() => {
+            // Aktifkan kembali tombol setelah selesai
+            testPrintBtn.disabled = false;
+            testPrintBtn.innerHTML = '<i class="bi bi-printer-fill"></i> Send Test Print';
+        });
+    });
+});
+</script>
+{% endblock %}

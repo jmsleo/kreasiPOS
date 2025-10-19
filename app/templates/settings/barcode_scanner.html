@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Barcode Scanner - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .scanner-option {
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        height: 100%;
+    }
+    .scanner-option:hover {
+        border-color: #0d6efd;
+        background-color: #f8f9fa;
+    }
+    .scanner-option.active {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+    .scanner-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    .scanner-test {
+        background: #f8f9fa;
+        border: 1px dashed #dee2e6;
+        border-radius: 5px;
+        min-height: 100px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('settings.index') }}">Settings</a></li>
+                    <li class="breadcrumb-item active">Barcode Scanner</li>
+                </ol>
+            </nav>
+            
+            <h1 class="h2 mb-0">
+                <i class="bi bi-upc-scan"></i> Barcode Scanner Settings
+            </h1>
+            <small class="text-muted">Configure barcode scanner for quick product lookup</small>
+        </div>
+    </div>
+
+        <div class="col-mb-4">
+            <!-- Scanner Test Area -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Test Scanner</h5>
+                </div>
+                <div class="card-body">
+                    <div class="scanner-test p-3 d-flex align-items-center justify-content-center">
+                        <div class="text-center">
+                            <i class="bi bi-upc-scan display-4 text-muted mb-3"></i>
+                            <p class="mb-2">Focus on this area and scan a barcode</p>
+                            <small class="text-muted" id="scanResult">No scan detected yet</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scanner Status -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Instuctions</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Usage Instructions:</h6>
+                    <ol class="small">
+                        <li>Connect your barcode scanner</li>
+                        <li>Read your scanner manual</li>
+                        <li>Try it with scanning any barcode</li>
+                        <li>Test by scanning in the POS search field</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selectScanner(type) {
+    // Remove active class from all options
+    document.querySelectorAll('.scanner-option').forEach(option => {
+        option.classList.remove('active');
+    });
+    
+    // Add active class to selected option
+    event.currentTarget.classList.add('active');
+    
+    // Check the corresponding radio button
+    const radio = event.currentTarget.querySelector('input[type="radio"]');
+    radio.checked = true;
+}
+
+// Test barcode scanning
+document.addEventListener('DOMContentLoaded', function() {
+    let barcodeBuffer = '';
+    let barcodeTimeout;
+    
+    document.addEventListener('keydown', function(e) {
+        // Clear previous timeout
+        clearTimeout(barcodeTimeout);
+        
+        // If Enter key is pressed, process the barcode
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (barcodeBuffer.length >= 3) { // Minimum barcode length
+                document.getElementById('scanResult').textContent = `Scanned: ${barcodeBuffer}`;
+                document.getElementById('scanResult').className = 'text-success';
+                
+                // Clear after 3 seconds
+                setTimeout(() => {
+                    document.getElementById('scanResult').textContent = 'No scan detected yet';
+                    document.getElementById('scanResult').className = 'text-muted';
+                }, 3000);
+            }
+            barcodeBuffer = '';
+            return;
+        }
+        
+        // Accumulate characters for barcode
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            barcodeBuffer += e.key;
+            
+            // Set timeout to process barcode if no more input comes
+            barcodeTimeout = setTimeout(() => {
+                if (barcodeBuffer.length >= 6) { // Minimum barcode length
+                    document.getElementById('scanResult').textContent = `Scanned: ${barcodeBuffer}`;
+                    document.getElementById('scanResult').className = 'text-success';
+                    
+                    // Clear after 3 seconds
+                    setTimeout(() => {
+                        document.getElementById('scanResult').textContent = 'No scan detected yet';
+                        document.getElementById('scanResult').className = 'text-muted';
+                    }, 3000);
+                }
+                barcodeBuffer = '';
+            }, 100);
+        }
+    });
+});
+</script>
+{% endblock %}
+

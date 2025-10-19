@@ -1,0 +1,57 @@
+# === CORE FLASK FRAMEWORK ===
+Flask==2.3.3
+Flask-Login==0.6.3
+Flask-WTF==1.1.1
+Flask-SQLAlchemy==3.0.5
+Flask-Migrate==4.0.5
+Flask-Limiter==3.6.0
+Flask-Caching==2.3.0
+openpyxl
+pytz
+# === DATABASE ===
+SQLAlchemy==2.0.23
+Werkzeug==2.3.7
+psycopg2-binary==2.9.7
+redis==5.3.1
+
+    # Alternative for PostgreSQL: pip install psycopg2-binary
+    # For MySQL: pip install mysqlclient
+    # For SQLite: built-in (no extra package needed)
+
+# === AUTHENTICATION & SECURITY ===
+WTForms==3.0.1
+email-validator==2.0.0
+bcrypt==4.0.1
+itsdangerous==2.1.2
+
+# ======== Amazon S3 (UNTUK UPLOAD GAMBAR) ========
+boto3
+botocore
+s3transfer
+jmespath
+urllib3
+certifi
+six
+python-dateutil
+# === PDF GENERATION (UNTUK RECEIPT PDF) ===
+reportlab==4.0.4
+Pillow==10.3.0
+
+# === HTTP CLIENT (UNTUK PRINTER DAEMON) ===
+requests==2.31.0
+
+# === UTILITIES ===
+python-dotenv==1.0.0
+click==8.1.7
+Jinja2==3.1.2
+MarkupSafe==2.1.3
+
+# === DEVELOPMENT & DEBUGGING ===
+debugpy==1.6.7
+blinker==1.6.3
+
+# === DEPLOYMENT ===
+gunicorn==21.2.0
+    # For production WSGI server
+whitenoise==6.5.0
+    # For static file serving

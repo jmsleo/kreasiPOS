@@ -1,0 +1,43 @@
+{% extends "errors/base_error.html" %}
+
+{% block error_title %}Bad Request - KreasiPOS Enterprise{% endblock %}
+
+{% block error_content %}
+<div class="error-icon text-info">
+    <i class="bi bi-exclamation-circle"></i>
+</div>
+
+<h1 class="error-code">400</h1>
+<h2 class="h3 mb-4">Bad Request</h2>
+
+<p class="text-muted mb-4">
+    The server couldn't understand your request. 
+    This might be due to invalid parameters, malformed syntax, or missing required data.
+</p>
+
+<div class="error-actions">
+    <a href="{{ url_for('main.index') }}" class="btn btn-primary me-3">
+        <i class="bi bi-house"></i> Go Home
+    </a>
+    <button onclick="history.back()" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i> Go Back
+    </button>
+    <button onclick="location.reload()" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-clockwise"></i> Try Again
+    </button>
+</div>
+
+<div class="mt-4">
+    <small class="text-muted">
+        Please check your input and try again. If the problem persists, contact support.
+    </small>
+</div>
+
+{% if debug %}
+<div class="error-details mt-4 text-start">
+    <strong>Request Method:</strong> {{ request.method }}<br>
+    <strong>Content Type:</strong> {{ request.content_type or 'Not specified' }}<br>
+    <strong>URL:</strong> {{ request.url }}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,581 @@
+{% extends "base.html" %}
+
+{% block title %}Reports & Analytics - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .stats-card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: transform 0.2s;
+    }
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .stats-icon {
+        font-size: 2.5rem;
+        opacity: 0.8;
+    }
+    .chart-container {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        height: 100%;
+    }
+    .report-card {
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: all 0.3s;
+        height: 100%;
+    }
+    .report-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+    }
+    .quick-action-btn {
+        border: 2px dashed #dee2e6;
+        background: #f8f9fa;
+        transition: all 0.3s;
+        height: 100%;
+    }
+    .quick-action-btn:hover {
+        border-color: #0d6efd;
+        background: #e7f1ff;
+    }
+    .chart-container {
+    background: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    height: 100%;
+}
+
+/* Tambahkan style untuk chart wrapper */
+.chart-wrapper {
+    position: relative;
+    height: 300px; /* Fixed height */
+    width: 100%;
+}
+
+/* Responsive chart heights */
+@media (max-width: 768px) {
+    .chart-wrapper {
+        height: 250px;
+    }
+}
+
+/* Style untuk scrollable product list */
+#topProductsList::-webkit-scrollbar {
+    width: 6px;
+}
+
+#topProductsList::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+#topProductsList::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+}
+
+#topProductsList::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Style untuk active metric button */
+.btn-group .btn.active {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h2 mb-0">
+                <i class="bi bi-graph-up"></i> Laporan & Analisis
+            </h1>
+            <small class="text-muted">Insight bisnis dan analisa performa</small>
+        </div>
+        <div class="col-auto">
+            <div class="dropdown">
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-download"></i> Export Laporan
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('reports.export_excel') }}">
+                            <i class="bi bi-file-earmark-excel"></i> Export ke Excel
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('reports.export_pdf') }}">
+                            <i class="bi bi-file-earmark-pdf"></i> Export ke PDF
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stats-card border-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Pendapatan Hari ini</h6>
+                            <h3 class="mb-0" id="todayRevenue">Rp0.00</h3>
+                            <small class="text-muted" id="todaySalesCount">0 sales</small>
+                        </div>
+                        <div class="align-self-center">
+                            <img src="{{ url_for('static', filename='assets/rp-icon.png') }}" 
+                                alt="Rupiah Icon" 
+                                class="stats-icon" 
+                                style="width: 45px; height: 35px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Minggu ini</h6>
+                            <h3 class="mb-0" id="weekRevenue">Rp0.00</h3>
+                            <small class="text-muted" id="weekSalesCount">0 sales</small>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-calendar-range stats-icon text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Bulan ini</h6>
+                            <h3 class="mb-0" id="monthRevenue">Rp0.00</h3>
+                            <small class="text-muted" id="monthSalesCount">0 sales</small>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-calendar stats-icon text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-0">Rerata Penjualan</h6>
+                            <h3 class="mb-0" id="avgSale">Rp0.00</h3>
+                            <small class="text-muted">Per transaksi</small>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-graph-up stats-icon text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+    <!-- Sales Trend Chart -->
+    <div class="col-lg-8">
+        <div class="chart-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-bar-chart"></i> Tren Penjualan (7 Hari Terakhir)
+                </h5>
+                <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary active" data-metric="revenue" id="revenueBtn">
+                        Pendapatan
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-metric="count" id="countBtn">
+                        Jumlah Transaksi
+                    </button>
+                </div>
+            </div>
+            <!-- Tambahkan wrapper div untuk chart -->
+            <div class="chart-wrapper" style="height: 300px; position: relative;">
+                <canvas id="salesTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Products Chart -->
+    <div class="col-lg-4">
+        <div class="chart-container">
+            <h5 class="mb-3">
+                <i class="bi bi-star"></i> Produk Teratas
+            </h5>
+            <!-- Tambahkan max-height untuk daftar produk -->
+            <div id="topProductsList" style="max-height: 250px; overflow-y: auto;">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading Produk Teratas...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Report Types -->
+    <div class="row">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="bi bi-file-text"></i> Detail Laporan
+            </h4>
+        </div>
+
+        <!-- Sales Report -->
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card report-card">
+                <div class="card-body text-center">
+                    <div class="text-primary mb-3">
+                        <i class="bi bi-cash-stack display-4"></i>
+                    </div>
+                    <h5 class="card-title">Laporan Penjualan</h5>
+                    <p class="card-text text-muted">
+                        Transaksi penjualan yang detail dengan filter berdasarkan hari dan metode pembayaran
+                    </p>
+                    <a href="{{ url_for('reports.sales_report') }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-right"></i> Lihat Laporan
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Performance -->
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card report-card">
+                <div class="card-body text-center">
+                    <div class="text-success mb-3">
+                        <i class="bi bi-box-seam display-4"></i>
+                    </div>
+                    <h5 class="card-title">Performa Produk</h5>
+                    <p class="card-text text-muted">
+                        Analisa penjualan produk, perputaran persediaan, dan metriks keuntungan
+                    </p>
+                    <button class="btn btn-outline-secondary" disabled>
+                        <i class="bi bi-clock"></i> Coming Soon
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer Analytics -->
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card report-card">
+                <div class="card-body text-center">
+                    <div class="text-info mb-3">
+                        <i class="bi bi-people display-4"></i>
+                    </div>
+                    <h5 class="card-title">Analisis Customer</h5>
+                    <p class="card-text text-muted">
+                        Pola pembelian pelanggan, nilai seumur hidup, dan analisis retensi
+                    </p>
+                    <button class="btn btn-outline-secondary" disabled>
+                        <i class="bi bi-clock"></i> Coming Soon
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="bi bi-lightning"></i> Quick Actions
+            </h4>
+        </div>
+        <div class="col-md-4">
+            <a href="{{ url_for('reports.export_excel') }}" class="card quick-action-btn text-decoration-none">
+                <div class="card-body text-center">
+                    <i class="bi bi-file-earmark-excel display-4 text-success mb-3"></i>
+                    <h5 class="card-title">Export ke Excel</h5>
+                    <p class="card-text text-muted small">
+                        Unduh semua data penjualandalam Excel Untuk analisis lebih lanjut
+                    </p>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a href="{{ url_for('reports.export_pdf') }}" class="card quick-action-btn text-decoration-none">
+                <div class="card-body text-center">
+                    <i class="bi bi-file-earmark-pdf display-4 text-danger mb-3"></i>
+                    <h5 class="card-title">Export ke PDF</h5>
+                    <p class="card-text text-muted small">
+                        Generate PDF yang dapat diprint untuk laporan transaksi terbaru
+                    </p>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a href="{{ url_for('sales.history') }}" class="card quick-action-btn text-decoration-none">
+                <div class="card-body text-center">
+                    <i class="bi bi-clock-history display-4 text-primary mb-3"></i>
+                    <h5 class="card-title">Riwayat Penjualan</h5>
+                    <p class="card-text text-muted small">
+                        Lihat riwayat transaksi secara detail denga opsi search dan filter
+                    </p>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Global variables
+let salesTrendChart = null;
+let currentMetric = 'revenue';
+let chartData = null; // Store chart data globally
+
+// Load dashboard data
+async function loadDashboardData() {
+    try {
+        const response = await fetch('{{ url_for("reports.dashboard_data") }}');
+        const data = await response.json();
+        
+        // Store data globally for metric switching
+        chartData = data;
+        
+        updateStats(data);
+        renderSalesTrendChart(data.daily_sales);
+        renderTopProducts(data.top_products);
+        
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        showError('Failed to load dashboard data');
+    }
+}
+
+// Update statistics cards
+function updateStats(data) {
+    const today = new Date().toISOString().split('T')[0];
+    const todayData = data.daily_sales.find(day => day.date === today);
+    
+    // Today's stats
+    if (todayData) {
+        document.getElementById('todayRevenue').textContent = `Rp${todayData.revenue.toFixed(2)}`;
+        document.getElementById('todaySalesCount').textContent = `${todayData.count} sales`;
+    }
+    
+    // Weekly stats
+    const weekRevenue = data.daily_sales.reduce((sum, day) => sum + day.revenue, 0);
+    const weekCount = data.daily_sales.reduce((sum, day) => sum + day.count, 0);
+    document.getElementById('weekRevenue').textContent = `Rp${weekRevenue.toFixed(2)}`;
+    document.getElementById('weekSalesCount').textContent = `${weekCount} sales`;
+    
+    // Average sale
+    const avgSale = weekCount > 0 ? weekRevenue / weekCount : 0;
+    document.getElementById('avgSale').textContent = `Rp${avgSale.toFixed(2)}`;
+    
+    // Monthly (approximate - using week data for demo)
+    document.getElementById('monthRevenue').textContent = `Rp${(weekRevenue * 4).toFixed(2)}`;
+    document.getElementById('monthSalesCount').textContent = `${weekCount * 4} sales`;
+}
+
+// Render sales trend chart
+function renderSalesTrendChart(dailySales) {
+    const canvas = document.getElementById('salesTrendChart');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size berdasarkan parent container
+    const container = canvas.parentElement;
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    
+    // Prepare data
+    const labels = dailySales.map(day => {
+        const date = new Date(day.date);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+    
+    const revenueData = dailySales.map(day => day.revenue);
+    const countData = dailySales.map(day => day.count);
+    
+    if (salesTrendChart) {
+        salesTrendChart.destroy();
+    }
+    
+    // Determine which data to show based on current metric
+    const dataToShow = currentMetric === 'revenue' ? revenueData : countData;
+    const labelText = currentMetric === 'revenue' ? 'Pendapatan (Rp)' : 'Jumlah Transaksi';
+    const borderColor = currentMetric === 'revenue' ? '#0d6efd' : '#28a745';
+    const backgroundColor = currentMetric === 'revenue' ? 'rgba(13, 110, 253, 0.1)' : 'rgba(40, 167, 69, 0.1)';
+    
+    salesTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: labelText,
+                data: dataToShow,
+                borderColor: borderColor,
+                backgroundColor: backgroundColor,
+                tension: 0.4,
+                fill: true,
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // Penting: biarkan container mengatur aspect ratio
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            if (currentMetric === 'revenue') {
+                                return `${labelText}: Rp${value.toFixed(2)}`;
+                            } else {
+                                return `${labelText}: ${value}`;
+                            }
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        drawBorder: false
+                    },
+                    ticks: {
+                        maxTicksLimit: 6,
+                        callback: function(value) {
+                            if (currentMetric === 'revenue') {
+                                return 'Rp' + value.toFixed(0);
+                            } else {
+                                return value;
+                            }
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxRotation: 0,
+                        minRotation: 0
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'nearest'
+            }
+        }
+    });
+}
+
+// Update chart based on selected metric
+function updateChartMetric(metric) {
+    if (!chartData || !chartData.daily_sales) return;
+    
+    currentMetric = metric;
+    
+    // Update button states
+    document.getElementById('revenueBtn').classList.toggle('active', metric === 'revenue');
+    document.getElementById('countBtn').classList.toggle('active', metric === 'count');
+    
+    // Re-render chart with new metric
+    renderSalesTrendChart(chartData.daily_sales);
+}
+
+// Render top products list
+function renderTopProducts(topProducts) {
+    const container = document.getElementById('topProductsList');
+    
+    if (!topProducts || topProducts.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-inbox display-4"></i>
+                <p class="mt-2">No product data available</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    topProducts.slice(0, 5).forEach((product, index) => {
+        const revenue = product.revenue || 0;
+        const quantity = product.quantity || 0;
+        
+        html += `
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">${product.name}</h6>
+                    <small class="text-muted">${quantity} sold • Rp${revenue.toFixed(2)}</small>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-primary">#${index + 1}</span>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Show error message
+function showError(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+    alertDiv.innerHTML = `
+        <i class="bi bi-exclamation-triangle"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.querySelector('main').insertBefore(alertDiv, document.querySelector('main').firstChild);
+}
+
+// Initialize dashboard when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+    
+    // Add event listeners for metric buttons
+    document.getElementById('revenueBtn').addEventListener('click', function() {
+        updateChartMetric('revenue');
+    });
+    
+    document.getElementById('countBtn').addEventListener('click', function() {
+        updateChartMetric('count');
+    });
+    
+    // Refresh data every 5 minutes
+    setInterval(loadDashboardData, 300000);
+});
+</script>
+{% endblock %}

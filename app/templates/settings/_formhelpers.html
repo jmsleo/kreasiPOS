@@ -1,0 +1,124 @@
+{# templates/settings/_formhelpers.html #}
+
+{% macro render_field(field, label=None, class_='', placeholder='', required=false) %}
+    {% if field.type == 'BooleanField' %}
+        <div class="form-check mb-3">
+            <input type="checkbox" 
+                   class="form-check-input {{ class_ }}" 
+                   id="{{ field.name }}" 
+                   name="{{ field.name }}" 
+                   value="true"
+                   {{ 'checked' if field.data }}>
+            <label class="form-check-label" for="{{ field.name }}">
+                {{ label or field.label }}
+                {% if required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+        </div>
+    {% elif field.type == 'SelectField' %}
+        <div class="mb-3">
+            <label for="{{ field.name }}" class="form-label">
+                {{ label or field.label }}
+                {% if required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            <select class="form-select {{ class_ }}" 
+                    id="{{ field.name }}" 
+                    name="{{ field.name }}">
+                {% for value, label in field.choices %}
+                    <option value="{{ value }}" {{ 'selected' if field.data == value }}>
+                        {{ label }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    {% elif field.type == 'TextAreaField' %}
+        <div class="mb-3">
+            <label for="{{ field.name }}" class="form-label">
+                {{ label or field.label }}
+                {% if required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            <textarea class="form-control {{ class_ }}" 
+                      id="{{ field.name }}" 
+                      name="{{ field.name }}" 
+                      placeholder="{{ placeholder }}"
+                      rows="4">{{ field.data or '' }}</textarea>
+        </div>
+    {% else %}
+        <div class="mb-3">
+            <label for="{{ field.name }}" class="form-label">
+                {{ label or field.label }}
+                {% if required %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            <input type="{{ field.type|lower|replace('field','') }}" 
+                   class="form-control {{ class_ }}" 
+                   id="{{ field.name }}" 
+                   name="{{ field.name }}" 
+                   value="{{ field.data or '' }}" 
+                   placeholder="{{ placeholder }}"
+                   {{ 'required' if required }}>
+        </div>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_flash_messages() %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+{% endmacro %}
+
+{% macro render_csrf_token() %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% endmacro %}
+
+{% macro render_submit_btn(text='Submit', class_='btn-primary', icon=None) %}
+    <div class="mb-3">
+        <button type="submit" class="btn {{ class_ }}">
+            {% if icon %}
+                <i class="bi bi-{{ icon }}"></i>
+            {% endif %}
+            {{ text }}
+        </button>
+        <a href="{{ url_for('settings.user_management') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+{% endmacro %}
+
+{% macro render_form_errors(field) %}
+    {% if field.errors %}
+        <div class="invalid-feedback">
+            {% for error in field.errors %}
+                {{ error }}<br>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_user_form(form, legend, is_edit=false) %}
+    <form method="POST">
+        {{ render_csrf_token() }}
+        
+        <fieldset>
+            <legend class="border-bottom mb-4">{{ legend }}</legend>
+            
+            {{ render_field(form.username, 'Username', required=true) }}
+            {{ render_field(form.email, 'Email', required=true) }}
+            
+            <div class="mb-3">
+                <label for="role" class="form-label">Role <span class="text-danger">*</span></label>
+                <select class="form-select" id="role" name="role" required>
+                    <option value="admin" {{ 'selected' if form.role.data == 'admin' }}>Admin</option>
+                    <option value="cashier" {{ 'selected' if form.role.data == 'cashier' }}>Cashier</option>
+                </select>
+            </div>
+            
+            {{ render_field(form.password, 'Password', placeholder='Enter password' + (' (leave blank to keep current)' if is_edit else '')) }}
+            
+            {{ render_submit_btn('Save User', icon='check-circle') }}
+        </fieldset>
+    </form>
+{% endmacro %}

@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    .card-header {
+        background: linear-gradient(45deg, #0d6efd, #6f42c1);
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="row mb-4">
+                <div class="col">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('customers.index') }}">Customers</a></li>
+                            <li class="breadcrumb-item active">Tambah Pelanggan Baru</li>
+                        </ol>
+                    </nav>
+                    
+                    <h1 class="h2 mb-0">
+                        <i class="bi bi-person-plus"></i> {{ title }}
+                    </h1>
+                    <small class="text-muted">Tambah customer baru ke database Anda</small>
+                </div>
+            </div>
+
+            <!-- Customer Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person-badge"></i> Informasi Pelanggan
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('customers.create') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
+                                    {{ form.name(class="form-control", placeholder="Masukkan nama lengkap pelanggan") }}
+                                    {% if form.name.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {% for error in form.name.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Nama lengkap pelanggan akan muncul dalam struk</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">Nomor Telepon</label>
+                                    {{ form.phone(class="form-control", placeholder="Contoh: +62 812-3456-7890") }}
+                                    {% if form.phone.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {% for error in form.phone.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="form-text">Kontak utama pelanggan</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Alamat Email</label>
+                            {{ form.email(class="form-control", placeholder="customer@contoh.com") }}
+                            {% if form.email.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.email.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">Untuk struk dan notifikasi</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">Alamat</label>
+                            {{ form.address(class="form-control", rows="4", placeholder="Masukkan alamat lengkap termasuk kota dan kode pos") }}
+                            {% if form.address.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.address.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">Lengkapi alamat pelanggan untuk layanan pengiriman</div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Note:</strong> Yang diwajibkan hanyalah nama pelanggan. Bagian lain merupakan opsional namun direkomendasikan untuk pelayanan pelanggan yang lebih baik.
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('customers.index') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Kembali ke Manajemen Pelanggan
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Buat Pelanggan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Quick Tips -->
+            <div class="card mt-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-lightbulb"></i> Quick Tips
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="bi bi-check text-success"></i>
+                            <strong>Informasi Lengkap:</strong> Isi semua bagian untuk insight pelanggan yang lebih baik
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check text-success"></i>
+                            <strong>Nomor Telepon:</strong> Gunakan format internasioanl untuk konsistensi
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check text-success"></i>
+                            <strong>Email:</strong> Berguna untuk mengirim struk digital dan promosi
+                        </li>
+                        <li>
+                            <i class="bi bi-check text-success"></i>
+                            <strong>Alamat:</strong> Penting untuk layanan pengiriman dan pemasaran berbasis lokasi
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-focus on name field
+    const nameField = document.getElementById('name');
+    if (nameField) {
+        nameField.focus();
+    }
+    
+    // Phone number formatting
+    const phoneField = document.getElementById('phone');
+    if (phoneField) {
+        phoneField.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.startsWith('62')) {
+                value = '+62 ' + value.substring(2);
+            } else if (value.startsWith('0')) {
+                value = '+62 ' + value.substring(1);
+            }
+            
+            // Format: +62 812-3456-7890
+            if (value.length > 4) {
+                value = value.substring(0, 4) + ' ' + value.substring(4);
+            }
+            if (value.length > 9) {
+                value = value.substring(0, 9) + '-' + value.substring(9);
+            }
+            if (value.length > 14) {
+                value = value.substring(0, 14) + '-' + value.substring(14, 18);
+            }
+            
+            e.target.value = value;
+        });
+    }
+});
+</script>
+{% endblock %}

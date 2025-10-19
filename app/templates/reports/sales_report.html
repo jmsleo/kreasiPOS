@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+
+{% block title %}Sales Report - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .report-header {
+        background: linear-gradient(45deg, #0d6efd, #6f42c1);
+        color: white;
+        border-radius: 10px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    .stats-card {
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    .filter-card {
+        background: #f8f9fa;
+        border: 1px dashed #dee2e6;
+    }
+    .sales-table {
+        font-size: 0.875rem;
+    }
+    .sales-table th {
+        border-top: none;
+        font-weight: 600;
+        color: #6c757d;
+    }
+    .payment-badge {
+        font-size: 0.75rem;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6c757d;
+    }
+    .export-buttons .btn {
+        margin-right: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Report Header -->
+    <div class="report-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="h2 mb-1">
+                    <i class="bi bi-cash-coin"></i> Laporan Penjualan
+                </h1>
+                <p class="mb-0 opacity-75">
+                    Analisis transaksi penjualan dan pendapatan secara detail
+                </p>
+            </div>
+            <div class="col-auto">
+                <div class="export-buttons">
+                    <a href="{{ url_for('reports.export_excel') }}{% if request.args.get('start_date') %}?start_date={{ request.args.get('start_date') }}&end_date={{ request.args.get('end_date') }}{% endif %}" 
+                       class="btn btn-light">
+                        <i class="bi bi-file-earmark-excel"></i> Excel
+                    </a>
+                    <a href="{{ url_for('reports.export_pdf') }}{% if request.args.get('start_date') %}?start_date={{ request.args.get('start_date') }}&end_date={{ request.args.get('end_date') }}{% endif %}" 
+                       class="btn btn-light">
+                        <i class="bi bi-file-earmark-pdf"></i> PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stats-card border-primary">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted mb-0">Total Penjualan</h6>
+                    <h3 class="text-primary mb-0">{{ total_sales }}</h3>
+                    <small class="text-muted">Transaksi</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-success">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted mb-0">Total Pendapatan</h6>
+                    <h3 class="text-success mb-0">Rp{{ "%.2f"|format(total_revenue) }}</h3>
+                    <small class="text-muted">Pendapatan kotor</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-warning">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted mb-0">Rerata penjualan</h6>
+                    <h3 class="text-warning mb-0">Rp{{ "%.2f"|format(avg_sale) }}</h3>
+                    <small class="text-muted">Per transaksi</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card border-info">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted mb-0">Periode Waktu</h6>
+                    <h3 class="text-info mb-0">
+                        {% if request.args.get('start_date') and request.args.get('end_date') %}
+                            Custom
+                        {% else %}
+                            All Time
+                        {% endif %}
+                    </h3>
+                    <small class="text-muted">
+                        {% if request.args.get('start_date') %}
+                            {{ request.args.get('start_date') }} to {{ request.args.get('end_date') }}
+                        {% else %}
+                            All records
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card filter-card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="bi bi-funnel"></i> Filter Report
+                    </h5>
+                    <form method="GET" action="{{ url_for('reports.sales_report') }}">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <label for="start_date" class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" 
+                                       value="{{ request.args.get('start_date', '') }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="end_date" class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" 
+                                       value="{{ request.args.get('end_date', '') }}">
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-text">
+                                    Kosongkan tanggal untuk lihat semua transaksi
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-filter"></i> Jalankan Filter
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sales Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list-ul"></i> Transaksi Penjualan
+                    </h5>
+                    <span class="text-muted small">
+                        Menunjukkan {{ sales|length }} transaksi
+                    </span>
+                </div>
+                <div class="card-body">
+                    {% if sales %}
+                    <div class="table-responsive">
+                        <table class="table table-hover sales-table">
+                            <thead>
+                                <tr>
+                                    <th>No Struk</th>
+                                    <th>Tanggal & Waktu</th>
+                                    <th>Customer</th>
+                                    <th class="text-center">Items</th>
+                                    <th class="text-end">Total Biaya</th>
+                                    <th>Metode Pembayaran</th>
+                                    <th class="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sale in sales %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ sale.receipt_number }}</strong>
+                                    </td>
+                                    <td>
+                                        {{ sale.created_at.strftime('%Y-%m-%d') }}<br>
+                                        <small class="text-muted">{{ sale.created_at.strftime('%H:%M') }}</small>
+                                    </td>
+                                    <td>
+                                        {% if sale.customer %}
+                                        <span class="badge bg-light text-dark">{{ sale.customer.name }}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Walk-in</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary rounded-pill">
+                                            {{ sale.items.count() }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>${{ "%.2f"|format(sale.total_amount) }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if sale.payment_method == 'cash' %}
+                                        <span class="badge bg-success payment-badge">
+                                            <i class="bi bi-cash"></i> Tunai
+                                        </span>
+                                        {% elif sale.payment_method == 'card' %}
+                                        <span class="badge bg-primary payment-badge">
+                                            <i class="bi bi-credit-card"></i> Kartu
+                                        </span>
+                                        {% elif sale.payment_method == 'transfer' %}
+                                        <span class="badge bg-info payment-badge">
+                                            <i class="bi bi-bank"></i> Transfer
+                                        </span>
+                                        {% elif sale.payment_method == 'qris' %}
+                                        <span class="badge bg-warning payment-badge">
+                                            <i class="bi bi-qr-code"></i> QRIS
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary payment-badge">
+                                            {{ sale.payment_method }}
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('sales.receipt', sale_id=sale.id) }}" 
+                                               class="btn btn-outline-primary" title="View Receipt">
+                                                <i class="bi bi-receipt"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-secondary" 
+                                                    onclick="showSaleDetails({{ sale.id }})" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-active">
+                                    <td colspan="4" class="text-end"><strong>Total Akhir:</strong></td>
+                                    <td class="text-end"><strong>${{ "%.2f"|format(total_revenue) }}</strong></td>
+                                    <td colspan="2"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    {% else %}
+                    <!-- Empty State -->
+                    <div class="empty-state">
+                        {% if request.args.get('start_date') %}
+                        <i class="bi bi-search display-4"></i>
+                        <h4 class="mt-3">No Sales Found</h4>
+                        <p class="mb-4">No sales transactions match your filter criteria.</p>
+                        <a href="{{ url_for('reports.sales_report') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-left"></i> Clear Filters
+                        </a>
+                        {% else %}
+                        <i class="bi bi-cart-x display-4"></i>
+                        <h4 class="mt-3">No Sales Data</h4>
+                        <p class="mb-4">Start making sales to see transaction data here.</p>
+                        <a href="{{ url_for('sales.pos') }}" class="btn btn-primary">
+                            <i class="bi bi-cash-coin"></i> Go to POS
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Method Breakdown -->
+    {% if sales %}
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-pie-chart"></i> Rincian Metode Pembayaran
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="paymentMethodChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history"></i> Penjualan per Jam
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="salesByHourChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Sale Details Modal -->
+<div class="modal fade" id="saleDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detail Penjualan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="saleDetailsContent">
+                <!-- Content will be loaded via JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Show sale details
+async function showSaleDetails(saleId) {
+    try {
+        const response = await fetch(`/sales/receipt/${saleId}/html`);
+        const html = await response.text();
+        
+        document.getElementById('saleDetailsContent').innerHTML = html;
+        const modal = new bootstrap.Modal(document.getElementById('saleDetailsModal'));
+        modal.show();
+        
+    } catch (error) {
+        console.error('Error loading sale details:', error);
+        document.getElementById('saleDetailsContent').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Failed to load sale details.
+            </div>
+        `;
+    }
+}
+
+// Initialize charts if sales data exists
+document.addEventListener('DOMContentLoaded', function() {
+    {% if sales %}
+    renderPaymentMethodChart();
+    renderSalesByHourChart();
+    {% endif %}
+    
+    // Set default dates for filter
+    const today = new Date().toISOString().split('T')[0];
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0];
+    
+    if (!document.getElementById('start_date').value) {
+        document.getElementById('start_date').value = oneWeekAgoStr;
+    }
+    if (!document.getElementById('end_date').value) {
+        document.getElementById('end_date').value = today;
+    }
+});
+
+// Payment method chart
+function renderPaymentMethodChart() {
+    const paymentData = {};
+    
+    {% for sale in sales %}
+    const method = '{{ sale.payment_method }}';
+    paymentData[method] = (paymentData[method] || 0) + 1;
+    {% endfor %}
+    
+    const ctx = document.getElementById('paymentMethodChart').getContext('2d');
+    const labels = Object.keys(paymentData);
+    const data = Object.values(paymentData);
+    
+    const colors = {
+        'cash': '#198754',
+        'card': '#0d6efd', 
+        'transfer': '#0dcaf0',
+        'qris': '#ffc107',
+        'other': '#6c757d'
+    };
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels.map(label => label.charAt(0).toUpperCase() + label.slice(1)),
+            datasets: [{
+                data: data,
+                backgroundColor: labels.map(label => colors[label] || colors.other)
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+// Sales by hour chart
+function renderSalesByHourChart() {
+    const hourData = new Array(24).fill(0);
+    
+    {% for sale in sales %}
+    const hour = new Date('{{ sale.created_at.isoformat() }}').getHours();
+    hourData[hour]++;
+    {% endfor %}
+    
+    const ctx = document.getElementById('salesByHourChart').getContext('2d');
+    const labels = Array.from({length: 24}, (_, i) => {
+        return i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i-12} PM`;
+    });
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Sales Count',
+                data: hourData,
+                backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                borderColor: '#0d6efd',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

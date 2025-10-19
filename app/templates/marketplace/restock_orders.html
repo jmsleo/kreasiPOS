@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-list-check"></i> My Restock Orders</h1>
+        <div>
+            <a href="{{ url_for('marketplace.index') }}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Marketplace
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('marketplace.restock_orders') }}" class="btn btn-outline-secondary {% if not request.args.get('status') %}active{% endif %}">
+                            Semua Pesanan
+                        </a>
+                        <a href="{{ url_for('marketplace.restock_orders', status='pending') }}" class="btn btn-outline-warning {% if request.args.get('status') == 'pending' %}active{% endif %}">
+                            Tertunda
+                        </a>
+                        <a href="{{ url_for('marketplace.restock_orders', status='verified') }}" class="btn btn-outline-success {% if request.args.get('status') == 'verified' %}active{% endif %}">
+                            Diterima
+                        </a>
+                        <a href="{{ url_for('marketplace.restock_orders', status='rejected') }}" class="btn btn-outline-danger {% if request.args.get('status') == 'rejected' %}active{% endif %}">
+                            Ditolak
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {% if orders %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Tanggal Pesan</th>
+                            <th>Produk</th>
+                            <th>Kuantitas</th>
+                            <th>Tujuan</th> <!-- KOLOM BARU -->
+                            <th>Jumlah Total</th>
+                            <th>Status</th>
+                            <th>Admin Notes</th>
+                            <th class="text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <strong>{{ order.marketplace_item.name }}</strong>
+                                {% if order.notes %}
+                                <br><small class="text-muted">Note Anda: {{ order.notes[:50] }}{% if order.notes|length > 50 %}...{% endif %}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ order.quantity }}</td>
+                            <td> <!-- KOLOM TUJUAN BARU -->
+                                {% if order.destination_type == 'product' %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-box-seam"></i> Produk
+                                    </span>
+                                    <br><small class="text-muted">Untuk dijual</small>
+                                {% else %}
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-gear"></i> Bahan Baku
+                                    </span>
+                                    <br><small class="text-muted">Untuk produksi</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ "Rp {:,.0f}".format(order.total_amount) }}</td>
+                            <td>
+                                {% if order.status.value == 'pending' %}
+                                    <span class="badge bg-warning"><i class="bi bi-clock"></i> Tertunda</span>
+                                {% elif order.status.value == 'verified' %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Diterima</span>
+                                    {% if order.verified_at %}
+                                    <br><small class="text-muted">{{ order.verified_at.strftime('%m/%d %H:%M') }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Ditolak</span>
+                                    {% if order.verified_at %}
+                                    <br><small class="text-muted">{{ order.verified_at.strftime('%m/%d %H:%M') }}</small>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if order.admin_notes %}
+                                    <span class="text-muted small">{{ order.admin_notes[:30] }}{% if order.admin_notes|length > 30 %}...{% endif %}</span>
+                                {% else %}
+                                    <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{{ url_for('marketplace.order_detail', order_id=order.id) }}" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-eye"></i> Details
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Modals di luar table, di bagian bawah -->
+            {% for order in orders %}
+            <!-- Modal for Order Details -->
+            <div class="modal fade" id="orderModal{{ order.id }}" tabindex="-1" aria-labelledby="orderModalLabel{{ order.id }}" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="orderModalLabel{{ order.id }}">Detail Pesanan - {{ order.marketplace_item.name }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Informasi Pesanan</h6>
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <th>Produk:</th>
+                                            <td>{{ order.marketplace_item.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Kuantitas:</th>
+                                            <td>{{ order.quantity }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Tujuan:</th> <!-- BARU DI MODAL -->
+                                            <td>
+                                                {% if order.destination_type == 'product' %}
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-box-seam"></i> Produk (Untuk Dijual)
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-info">
+                                                        <i class="bi bi-gear"></i> Bahan Baku (Untuk Produksi)
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Harga per item:</th>
+                                            <td>{{ "Rp {:,.0f}".format(order.marketplace_item.price) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Jumlah Total:</th>
+                                            <td class="fw-bold text-primary">{{ "Rp {:,.0f}".format(order.total_amount) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Tanggal Pesan:</th>
+                                            <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        </tr>
+                                    </table>
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <h6>Alamat Pengiriman</h6>
+                                            <div class="border rounded p-3 bg-light">
+                                                <strong>{{ order.tenant.name }}</strong><br>
+                                                {{ order.shipping_address }}<br>
+                                                {{ order.shipping_city }} {{ order.shipping_postal_code }}<br>
+                                                <i class="bi bi-telephone"></i> {{ order.shipping_phone }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Informasi Status</h6>
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <th>Status:</th>
+                                            <td>
+                                                {% if order.status.value == 'pending' %}
+                                                    <span class="badge bg-warning">Verifikasi Tertunda</span>
+                                                {% elif order.status.value == 'verified' %}
+                                                    <span class="badge bg-success">Diterima</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Ditolak</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% if order.verified_by %}
+                                        <tr>
+                                            <th>Verified by:</th>
+                                            <td>{{ order.verifier.username }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Verified at:</th>
+                                            <td>{{ order.verified_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        </tr>
+                                        {% endif %}
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <h6>Your Notes</h6>
+                                    <div class="border rounded p-3 bg-light">
+                                        {% if order.notes %}
+                                            {{ order.notes }}
+                                        {% else %}
+                                            <span class="text-muted">Tidak ada notes</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Admin Notes</h6>
+                                    <div class="border rounded p-3 {% if order.admin_notes %}bg-light{% endif %}">
+                                        {% if order.admin_notes %}
+                                            <p class="mb-0">{{ order.admin_notes }}</p>
+                                        {% else %}
+                                            <span class="text-muted">Belum ada notes admin</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if order.payment_proof_url %}
+                            <div class="mt-3">
+                                <h6>Payment Proof</h6>
+                                <div class="text-center">
+                                    <img src="{{ order.payment_proof_url }}" alt="Payment Proof" class="img-fluid rounded border" style="max-height: 300px;">
+                                    <div class="mt-2">
+                                        <a href="{{ order.payment_proof_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-box-arrow-up-right"></i> View Full Image
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted"></i>
+                <h4 class="mt-3 text-muted">Tidak ada pesanan ditemukan</h4>
+                <p class="text-muted">
+                    {% if request.args.get('status') %}
+                        No {{ request.args.get('status') }} orders.
+                    {% else %}
+                        Anda belum memesan apapun.
+                    {% endif %}
+                </p>
+                <a href="{{ url_for('marketplace.index') }}" class="btn btn-primary">
+                    <i class="bi bi-cart-plus"></i> Mulai Belanja
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Order Statistics -->
+    {% if orders %}
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h4>{{ orders|length }}</h4>
+                    <p class="mb-0">Total Orders</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h4>{{ orders|selectattr('status.value', 'equalto', 'pending')|list|length }}</h4>
+                    <p class="mb-0">Pending</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4>{{ orders|selectattr('status.value', 'equalto', 'verified')|list|length }}</h4>
+                    <p class="mb-0">Diterima</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h4>{{ orders|selectattr('status.value', 'equalto', 'rejected')|list|length }}</h4>
+                    <p class="mb-0">Ditolak</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- JavaScript untuk memastikan modal tidak auto-show -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Pastikan semua modal tertutup saat page load
+    const openModals = document.querySelectorAll('.modal.show');
+    openModals.forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+            bsModal.hide();
+        }
+    });
+
+    // Hapus URL hash jika ada yang menyebabkan modal terbuka
+    if (window.location.hash) {
+        window.location.hash = '';
+    }
+
+    // Pastikan backdrop modal dihapus jika ada
+    const modalBackdrops = document.querySelectorAll('.modal-backdrop');
+    modalBackdrops.forEach(backdrop => {
+        backdrop.remove();
+    });
+
+    // Hapus class 'modal-open' dari body
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+});
+</script>
+{% endblock %}

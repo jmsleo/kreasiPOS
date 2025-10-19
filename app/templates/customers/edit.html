@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - KreasiPOS Enterprise{% endblock %}
+
+{% block styles %}
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    .card-header {
+        background: linear-gradient(45deg, #0d6efd, #6f42c1);
+        color: white;
+    }
+    .customer-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(45deg, #0d6efd, #6f42c1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: bold;
+        color: white;
+        margin: 0 auto 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="row mb-4">
+                <div class="col">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('customers.index') }}">Pelanggan</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('customers.detail', customer_id=customer.id) }}">{{ customer.name }}</a></li>
+                            <li class="breadcrumb-item active">Ubah</li>
+                        </ol>
+                    </nav>
+                    
+                    <h1 class="h2 mb-0">
+                        <i class="bi bi-pencil"></i> {{ title }}
+                    </h1>
+                    <small class="text-muted">Perbarui informasi pelanggan</small>
+                </div>
+            </div>
+
+            <!-- Customer Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person-badge"></i> Ubah Informasi Pelanggan
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="customer-avatar">
+                        {{ customer.name[0]|upper }}
+                    </div>
+                    
+                    <form method="POST" action="{{ url_for('customers.edit', customer_id=customer.id) }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
+                                    {{ form.name(class="form-control", placeholder="Masukkan nama lengkap pelanggan") }}
+                                    {% if form.name.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {% for error in form.name.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">Nomor</label>
+                                    {{ form.phone(class="form-control", placeholder="Contoh: +62 812-3456-7890") }}
+                                    {% if form.phone.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {% for error in form.phone.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Alamat Email</label>
+                            {{ form.email(class="form-control", placeholder="customer@contoh.com") }}
+                            {% if form.email.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.email.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">Address</label>
+                            {{ form.address(class="form-control", rows="4", placeholder="Masukkan alamat lengkap termasuk kota dan kode pos") }}
+                            {% if form.address.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.address.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('customers.detail', customer_id=customer.id) }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Batal
+                            </a>
+                            <div>
+                                <a href="{{ url_for('customers.detail', customer_id=customer.id) }}" class="btn btn-outline-secondary me-2">
+                                    <i class="bi bi-eye"></i> Lihat Profil
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i> Perbarui Pelanggan
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Danger Zone -->
+            <div class="card mt-4 border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> Danger Zone
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-danger">Delete Customer</h6>
+                    <p class="text-muted">
+                        Once you delete a customer, there is no going back. Please be certain.
+                        This will permanently remove {{ customer.name }} from your database.
+                    </p>
+                    <button type="button" class="btn btn-danger" onclick="deleteCustomer({{ customer.id }}, '{{ customer.name }}')">
+                        <i class="bi bi-trash"></i> Delete this Customer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function deleteCustomer(customerId, customerName) {
+    if (confirm(`Are you absolutely sure you want to delete customer "${customerName}"? This action cannot be undone and will remove all customer data permanently.`)) {
+        fetch(`/customers/${customerId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                showAlert(`Customer "${customerName}" deleted successfully!`, 'success');
+                // Redirect to customers list after a short delay
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('customers.index') }}";
+                }, 1500);
+            } else {
+                showAlert('Error deleting customer. Please try again.', 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error: ' + error.message, 'danger');
+        });
+    }
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('main').insertBefore(alertDiv, document.querySelector('main').firstChild);
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Auto-focus on name field
+document.addEventListener('DOMContentLoaded', function() {
+    const nameField = document.getElementById('name');
+    if (nameField) {
+        nameField.focus();
+        nameField.select();
+    }
+    
+    // Phone number formatting (same as create.html)
+    const phoneField = document.getElementById('phone');
+    if (phoneField) {
+        phoneField.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.startsWith('62')) {
+                value = '+62 ' + value.substring(2);
+            } else if (value.startsWith('0')) {
+                value = '+62 ' + value.substring(1);
+            }
+            
+            if (value.length > 4) {
+                value = value.substring(0, 4) + ' ' + value.substring(4);
+            }
+            if (value.length > 9) {
+                value = value.substring(0, 9) + '-' + value.substring(9);
+            }
+            if (value.length > 14) {
+                value = value.substring(0, 14) + '-' + value.substring(14, 18);
+            }
+            
+            e.target.value = value;
+        });
+    }
+});
+</script>
+{% endblock %}

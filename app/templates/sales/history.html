@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Sales History - KreasiPOS Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3 mb-0">
+                <i class="bi bi-clock-history"></i> Riwayat Penjualan
+            </h1>
+            <small class="text-muted">Lihat dan kelola transaksi penjualan Anda</small>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('sales.pos') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Penjualan Baru
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Tanggal</label>
+                    <input type="date" class="form-control" name="date" value="{{ date_filter }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Metode Pembayaran</label>
+                    <select class="form-select" name="payment_method">
+                        <option value="">Semua Metode</option>
+                        <option value="cash" {% if payment_filter == 'cash' %}selected{% endif %}>Tunai</option>
+                        <option value="card" {% if payment_filter == 'card' %}selected{% endif %}>Kartu</option>
+                        <option value="transfer" {% if payment_filter == 'transfer' %}selected{% endif %}>Transfer</option>
+                        <option value="qris" {% if payment_filter == 'qris' %}selected{% endif %}>QRIS</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary me-2">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                    <a href="{{ url_for('sales.history') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-clockwise"></i> Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sales Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Struk #</th>
+                            <th>Tanggal & Waktu</th>
+                            <th>Customer</th>
+                            <th>Items</th>
+                            <th>Total</th>
+                            <th>Metode Pembayaran</th>
+                            <th>Kasir</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sale in sales.items %}
+                        <tr>
+                            <td>
+                                <strong>{{ sale.receipt_number }}</strong>
+                            </td>
+                            <td>{{ sale.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                {% if sale.customer %}
+                                    {{ sale.customer.name }}
+                                {% else %}
+                                    <span class="text-muted">Walk-in</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ sale.items.count() }} items</td>
+                            <td>
+                                <strong>Rp{{ "%.2f"|format(sale.total_amount) }}</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 
+                                    'success' if sale.payment_method == 'cash' 
+                                    else 'primary' if sale.payment_method == 'card' 
+                                    else 'info' if sale.payment_method == 'transfer'
+                                    else 'warning' 
+                                }}">
+                                    {{ sale.payment_method|upper }}
+                                </span>
+                            </td>
+                            <td>{{ sale.user.username }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ url_for('sales.receipt', sale_id=sale.id) }}" 
+                                       class="btn btn-outline-primary" title="View Receipt">
+                                        <i class="bi bi-receipt"></i>
+                                    </a>
+                                    <a href="{{ url_for('sales.download_receipt_pdf', sale_id=sale.id) }}" 
+                                       class="btn btn-outline-secondary" title="Download PDF">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    <button class="btn btn-outline-info" 
+                                            onclick="printReceipt('{{ sale.id }}')" 
+                                            title="Print Receipt">
+                                        <i class="bi bi-printer"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <i class="bi bi-receipt display-4 text-muted"></i>
+                                <p class="mt-2 text-muted">Tidak ada penjualan ditemukan</p>
+                                <a href="{{ url_for('sales.pos') }}" class="btn btn-primary mt-2">
+                                    <i class="bi bi-plus-circle"></i> Buat penjualan pertama
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if sales.pages > 1 %}
+            <nav aria-label="Sales pagination">
+                <ul class="pagination justify-content-center">
+                    {% if sales.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('sales.history', page=sales.prev_num, date=date_filter, payment_method=payment_filter) }}">
+                            Previous
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in sales.iter_pages() %}
+                        {% if page_num %}
+                            <li class="page-item {% if page_num == sales.page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('sales.history', page=page_num, date=date_filter, payment_method=payment_filter) }}">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if sales.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('sales.history', page=sales.next_num, date=date_filter, payment_method=payment_filter) }}">
+                            Next
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function printReceipt(saleId) {
+        fetch(`/sales/receipt/${saleId}/print`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Receipt sent to printer successfully');
+                } else {
+                    alert('Print failed: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+    }
+
+    // Auto-refresh every 30 seconds if on first page
+    {% if sales.page == 1 %}
+    setTimeout(() => {
+        window.location.reload();
+    }, 30000);
+    {% endif %}
+</script>
+{% endblock %}

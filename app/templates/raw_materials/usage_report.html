@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}Laporan Penggunaan - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-chart-bar me-2"></i>Laporan Penggunaan Bahan Baku
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('raw_materials.index') }}">
+                            <i class="fas fa-boxes me-1"></i>Bahan Baku
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">Laporan Penggunaan</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('raw_materials.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali
+            </a>
+        </div>
+    </div>
+
+    <!-- Report Summary -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Bahan Baku
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ report_data|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-boxes fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Digunakan di BOM
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ report_data|selectattr('bom_usage_count')|select('gt', 0)|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-list-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Stok Rendah
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ report_data|selectattr('is_low_stock')|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Total Nilai Inventory
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                Rp {{ "{:,.2f}".format(total_inventory_value) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Usage Report -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-table me-2"></i>Detail Penggunaan Bahan Baku
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if report_data %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="dataTable" width="100%" cellspacing="0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nama Bahan</th>
+                                    <th>Stok</th>
+                                    <th>Minimal</th>
+                                    <th>Status</th>
+                                    <th>Harga Cost</th>
+                                    <th>Nilai Inventory</th>
+                                    <th>Digunakan di Produk</th>
+                                    <th>Total Kebutuhan</th>
+                                    <th>Ketersediaan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for material in report_data %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-box me-2 text-primary"></i>
+                                            <div>
+                                                <strong>{{ material.material_name }}</strong>
+                                                {% if material.sku %}
+                                                <br><small class="text-muted">{{ material.sku }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ "%.2f"|format(material.current_stock) }} {{ material.unit }}</td>
+                                    <td>{{ "%.2f"|format(material.stock_alert) }} {{ material.unit }}</td>
+                                    <td>
+                                        {% if material.is_low_stock %}
+                                        <span class="badge bg-warning">Stok Rendah</span>
+                                        {% else %}
+                                        <span class="badge bg-success">Aman</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if material.cost_price %}
+                                        Rp {{ "{:,.2f}".format(material.cost_price) }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if material.total_value %}
+                                        <strong>Rp {{ "{:,.2f}".format(material.total_value) }}</strong>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">
+                                            {{ material.bom_usage_count }} produk
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if material.bom_products %}
+                                        {% set total_required = material.bom_products|sum(attribute='quantity_used') %}
+                                        {{ "%.2f"|format(total_required) }} {{ material.unit }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if material.bom_products %}
+                                        {% set total_required = material.bom_products|sum(attribute='quantity_used') %}
+                                        {% set availability = (material.current_stock / total_required) if total_required > 0 else 0 %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar 
+                                                {% if availability >= 1 %}bg-success
+                                                {% elif availability >= 0.5 %}bg-warning
+                                                {% else %}bg-danger{% endif %}" 
+                                                role="progressbar" 
+                                                style="width: {{ (availability * 100)|round }}%;"
+                                                aria-valuenow="{{ (availability * 100)|round }}" 
+                                                aria-valuemin="0" 
+                                                aria-valuemax="100">
+                                                {{ (availability * 100)|round }}%
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">
+                                            Cukup untuk {{ (material.current_stock / total_required)|round(1) if total_required > 0 else 0 }}x produksi
+                                        </small>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Analysis Section -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card border-primary">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-chart-line me-2"></i>Analisis Inventory
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="small">
+                                        <p class="mb-1">
+                                            <strong>Nilai Inventory Total:</strong><br>
+                                            Rp {{ "{:,.2f}".format(total_inventory_value) }}
+                                        </p>
+                                        <p class="mb-1">
+                                            <strong>Bahan Paling Berharga:</strong><br>
+                                            {% if report_data %}
+                                            {% set most_valuable = report_data|max(attribute='total_value') %}
+                                            {{ most_valuable.material_name }} (Rp {{ "{:,.2f}".format(most_valuable.total_value) }})
+                                            {% endif %}
+                                        </p>
+                                        <p class="mb-0">
+                                            <strong>Rata-rata Stok:</strong><br>
+                                            {{ "%.2f"|format((report_data|sum(attribute='current_stock') / report_data|length)) }} unit
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning text-white">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>Perhatian
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="small">
+                                        {% set low_stock_count = report_data|selectattr('is_low_stock')|list|length %}
+                                        {% if low_stock_count > 0 %}
+                                        <p class="mb-1 text-danger">
+                                            <i class="fas fa-exclamation-circle me-1"></i>
+                                            <strong>{{ low_stock_count }} bahan baku</strong> membutuhkan restock segera.
+                                        </p>
+                                        {% endif %}
+                                        
+                                        {% set critical_materials = report_data|selectattr('is_low_stock')|list %}
+                                        {% if critical_materials %}
+                                        <p class="mb-1">
+                                            <strong>Bahan Kritikal:</strong>
+                                        </p>
+                                        <ul class="mb-0">
+                                            {% for material in critical_materials[:3] %}
+                                            <li>{{ material.material_name }} (stok: {{ "%.2f"|format(material.current_stock) }})</li>
+                                            {% endfor %}
+                                            {% if critical_materials|length > 3 %}
+                                            <li>... dan {{ critical_materials|length - 3 }} lainnya</li>
+                                            {% endif %}
+                                        </ul>
+                                        {% else %}
+                                        <p class="mb-0 text-success">
+                                            <i class="fas fa-check-circle me-1"></i>
+                                            Tidak ada bahan baku dalam kondisi kritis.
+                                        </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-boxes fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Tidak ada data bahan baku</h5>
+                        <p class="text-muted">Mulai dengan menambahkan bahan baku pertama Anda.</p>
+                        <a href="{{ url_for('raw_materials.create') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Tambah Bahan Baku
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add some interactive features to the report
+document.addEventListener('DOMContentLoaded', function() {
+    // Highlight low stock rows
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        const statusBadge = row.querySelector('.badge');
+        if (statusBadge && statusBadge.textContent.includes('Stok Rendah')) {
+            row.classList.add('table-warning');
+        }
+    });
+});
+</script>
+{% endblock %}

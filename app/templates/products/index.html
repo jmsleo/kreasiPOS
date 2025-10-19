@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block title %}Products Management - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">Products Management</h1>
+            <p class="mb-4">Manage your products, inventory, and categories</p>
+        </div>
+        <div>
+            <a href="{{ url_for('products.create') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Add New Product
+            </a>
+            <a href="{{ url_for('products.categories') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-tags me-2"></i>Categories
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Sections -->
+    {% if low_stock_products %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <h5 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>Low Stock Alert</h5>
+        <p class="mb-2">The following products are running low on stock:</p>
+        <ul class="mb-0">
+            {% for product in low_stock_products %}
+            <li>
+                <strong>{{ product.name }}</strong> - 
+                Stock: {{ product.stock_quantity }} (Alert: {{ product.stock_alert }})
+                <a href="{{ url_for('products.edit', id=product.id) }}" class="btn btn-sm btn-outline-warning ms-2">
+                    Update Stock
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if out_of_stock_products %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <h5 class="alert-heading"><i class="fas fa-times-circle me-2"></i>Out of Stock</h5>
+        <p class="mb-2">The following products are out of stock:</p>
+        <ul class="mb-0">
+            {% for product in out_of_stock_products %}
+            <li>
+                <strong>{{ product.name }}</strong>
+                <a href="{{ url_for('products.edit', id=product.id) }}" class="btn btn-sm btn-outline-danger ms-2">
+                    Restock
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if bom_issues %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <h5 class="alert-heading"><i class="fas fa-info-circle me-2"></i>BOM Availability Issues</h5>
+        <p class="mb-2">The following products have insufficient raw materials:</p>
+        <ul class="mb-0">
+            {% for product in bom_issues %}
+            <li>
+                <strong>{{ product.name }}</strong> - Insufficient raw materials for production
+                <a href="{{ url_for('bom.create_bom', product_id=product.id) }}" class="btn btn-sm btn-outline-info ms-2">
+                    Check BOM
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+   <!-- Search and Filter Card - PERBAIKAN: Tambahkan show inactive option -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-search me-2"></i>Search & Filter Products
+        </h6>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('products.index') }}" class="row g-3">
+            <div class="col-md-4">
+                <label for="search" class="form-label">
+                    <i class="fas fa-search me-1"></i>Search Products
+                </label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="{{ search }}" placeholder="Search by name, SKU, or barcode...">
+            </div>
+            <div class="col-md-3">
+                <label for="category_id" class="form-label">
+                    <i class="fas fa-tag me-1"></i>Category
+                </label>
+                <select class="form-select" id="category_id" name="category_id">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if category_id == category.id %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="form-check form-switch mt-2">
+                    <input class="form-check-input" type="checkbox" id="show_inactive" name="show_inactive" 
+                           value="true" {% if show_inactive %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="form-check-label" for="show_inactive">
+                        Include Inactive Products
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-search me-2"></i>Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Products Table Card -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-list me-2"></i>Products List
+            {% if show_inactive %}
+            <span class="badge bg-warning ms-2">Showing All Products</span>
+            {% else %}
+            <span class="badge bg-success ms-2">Active Only</span>
+            {% endif %}
+        </h6>
+    </div>
+    <div class="card-body">
+        {% if products.items %}
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="productsTable" width="100%" cellspacing="0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Image</th>
+                        <th>Product Info</th>
+                        <th>Price & Cost</th>
+                        <th>Stock Info</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products.items %}
+                    <tr class="{% if not product.is_active %}table-secondary{% endif %}">
+                        <td class="text-center">
+                            {% if product.image_url %}
+                            <img src="{{ product.image_url }}" alt="{{ product.name }}" 
+                                 class="img-thumbnail" style="width: 60px; height: 60px; object-fit: cover;">
+                            {% else %}
+                            <div class="bg-light rounded d-flex align-items-center justify-content-center" 
+                                 style="width: 60px; height: 60px;">
+                                <i class="fas fa-cube text-muted fa-lg"></i>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong class="d-block">
+                                {% if not product.is_active %}
+                                <s>{{ product.name }}</s>
+                                {% else %}
+                                {{ product.name }}
+                                {% endif %}
+                            </strong>
+                            <small class="text-muted">
+                                <i class="fas fa-barcode me-1"></i>SKU: {{ product.sku }}<br>
+                                {% if product.barcode %}
+                                <i class="fas fa-qrcode me-1"></i>Barcode: {{ product.barcode }}
+                                {% endif %}
+                            </small>
+                            {% if product.has_bom %}
+                            <span class="badge bg-info mt-1">
+                                <i class="fas fa-list-alt me-1"></i>BOM
+                            </span>
+                            {% endif %}
+                            {% if not product.requires_stock_tracking %}
+                            <span class="badge bg-secondary mt-1">
+                                <i class="fas fa-ban me-1"></i>No Stock Tracking
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong class="text-success">
+                                <i class="fas fa-money-bill-wave me-1"></i>Rp {{ "{:,.0f}".format(product.price) }}
+                            </strong>
+                            {% if product.cost_price %}
+                            <br><small class="text-muted">
+                                <i class="fas fa-receipt me-1"></i>Cost: Rp {{ "{:,.0f}".format(product.cost_price) }}
+                            </small>
+                            {% endif %}
+                            {% if product.has_bom and product.bom_cost %}
+                            <br><small class="text-info">
+                                <i class="fas fa-calculator me-1"></i>BOM Cost: Rp {{ "{:,.0f}".format(product.bom_cost) }}
+                            </small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if product.requires_stock_tracking %}
+                            <div class="d-flex align-items-center">
+                                <span class="{% if product.stock_quantity <= product.stock_alert %}text-warning{% endif %} {% if product.stock_quantity == 0 %}text-danger{% endif %}">
+                                    <i class="fas fa-box me-1"></i><strong>{{ product.stock_quantity }}</strong> {{ product.unit }}
+                                </span>
+                                {% if product.stock_quantity <= product.stock_alert and product.is_active %}
+                                <i class="fas fa-exclamation-triangle text-warning ms-2" 
+                                   title="Low stock alert: {{ product.stock_alert }}"></i>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">
+                                <i class="fas fa-bell me-1"></i>Alert at: {{ product.stock_alert }}
+                            </small>
+                            {% else %}
+                            <span class="text-muted">
+                                <i class="fas fa-ban me-1"></i>N/A
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if product.category %}
+                            <span class="badge bg-light text-dark">
+                                <i class="fas fa-tag me-1"></i>{{ product.category.name }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">
+                                <i class="fas fa-times me-1"></i>Uncategorized
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if product.is_active %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-check me-1"></i>Active
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-times me-1"></i>Inactive
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('products.edit', id=product.id) }}" 
+                                   class="btn btn-outline-primary" title="Edit Product">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% if product.has_bom and product.is_active %}
+                                <a href="{{ url_for('bom.create_bom', product_id=product.id) }}" 
+                                   class="btn btn-outline-info" title="Manage BOM">
+                                    <i class="fas fa-list-alt"></i>
+                                </a>
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('products.toggle_status', id=product.id) }}" 
+                                      class="d-inline">
+                                    <button type="submit" class="btn {% if product.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}" 
+                                            title="{% if product.is_active %}Deactivate{% else %}Activate{% endif %}">
+                                        {% if product.is_active %}
+                                        <i class="fas fa-power-off"></i>
+                                        {% else %}
+                                        <i class="fas fa-play"></i>
+                                        {% endif %}
+                                    </button>
+                                </form>
+                                {% if product.is_active %}
+                                <form method="POST" action="{{ url_for('products.delete', id=product.id) }}" 
+                                      class="d-inline" 
+                                      onsubmit="return confirm('Are you sure you want to delete {{ product.name }}? This action cannot be undone.');">
+                                    <button type="submit" class="btn btn-outline-danger" title="Delete Product">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if products.pages > 1 %}
+        <nav aria-label="Products pagination">
+            <ul class="pagination justify-content-center">
+                {% if products.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('products.index', page=products.prev_num, search=search, category_id=category_id, show_inactive=show_inactive) }}">
+                        <i class="fas fa-chevron-left me-1"></i>Previous
+                    </a>
+                </li>
+                {% endif %}
+
+                {% for page_num in products.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
+                    {% if page_num %}
+                        {% if products.page == page_num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('products.index', page=page_num, search=search, category_id=category_id, show_inactive=show_inactive) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if products.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('products.index', page=products.next_num, search=search, category_id=category_id, show_inactive=show_inactive) }}">
+                        Next<i class="fas fa-chevron-right ms-1"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-cube fa-4x text-muted mb-3"></i>
+            <h4 class="text-muted">No Products Found</h4>
+            <p class="text-muted">
+                {% if show_inactive %}
+                No products match your search criteria.
+                {% else %}
+                No active products found. 
+                <a href="{{ url_for('products.index', show_inactive=true) }}">Show inactive products</a>
+                {% endif %}
+            </p>
+            <a href="{{ url_for('products.create') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Add New Product
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-submit form when category changes
+document.getElementById('category_id').addEventListener('change', function() {
+    this.form.submit();
+});
+
+// Quick stock update functionality
+function quickUpdateStock(productId, change) {
+    fetch(`/api/products/${productId}/stock`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ change: change })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error updating stock: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating stock');
+    });
+}
+</script>
+{% endblock %}

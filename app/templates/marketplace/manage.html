@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2"><i class="bi bi-pencil-square"></i> Manage Marketplace Items</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="{{ url_for('marketplace.admin_restock_orders') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-cart-check"></i> Restock Orders
+                </a>
+                <a href="{{ url_for('marketplace.payment_methods') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-credit-card"></i> Payment Methods
+                </a>
+            </div>
+            <a href="{{ url_for('marketplace.create_item') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Add New Item
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ items|length }}</h4>
+                            <p class="mb-0">Total Items</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-box-seam fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ items|selectattr('stock', 'gt', 0)|list|length }}</h4>
+                            <p class="mb-0">In Stock</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-check-circle fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ items|selectattr('stock', 'eq', 0)|list|length }}</h4>
+                            <p class="mb-0">Out of Stock</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-exclamation-circle fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ total_value }}</h4>
+                            <p class="mb-0">Total Value</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-currency-dollar fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ url_for('marketplace.create_item') }}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Add New Item
+                        </a>
+                        <a href="{{ url_for('marketplace.admin_restock_orders', status='pending') }}" class="btn btn-warning">
+                            <i class="bi bi-clock"></i> Pending Orders
+                        </a>
+                        <a href="{{ url_for('marketplace.payment_methods') }}" class="btn btn-info">
+                            <i class="bi bi-wallet2"></i> Manage Payment Methods
+                        </a>
+                        <a href="{{ url_for('marketplace.manage') }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-repeat"></i> Refresh
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Marketplace Items</h5>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                        <i class="bi bi-filter"></i> Filter
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}">All Items</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}?filter=in_stock">In Stock</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}?filter=out_of_stock">Out of Stock</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 10%;">Image</th>
+                            <th>Name</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>SKU</th>
+                            <th>Status</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>
+                                <img src="{{ item.image_url or url_for('static', filename='images/placeholder.png') }}" alt="{{ item.name }}" class="img-thumbnail" style="width: 60px; height: 60px; object-fit: cover;">
+                            </td>
+                            <td>
+                                <strong>{{ item.name }}</strong>
+                                {% if item.description %}
+                                <br><small class="text-muted">{{ item.description[:50] }}{% if item.description|length > 50 %}...{% endif %}</small>
+                                {% endif %}
+                            </td>
+                            <td>${{ "%.2f"|format(item.price) }}</td>
+                            <td>
+                                <span class="badge {% if item.stock > 10 %}bg-success{% elif item.stock > 0 %}bg-warning{% else %}bg-danger{% endif %}">
+                                    {{ item.stock }}
+                                </span>
+                            </td>
+                            <td><code>{{ item.sku or 'N/A' }}</code></td>
+                            <td>
+                                {% if item.stock > 10 %}
+                                    <span class="badge bg-success">In Stock</span>
+                                {% elif item.stock > 0 %}
+                                    <span class="badge bg-warning">Low Stock</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Out of Stock</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ url_for('marketplace.edit_item', item_id=item.id) }}" class="btn btn-outline-primary" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#itemModal{{ item.id }}" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <form action="{{ url_for('marketplace.delete_item', item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this item?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- Modal for Item Details -->
+                        <div class="modal fade" id="itemModal{{ item.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">{{ item.name }}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="text-center mb-3">
+                                            <img src="{{ item.image_url or url_for('static', filename='images/placeholder.png') }}" alt="{{ item.name }}" class="img-fluid" style="max-height: 200px;">
+                                        </div>
+                                        <p><strong>Description:</strong> {{ item.description or 'No description' }}</p>
+                                        <p><strong>Price:</strong> ${{ "%.2f"|format(item.price) }}</p>
+                                        <p><strong>Stock:</strong> {{ item.stock }}</p>
+                                        <p><strong>SKU:</strong> {{ item.sku or 'N/A' }}</p>
+                                        <p><strong>Created:</strong> {{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                        {% if item.updated_at != item.created_at %}
+                                        <p><strong>Last Updated:</strong> {{ item.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="modal-footer">
+                                        <a href="{{ url_for('marketplace.edit_item', item_id=item.id) }}" class="btn btn-primary">
+                                            <i class="bi bi-pencil"></i> Edit Item
+                                        </a>
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                    No marketplace items found. 
+                                    <a href="{{ url_for('marketplace.create_item') }}">Add one now</a>.
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

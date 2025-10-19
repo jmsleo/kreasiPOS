@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+
+{% block title %}Create New Product - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">Create New Product</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('products.index') }}">Products</a></li>
+                    <li class="breadcrumb-item active">Create New</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('products.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Products
+            </a>
+        </div>
+    </div>
+
+    <!-- Product Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Product Information</h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('products.create') }}" enctype="multipart/form-data" id="productForm">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="name" class="form-label required">Product Name</label>
+                                    {{ form.name(class="form-control", placeholder="Enter product name") }}
+                                    {% if form.name.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.name.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="category_id" class="form-label">Category</label>
+                                    {{ form.category_id(class="form-select") }}
+                                    {% if form.category_id.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.category_id.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SKU and Barcode -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="sku" class="form-label">SKU</label>
+                                    {{ form.sku(class="form-control", placeholder="Leave empty to auto-generate") }}
+                                    <small class="form-text text-muted">Unique stock keeping unit</small>
+                                    {% if form.sku.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.sku.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="barcode" class="form-label">Barcode</label>
+                                    {{ form.barcode(class="form-control", placeholder="Optional barcode") }}
+                                    {% if form.barcode.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.barcode.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pricing -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="price" class="form-label required">Selling Price</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">Rp</span>
+                                        {{ form.price(class="form-control", placeholder="0", step="0.01", min="0") }}
+                                    </div>
+                                    {% if form.price.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.price.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="cost_price" class="form-label">Cost Price</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">Rp</span>
+                                        {{ form.cost_price(class="form-control", placeholder="0", step="0.01", min="0") }}
+                                    </div>
+                                    <small class="form-text text-muted">Purchase cost for profit calculation</small>
+                                    {% if form.cost_price.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.cost_price.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stock Management -->
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="unit" class="form-label">Unit</label>
+                                    {{ form.unit(class="form-select") }}
+                                    {% if form.unit.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.unit.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="carton_quantity" class="form-label">Pieces per Carton</label>
+                                    {{ form.carton_quantity(class="form-control", placeholder="1", min="1") }}
+                                    {% if form.carton_quantity.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.carton_quantity.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check form-switch mt-4 pt-2">
+                                    {{ form.requires_stock_tracking(class="form-check-input") }}
+                                    <label class="form-check-label" for="requires_stock_tracking">
+                                        Enable Stock Tracking
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stock Fields (Conditional) -->
+                        <div id="stockFields" class="row mb-4" style="display: none;">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="stock_quantity" class="form-label">Initial Stock</label>
+                                    {{ form.stock_quantity(class="form-control", placeholder="0", min="0") }}
+                                    {% if form.stock_quantity.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.stock_quantity.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="stock_alert" class="form-label">Low Stock Alert</label>
+                                    {{ form.stock_alert(class="form-control", placeholder="10", min="0") }}
+                                    <small class="form-text text-muted">Alert when stock reaches this level</small>
+                                    {% if form.stock_alert.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.stock_alert.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BOM and Image -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    {{ form.has_bom(class="form-check-input") }}
+                                    <label class="form-check-label" for="has_bom">
+                                        Use Bill of Materials (BOM)
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">Enable if this product is made from raw materials</small>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="image" class="form-label">Product Image</label>
+                                    {{ form.image(class="form-control", accept="image/*") }}
+                                    <small class="form-text text-muted">Recommended: 500x500px, JPG/PNG format</small>
+                                    {% if form.image.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.image.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="form-group mb-4">
+                            <label for="description" class="form-label">Description</label>
+                            {{ form.description(class="form-control", rows="3", placeholder="Enter product description...") }}
+                            {% if form.description.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.description.errors %}
+                                {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Status -->
+                        <div class="form-check form-switch mb-4">
+                            {{ form.is_active(class="form-check-input", checked="checked") }}
+                            <label class="form-check-label" for="is_active">
+                                Active Product
+                            </label>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('products.index') }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Create Product
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Card -->
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Quick Guide</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Stock Tracking</h6>
+                    <p class="small">Enable to track inventory levels and receive low stock alerts.</p>
+                    
+                    <h6>Bill of Materials (BOM)</h6>
+                    <p class="small">Enable if product is assembled from raw materials. You'll configure BOM after creating the product.</p>
+                    
+                    <h6>Product Image</h6>
+                    <p class="small">Upload a clear product photo for better identification in POS.</p>
+                    
+                    <h6>SKU Generation</h6>
+                    <p class="small">Leave SKU empty to auto-generate a unique identifier.</p>
+                </div>
+            </div>
+
+            <!-- Preview Card -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Product Preview</h6>
+                </div>
+                <div class="card-body text-center">
+                    <div id="imagePreview" class="mb-3" style="display: none;">
+                        <img id="previewImage" class="img-thumbnail" style="max-width: 200px; max-height: 200px;">
+                    </div>
+                    <div id="noImagePreview" class="text-muted">
+                        <i class="fas fa-cube fa-3x mb-2"></i>
+                        <p>No image selected</p>
+                    </div>
+                    <h6 id="previewName" class="mt-2">Product Name</h6>
+                    <p class="text-muted small" id="previewSku">SKU: Auto-generated</p>
+                    <p class="text-success" id="previewPrice">Rp 0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Toggle stock fields based on stock tracking checkbox
+document.getElementById('requires_stock_tracking').addEventListener('change', function() {
+    const stockFields = document.getElementById('stockFields');
+    if (this.checked) {
+        stockFields.style.display = 'block';
+    } else {
+        stockFields.style.display = 'none';
+    }
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const stockTracking = document.getElementById('requires_stock_tracking');
+    const stockFields = document.getElementById('stockFields');
+    if (stockTracking.checked) {
+        stockFields.style.display = 'block';
+    }
+});
+
+// Image preview
+document.getElementById('image').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById('imagePreview');
+    const noPreview = document.getElementById('noImagePreview');
+    const previewImage = document.getElementById('previewImage');
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImage.src = e.target.result;
+            preview.style.display = 'block';
+            noPreview.style.display = 'none';
+        }
+        reader.readAsDataURL(file);
+    } else {
+        preview.style.display = 'none';
+        noPreview.style.display = 'block';
+    }
+});
+
+// Live preview updates
+document.getElementById('name').addEventListener('input', function() {
+    document.getElementById('previewName').textContent = this.value || 'Product Name';
+});
+
+document.getElementById('sku').addEventListener('input', function() {
+    document.getElementById('previewSku').textContent = 'SKU: ' + (this.value || 'Auto-generated');
+});
+
+document.getElementById('price').addEventListener('input', function() {
+    const price = parseFloat(this.value) || 0;
+    document.getElementById('previewPrice').textContent = 'Rp ' + price.toLocaleString();
+});
+
+// Form validation
+document.getElementById('productForm').addEventListener('submit', function(e) {
+    const price = parseFloat(document.getElementById('price').value);
+    if (price <= 0) {
+        e.preventDefault();
+        alert('Please enter a valid selling price greater than 0.');
+        return false;
+    }
+    
+    const stockTracking = document.getElementById('requires_stock_tracking').checked;
+    if (stockTracking) {
+        const stockQuantity = parseInt(document.getElementById('stock_quantity').value);
+        if (stockQuantity < 0) {
+            e.preventDefault();
+            alert('Stock quantity cannot be negative.');
+            return false;
+        }
+    }
+});
+</script>
+{% endblock %}
