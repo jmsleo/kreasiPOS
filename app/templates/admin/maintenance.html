@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Maintenance Settings - KreasiPOS{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h2 mb-0">
+                <i class="bi bi-tools"></i> Maintenance Settings
+            </h1>
+            <small class="text-muted">Manage system maintenance mode dengan email whitelist</small>
+        </div>
+    </div>
+
+    <!-- Current Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Current Status</h5>
+                    <div class="alert {% if maintenance_info.is_active %}alert-warning{% else %}alert-success{% endif %}">
+                        <h6>
+                            <i class="bi {% if maintenance_info.is_active %}bi-exclamation-triangle{% else %}bi-check-circle{% endif %}"></i>
+                            Maintenance mode is <strong>{% if maintenance_info.is_active %}ACTIVE{% else %}INACTIVE{% endif %}</strong>
+                        </h6>
+                        {% if maintenance_info.is_active %}
+                        <p class="mb-1"><strong>Message:</strong> {{ maintenance_info.message }}</p>
+                        <p class="mb-1"><strong>Started:</strong> 
+                            {% if maintenance_info.start_time %}
+                                {{ maintenance_info.start_time|datetime_format }}
+                            {% else %}
+                                Unknown
+                            {% endif %}
+                        </p>
+                        <p class="mb-0"><strong>Estimated End:</strong> 
+                            {% if maintenance_info.estimated_end_time %}
+                                {{ maintenance_info.estimated_end_time|datetime_format }}
+                            {% else %}
+                                Unknown
+                            {% endif %}
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Maintenance Controls -->
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Maintenance Controls</h5>
+                    
+                    {% if not maintenance_info.is_active %}
+                    <!-- Enable Maintenance Form -->
+                    <form method="POST">
+                        <input type="hidden" name="action" value="enable">
+                        
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Maintenance Message</label>
+                            <textarea class="form-control" id="message" name="message" rows="3" 
+                                      placeholder="Explain what's happening...">Scheduled system maintenance</textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="estimated_minutes" class="form-label">Estimated Duration</label>
+                            <select class="form-select" id="estimated_minutes" name="estimated_minutes">
+                                <option value="30">30 minutes</option>
+                                <option value="60" selected>1 hour</option>
+                                <option value="120">2 hours</option>
+                                <option value="240">4 hours</option>
+                                <option value="480">8 hours</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="initial_emails" class="form-label">Additional Whitelisted Emails (Optional)</label>
+                            <input type="text" class="form-control" id="initial_emails" name="initial_emails" 
+                                   placeholder="email1@example.com, email2@example.com">
+                            <div class="form-text">Comma-separated list of emails that can access during maintenance</div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Warning:</strong> This will block all users except whitelisted emails.
+                        </div>
+                        
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-power"></i> Enable Maintenance Mode
+                        </button>
+                    </form>
+                    {% else %}
+                    <!-- Disable Maintenance -->
+                    <form method="POST">
+                        <input type="hidden" name="action" value="disable">
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            Maintenance mode is currently active. Click below to disable it.
+                        </div>
+                        
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-power"></i> Disable Maintenance Mode
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Toggle -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Quick Actions</h5>
+                    <button id="quickToggle" class="btn btn-outline-primary me-2">
+                        <i class="bi bi-arrow-left-right"></i> Quick Toggle
+                    </button>
+                    <button onclick="location.reload()" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Email Whitelist Management -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Email Whitelist</h5>
+                    <p class="text-muted">Users with these emails can access the system during maintenance.</p>
+                    
+                    <!-- Add Email Form -->
+                    <form method="POST" class="mb-3">
+                        <input type="hidden" name="action" value="add_email">
+                        <div class="input-group">
+                            <input type="email" class="form-control" name="email" 
+                                   placeholder="Enter email address" required>
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-plus"></i> Add
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Email List -->
+                    <h6>Whitelisted Emails ({{ allowed_users|length }})</h6>
+                    {% if allowed_users %}
+                    <div class="list-group list-group-flush">
+                        {% for user in allowed_users %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-person-circle text-primary me-2"></i>
+                                {{ user.email }}
+                                {% if user == current_user %}
+                                <span class="badge bg-info ms-2">You</span>
+                                {% endif %}
+                            </div>
+                            {% if user != current_user %}
+                            <form method="POST" class="d-inline">
+                                <input type="hidden" name="action" value="remove_email">
+                                <input type="hidden" name="email" value="{{ user.email }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                        onclick="return confirm('Remove {{ user.email }} from whitelist?')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="text-muted small">Cannot remove yourself</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-people display-4"></i>
+                        <p class="mt-2">No whitelisted emails</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Quick Email Actions -->
+                    <div class="mt-3">
+                        <h6>Quick Actions</h6>
+                        <div class="btn-group w-100">
+                            <button class="btn btn-outline-success btn-sm" onclick="addTestEmails()">
+                                <i class="bi bi-lightning"></i> Add Test Emails
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="clearAllEmails()">
+                                <i class="bi bi-trash"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Quick toggle via API
+document.getElementById('quickToggle').addEventListener('click', async function() {
+    const btn = this;
+    const originalText = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/admin/maintenance/toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: 'Quick maintenance toggle',
+                estimated_minutes: 60
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Reload page to reflect changes
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Toggle error:', error);
+        alert('Failed to toggle maintenance mode');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+});
+
+// Add test emails
+async function addTestEmails() {
+    const testEmails = ['admin@example.com', 'manager@example.com', 'support@example.com'];
+    
+    for (const email of testEmails) {
+        try {
+            await fetch('/api/admin/maintenance/emails', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'add',
+                    email: email
+                })
+            });
+        } catch (error) {
+            console.error('Failed to add email:', email, error);
+        }
+    }
+    
+    location.reload();
+}
+
+// Clear all emails (except current user)
+async function clearAllEmails() {
+    if (!confirm('Remove all whitelisted emails except your own?')) return;
+    
+    try {
+        // Get current emails from the page
+        const emailElements = document.querySelectorAll('.list-group-item');
+        const currentUserEmail = '{{ current_user.email }}';
+        
+        for (const element of emailElements) {
+            const email = element.querySelector('input[name="email"]')?.value;
+            if (email && email !== currentUserEmail) {
+                await fetch('/api/admin/maintenance/emails', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'remove',
+                        email: email
+                    })
+                });
+            }
+        }
+        
+        location.reload();
+    } catch (error) {
+        console.error('Failed to clear emails:', error);
+        alert('Failed to clear emails');
+    }
+}
+</script>
+{% endblock %}

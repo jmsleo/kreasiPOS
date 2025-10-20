@@ -506,3 +506,23 @@ class SaleItem(db.Model):
 def load_user(user_id):
     from app.models import User  # Import lokal untuk menghindari circular import
     return User.query.get(user_id)
+
+class MaintenanceSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    is_active = db.Column(db.Boolean, default=False, nullable=False)
+    message = db.Column(db.Text, default='System under maintenance')
+    start_time = db.Column(db.DateTime, nullable=True)
+    estimated_end_time = db.Column(db.DateTime, nullable=True)
+    allowed_emails = db.Column(db.JSON, default=list)  # List email yang boleh akses
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'is_active': self.is_active,
+            'message': self.message,
+            'start_time': self.start_time.isoformat() if self.start_time else None,
+            'estimated_end_time': self.estimated_end_time.isoformat() if self.estimated_end_time else None,
+            'allowed_emails': self.allowed_emails or [],
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }

@@ -82,9 +82,54 @@ def create_app(config_class=None):
     from app.superadmin import bp as superadmin_bp
     app.register_blueprint(superadmin_bp, url_prefix='/superadmin')
     
+    # Register maintenance blueprint - TAMBAHKAN INI
+    from app.maintenance import bp as maintenance_bp
+    app.register_blueprint(maintenance_bp)
+    
     # Register main routes blueprint
     from app.routes import main_bp
     app.register_blueprint(main_bp)
+    
+    # Dynamic Maintenance Mode Check - TAMBAHKAN INI
+    from app.services.maintenance_service import MaintenanceService
+    from flask import request, jsonify
+    from flask_login import current_user
+    
+    @app.before_request
+    def check_maintenance():
+        """Global maintenance mode check dengan email whitelist"""
+        if MaintenanceService.is_maintenance_mode():
+            # Check if current user's email is whitelisted
+            if current_user.is_authenticated and MaintenanceService.can_user_access(current_user):
+                return  # Allow access for whitelisted emails
+            
+            # Skip maintenance check untuk static files dan maintenance routes
+            exempt_paths = [
+                '/static/',
+                '/maintenance',
+                '/api/maintenance/',
+                '/auth/login',  # Allow login page (user might be whitelisted)
+                '/auth/logout',
+                '/admin/maintenance'  # Allow access to maintenance admin
+            ]
+            
+            if any(request.path.startswith(path) for path in exempt_paths):
+                return
+            
+            # Skip untuk API calls - return JSON
+            if request.path.startswith('/api/') and not request.path.startswith('/api/maintenance/'):
+                info = MaintenanceService.get_maintenance_info()
+                return jsonify({
+                    'error': 'maintenance_mode',
+                    'message': info.get('message', 'System under maintenance'),
+                    'estimated_end_time': info.get('estimated_end_time'),
+                    'status': 503
+                }), 503
+            
+            # Show maintenance page untuk semua request lainnya
+            info = MaintenanceService.get_maintenance_info()
+            return render_template('errors/maintenance.html', 
+                                maintenance_info=info), 503
     
     # Error handlers
     @app.errorhandler(404)
