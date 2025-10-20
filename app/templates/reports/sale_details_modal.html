@@ -2,20 +2,20 @@
     <!-- Header -->
     <div class="row mb-4">
         <div class="col">
-            <h6 class="mb-1">Receipt: <strong>{{ sale.receipt_number }}</strong></h6>
+            <h6 class="mb-1">Struk: <strong>{{ sale.receipt_number }}</strong></h6>
             <p class="text-muted mb-0">
                 {{ sale.local_created_at.strftime('%Y-%m-%d %H:%M:%S') }} • 
-                Cashier: {{ sale.user.username }}
+                Kasir: {{ sale.user.username }}
             </p>
         </div>
         <div class="col-auto">
             {% if sale.payment_method == 'cash' %}
             <span class="badge bg-success">
-                <i class="bi bi-cash"></i> Cash
+                <i class="bi bi-cash"></i> Tunai
             </span>
             {% elif sale.payment_method == 'card' %}
             <span class="badge bg-primary">
-                <i class="bi bi-credit-card"></i> Card
+                <i class="bi bi-credit-card"></i> Kartu
             </span>
             {% elif sale.payment_method == 'transfer' %}
             <span class="badge bg-info">
@@ -37,10 +37,10 @@
     {% if sale.customer %}
     <div class="row mb-3">
         <div class="col">
-            <h6 class="mb-1">Customer</h6>
+            <h6 class="mb-1">Pelanggan</h6>
             <p class="mb-0">{{ sale.customer.name }}</p>
             {% if sale.customer.phone %}
-            <small class="text-muted">Phone: {{ sale.customer.phone }}</small>
+            <small class="text-muted">Telepon: {{ sale.customer.phone }}</small>
             {% endif %}
         </div>
     </div>
@@ -49,19 +49,19 @@
     <!-- Items List -->
     <div class="row mb-4">
         <div class="col">
-            <h6 class="mb-3">Items Purchased</h6>
+            <h6 class="mb-3">Item yang Dibeli</h6>
             <div class="table-responsive">
                 <table class="table table-sm">
                     <thead>
                         <tr>
-                            <th>Product</th>
+                            <th>Produk</th>
                             <th class="text-center">Qty</th>
-                            <th class="text-end">Price</th>
+                            <th class="text-end">Harga</th>
                             <th class="text-end">Total</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in sale.items %}
+                        {% for item in sale_items %}
                         <tr>
                             <td>
                                 <div>
@@ -72,8 +72,8 @@
                                 </div>
                             </td>
                             <td class="text-center">{{ item.quantity }}</td>
-                            <td class="text-end">Rp{{ "%.2f"|format(item.unit_price) }}</td>
-                            <td class="text-end">Rp{{ "%.2f"|format(item.total_price) }}</td>
+                            <td class="text-end">Rp{{ "{:,.0f}".format(item.unit_price) }}</td>
+                            <td class="text-end">Rp{{ "{:,.0f}".format(item.total_price) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -88,23 +88,23 @@
             <div class="border-top pt-3">
                 <div class="row mb-2">
                     <div class="col">Subtotal:</div>
-                    <div class="col-auto text-end">Rp{{ "%.2f"|format(sale.total_amount - sale.tax_amount + sale.discount_amount) }}</div>
+                    <div class="col-auto text-end">Rp{{ "{:,.0f}".format(sale.total_amount - sale.tax_amount + sale.discount_amount) }}</div>
                 </div>
                 {% if sale.discount_amount > 0 %}
                 <div class="row mb-2">
-                    <div class="col">Discount:</div>
-                    <div class="col-auto text-end text-danger">-Rp{{ "%.2f"|format(sale.discount_amount) }}</div>
+                    <div class="col">Diskon:</div>
+                    <div class="col-auto text-end text-danger">-Rp{{ "{:,.0f}".format(sale.discount_amount) }}</div>
                 </div>
                 {% endif %}
                 {% if sale.tax_amount > 0 %}
                 <div class="row mb-2">
-                    <div class="col">Tax:</div>
-                    <div class="col-auto text-end">Rp{{ "%.2f"|format(sale.tax_amount) }}</div>
+                    <div class="col">Pajak:</div>
+                    <div class="col-auto text-end">Rp{{ "{:,.0f}".format(sale.tax_amount) }}</div>
                 </div>
                 {% endif %}
                 <div class="row mb-2 fw-bold">
                     <div class="col">Total Amount:</div>
-                    <div class="col-auto text-end">Rp{{ "%.2f"|format(sale.total_amount) }}</div>
+                    <div class="col-auto text-end">Rp{{ "{:,.0f}".format(sale.total_amount) }}</div>
                 </div>
             </div>
         </div>
@@ -114,21 +114,11 @@
     {% if sale.notes %}
     <div class="row mt-4">
         <div class="col">
-            <h6 class="mb-2">Notes</h6>
+            <h6 class="mb-2">Catatan</h6>
             <div class="bg-light p-3 rounded">
                 {{ sale.notes }}
             </div>
         </div>
     </div>
     {% endif %}
-
-    <!-- Action Buttons -->
-    <div class="row mt-4">
-        <div class="col text-end">
-            <a href="{{ url_for('sales.receipt', sale_id=sale.id) }}" 
-               class="btn btn-outline-primary btn-sm" target="_blank">
-                <i class="bi bi-receipt"></i> View Full Receipt
-            </a>
-        </div>
-    </div>
 </div>

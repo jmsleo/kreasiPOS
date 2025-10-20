@@ -300,49 +300,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Quick Actions -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <h4 class="mb-3">
-                <i class="bi bi-lightning"></i> Quick Actions
-            </h4>
-        </div>
-        <div class="col-md-4">
-            <a href="{{ url_for('reports.export_excel') }}" class="card quick-action-btn text-decoration-none">
-                <div class="card-body text-center">
-                    <i class="bi bi-file-earmark-excel display-4 text-success mb-3"></i>
-                    <h5 class="card-title">Export ke Excel</h5>
-                    <p class="card-text text-muted small">
-                        Unduh semua data penjualandalam Excel Untuk analisis lebih lanjut
-                    </p>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a href="{{ url_for('reports.export_pdf') }}" class="card quick-action-btn text-decoration-none">
-                <div class="card-body text-center">
-                    <i class="bi bi-file-earmark-pdf display-4 text-danger mb-3"></i>
-                    <h5 class="card-title">Export ke PDF</h5>
-                    <p class="card-text text-muted small">
-                        Generate PDF yang dapat diprint untuk laporan transaksi terbaru
-                    </p>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a href="{{ url_for('sales.history') }}" class="card quick-action-btn text-decoration-none">
-                <div class="card-body text-center">
-                    <i class="bi bi-clock-history display-4 text-primary mb-3"></i>
-                    <h5 class="card-title">Riwayat Penjualan</h5>
-                    <p class="card-text text-muted small">
-                        Lihat riwayat transaksi secara detail denga opsi search dan filter
-                    </p>
-                </div>
-            </a>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}

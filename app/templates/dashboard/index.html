@@ -121,6 +121,82 @@
     width: auto;
     margin-top: 2px;
 }
+
+    /* Banner Slideshow Styles */
+    .banner-slideshow {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        margin-bottom: 1.5rem;
+    }
+
+    .banner-carousel .carousel-inner {
+        border-radius: 10px;
+    }
+
+    .banner-carousel .carousel-item {
+        height: 200px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .banner-carousel .carousel-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .banner-carousel .carousel-caption {
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 8px;
+        padding: 1rem;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+    }
+
+    .banner-carousel .carousel-control-prev,
+    .banner-carousel .carousel-control-next {
+        width: 5%;
+    }
+
+    .banner-carousel .carousel-indicators {
+        bottom: 10px;
+    }
+
+    .banner-carousel .carousel-indicators button {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin: 0 3px;
+    }
+
+    /* Default banner jika tidak ada gambar */
+    .default-banner {
+        height: 200px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        text-align: center;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        margin-bottom: 1.5rem;
+    }
+
+    .default-banner-content {
+        padding: 2rem;
+    }
+
+    .default-banner-content i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    @media (max-width: 768px) {
+    .banner-carousel .carousel-item {
+        height: 150px; /* Lebih pendek di mobile */
+    }
+}
 </style>
 {% endblock %}
 
@@ -260,29 +336,74 @@
         </div>
     </div>
 
-    <!-- Charts Section -->
-    <div class="row mb-4">
-        <!-- Sales Trend Chart -->
-<div class="col-lg-8 mb-4">
-    <div class="chart-container">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0">
-                <i class="bi bi-bar-chart"></i> Tren Penjualan
-            </h5>
-            <div class="btn-group btn-group-sm" role="group">
-                <button type="button" class="btn btn-outline-primary active" data-metric="revenue">
-                    Pendapatan
+    <!-- Banner Slideshow Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if banner_exists %}
+        <!-- Show actual banner carousel -->
+        <div class="banner-slideshow">
+            <div id="bannerCarousel" class="carousel slide banner-carousel" data-bs-ride="carousel" data-bs-interval="5000">
+                
+                <!-- Slides -->
+                <div class="carousel-inner">
+                    {% for i in range(1, 4) %}
+                    <div class="carousel-item {% if loop.first %}active{% endif %}">
+                        <img src="{{ url_for('static', filename='banners/banner' ~ i ~ '.jpg') }}" 
+                             class="d-block w-100" 
+                             alt="Promo Banner {{ i }}"
+                             onerror="this.style.display='none';">
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Controls -->
+                <button class="carousel-control-prev" type="button" data-bs-target="#bannerCarousel" data-bs-slide="prev">
+                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">Previous</span>
                 </button>
-                <button type="button" class="btn btn-outline-primary" data-metric="transactions">
-                    Transaksi
+                <button class="carousel-control-next" type="button" data-bs-target="#bannerCarousel" data-bs-slide="next">
+                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">Next</span>
                 </button>
             </div>
         </div>
-        <div class="chart-wrapper">
-            <canvas id="salesTrendChart"></canvas>
+        {% else %}
+        <!-- Show default banner only if no banners exist -->
+        <div class="default-banner">
+            <div class="default-banner-content">
+                <i class="bi bi-megaphone"></i>
+                <h4>Selamat Datang di KreasiPOS</h4>
+                <p class="mb-0">Kelola bisnis Anda dengan lebih efisien dan efektif</p>
+                <small>Kontak kami untuk segera mendapatkan layanan terbaik</small>
+            </div>
         </div>
+        {% endif %}
     </div>
 </div>
+
+    <!-- Charts Section -->
+    <div class="row mb-4">
+        <!-- Sales Trend Chart -->
+        <div class="col-lg-8 mb-4">
+            <div class="chart-container">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart"></i> Tren Penjualan
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-primary active" data-metric="revenue">
+                            Pendapatan
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" data-metric="transactions">
+                            Transaksi
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="salesTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
 
         <!-- Top Products -->
         <div class="col-lg-4 mb-4">
@@ -346,7 +467,7 @@
                     <div class="empty-state">
                         <i class="bi bi-activity display-4"></i>
                         <h6 class="mt-2">Tidak Ada Aktivitas Terbaru</h6>
-                        <p class="small text-muted">Aktivitas penjualan </p>
+                        <p class="small text-muted">Aktivitas penjualan akan muncul di sini</p>
                     </div>
                     {% endif %}
                 </div>
@@ -413,7 +534,7 @@
                         <div>
                             <h6 class="alert-heading mb-1">Peringatan Stok Menipis</h6>
                             <p class="mb-0 small">
-                                {{ low_stock_products }} product{% if low_stock_products > 1 %}s{% endif %} need{% if low_stock_products == 1 %}s{% endif %} restocking.
+                                {{ low_stock_products }} produk{% if low_stock_products > 1 %}s{% endif %} perlu stok ulang.
                                 <a href="{{ url_for('products.index') }}?stock_status=low" class="alert-link">Lihat produk</a>
                             </p>
                         </div>
@@ -472,6 +593,15 @@
 let salesTrendChart = null;
 let currentMetric = 'revenue';
 let currentDays = 7;
+
+// Banner carousel auto-play
+function initBannerCarousel() {
+    const carousel = document.getElementById('bannerCarousel');
+    if (carousel) {
+        // Auto-advance every 5 seconds (already set in HTML)
+        console.log('Banner carousel initialized');
+    }
+}
 
 // Load dashboard data
 async function loadDashboardData() {
@@ -620,6 +750,7 @@ function showError(message) {
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
+    initBannerCarousel();
     loadDashboardData();
     
     // Time range filter
@@ -649,58 +780,6 @@ document.addEventListener('DOMContentLoaded', function() {
             currentMetric = this.dataset.metric;
             loadDashboardData();
         });
-    });
-    
-    // Refresh activity
-    document.getElementById('refreshActivity').addEventListener('click', function() {
-        const btn = this;
-        const originalHtml = btn.innerHTML;
-        
-        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refreshing...';
-        btn.disabled = true;
-        
-        fetch('/dashboard/recent-activity')
-            .then(response => response.json())
-            .then(data => {
-                // Update activity list
-                const container = document.getElementById('recentActivityList');
-                if (data.length === 0) {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <i class="bi bi-activity display-4"></i>
-                            <h6 class="mt-2">No Recent Activity</h6>
-                            <p class="small text-muted">Sales activity will appear here</p>
-                        </div>
-                    `;
-                } else {
-                    let html = '';
-                    data.forEach(activity => {
-                        html += `
-                            <div class="activity-item border-primary">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h6 class="mb-1">
-                                            <i class="bi ${activity.icon} text-primary"></i>
-                                            ${activity.title}
-                                        </h6>
-                                        <p class="mb-1 small">${activity.description}</p>
-                                        <small class="text-muted">${activity.time}</small>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    container.innerHTML = html;
-                }
-            })
-            .catch(error => {
-                console.error('Error refreshing activity:', error);
-                showError('Failed to refresh activity');
-            })
-            .finally(() => {
-                btn.innerHTML = originalHtml;
-                btn.disabled = false;
-            });
     });
     
     // Auto-refresh every 2 minutes

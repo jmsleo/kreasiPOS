@@ -3,6 +3,8 @@ from app.models import RawMaterial
 from flask import current_app
 from sqlalchemy import or_
 from typing import List, Optional, Dict, Any
+import uuid
+import time
 
 class RawMaterialService:
     """Service class for Raw Material operations"""
@@ -29,6 +31,10 @@ class RawMaterialService:
             RawMaterial: Created raw material
         """
         try:
+            # PERBAIKAN: Auto-generate SKU jika kosong
+            if not sku or sku.strip() == '':
+                sku = RawMaterialService._generate_sku(tenant_id, name)
+            
             # PERBAIKAN: Convert to float and handle None values
             cost_price_float = float(cost_price) if cost_price is not None else None
             stock_quantity_float = float(stock_quantity) if stock_quantity is not None else 0.0
@@ -45,7 +51,7 @@ class RawMaterialService:
                 tenant_id=tenant_id,
                 name=name.strip(),
                 description=description.strip() if description else None,
-                sku=sku.strip() if sku else None,
+                sku=sku.strip(),
                 unit=unit,
                 cost_price=cost_price_float,
                 stock_quantity=stock_quantity_float,
@@ -56,7 +62,7 @@ class RawMaterialService:
             db.session.add(raw_material)
             db.session.commit()
             
-            current_app.logger.info(f"Raw material created: {name} (ID: {raw_material.id})")
+            current_app.logger.info(f"Raw material created: {name} (ID: {raw_material.id}, SKU: {sku})")
             return raw_material
             
         except ValueError as ve:
@@ -67,6 +73,47 @@ class RawMaterialService:
             db.session.rollback()
             current_app.logger.error(f"Error creating raw material: {str(e)}")
             raise
+    
+    @staticmethod
+    def _generate_sku(tenant_id: str, name: str) -> str:
+        """
+        Generate unique SKU for raw material
+        
+        Args:
+            tenant_id (str): Tenant ID
+            name (str): Material name
+            
+        Returns:
+            str: Generated SKU
+        """
+        try:
+            # Ambil 3 huruf pertama dari nama (uppercase)
+            name_prefix = ''.join(c for c in name if c.isalpha())[:3].upper()
+            if len(name_prefix) < 3:
+                name_prefix = name_prefix.ljust(3, 'X')
+            
+            # Tambahkan timestamp untuk uniqueness
+            timestamp = str(int(time.time()))[-6:]  # 6 digit terakhir
+            
+            # Format: RM-[PREFIX]-[TIMESTAMP]
+            base_sku = f"RM-{name_prefix}-{timestamp}"
+            
+            # Pastikan SKU unik dalam tenant
+            counter = 1
+            sku = base_sku
+            while RawMaterial.query.filter_by(tenant_id=tenant_id, sku=sku).first():
+                sku = f"{base_sku}-{counter:02d}"
+                counter += 1
+                if counter > 99:  # Failsafe
+                    sku = f"RM-{str(uuid.uuid4())[:8].upper()}"
+                    break
+            
+            return sku
+            
+        except Exception as e:
+            current_app.logger.error(f"Error generating SKU: {str(e)}")
+            # Fallback to UUID-based SKU
+            return f"RM-{str(uuid.uuid4())[:8].upper()}"
     
     @staticmethod
     def update_raw_material(raw_material_id: str, **kwargs) -> RawMaterial:
@@ -100,6 +147,10 @@ class RawMaterialService:
                 kwargs['cost_price'] = float(kwargs['cost_price'])
                 if kwargs['cost_price'] < 0:
                     raise ValueError("Cost price cannot be negative")
+            
+            # PERBAIKAN: Auto-generate SKU jika kosong saat update
+            if 'sku' in kwargs and (not kwargs['sku'] or kwargs['sku'].strip() == ''):
+                kwargs['sku'] = RawMaterialService._generate_sku(raw_material.tenant_id, kwargs.get('name', raw_material.name))
             
             # Update allowed fields
             allowed_fields = ['name', 'description', 'sku', 'unit', 'cost_price', 
@@ -285,7 +336,7 @@ class RawMaterialService:
     
     @staticmethod
     def get_stock_usage_report(tenant_id: str, start_date: Optional[str] = None, 
-                              end_date: Optional[str] = None) -> List[Dict[str, Any]]:
+                              end_date: Optional[str] = None) -> Dict[str, Any]:
         """
         Get raw material usage report
         
@@ -295,7 +346,7 @@ class RawMaterialService:
             end_date (str): End date for report
             
         Returns:
-            list: Usage report data
+            dict: Usage report data
         """
         try:
             materials = RawMaterial.query.filter_by(
@@ -303,12 +354,15 @@ class RawMaterialService:
                 is_active=True
             ).order_by(RawMaterial.name).all()
             
-            report = []
+            report_materials = []
+            total_value = 0.0
+            
             for material in materials:
                 # PERBAIKAN: Calculate total value safely
                 cost_price = material.cost_price or 0.0
                 stock_quantity = material.stock_quantity or 0.0
-                total_value = cost_price * stock_quantity
+                material_value = cost_price * stock_quantity
+                total_value += material_value
                 
                 # PERBAIKAN: Get BOM usage information
                 bom_items_count = material.bom_items.count()
@@ -324,7 +378,7 @@ class RawMaterialService:
                                 'unit': material.unit
                             })
                 
-                report.append({
+                report_materials.append({
                     'material_id': material.id,
                     'material_name': material.name,
                     'sku': material.sku,
@@ -332,18 +386,26 @@ class RawMaterialService:
                     'stock_alert': material.stock_alert or 0.0,
                     'unit': material.unit,
                     'cost_price': cost_price,
-                    'total_value': total_value,
+                    'total_value': material_value,
                     'is_low_stock': material.is_low_stock(),
                     'bom_usage_count': bom_items_count,
                     'bom_products': bom_products,
                     'status': 'Active' if material.is_active else 'Inactive'
                 })
             
-            return report
+            return {
+                'materials': report_materials,
+                'total_value': total_value,
+                'material_count': len(materials)
+            }
             
         except Exception as e:
             current_app.logger.error(f"Error getting stock usage report: {str(e)}")
-            return []
+            return {
+                'materials': [],
+                'total_value': 0.0,
+                'material_count': 0
+            }
     
     @staticmethod
     def get_material_by_sku(tenant_id: str, sku: str) -> Optional[RawMaterial]:
@@ -398,103 +460,3 @@ class RawMaterialService:
         except Exception as e:
             current_app.logger.error(f"Error validating stock: {str(e)}")
             return False, str(e)
-    
-    # PERBAIKAN: Tambahkan method baru untuk fitur tambahan
-    
-    @staticmethod
-    def get_inventory_value_report(tenant_id: str) -> Dict[str, Any]:
-        """
-        Get detailed inventory value report
-        
-        Args:
-            tenant_id (str): Tenant ID
-            
-        Returns:
-            dict: Inventory value report
-        """
-        try:
-            materials = RawMaterial.query.filter_by(
-                tenant_id=tenant_id,
-                is_active=True
-            ).all()
-            
-            total_value = 0.0
-            low_stock_value = 0.0
-            material_details = []
-            
-            for material in materials:
-                cost_price = material.cost_price or 0.0
-                stock_quantity = material.stock_quantity or 0.0
-                material_value = cost_price * stock_quantity
-                total_value += material_value
-                
-                if material.is_low_stock():
-                    low_stock_value += material_value
-                
-                material_details.append({
-                    'material': material,
-                    'value': material_value,
-                    'is_low_stock': material.is_low_stock()
-                })
-            
-            # Sort by value descending
-            material_details.sort(key=lambda x: x['value'], reverse=True)
-            
-            return {
-                'total_value': total_value,
-                'low_stock_value': low_stock_value,
-                'material_count': len(materials),
-                'low_stock_count': len([m for m in materials if m.is_low_stock()]),
-                'material_details': material_details
-            }
-            
-        except Exception as e:
-            current_app.logger.error(f"Error getting inventory value report: {str(e)}")
-            return {
-                'total_value': 0.0,
-                'low_stock_value': 0.0,
-                'material_count': 0,
-                'low_stock_count': 0,
-                'material_details': []
-            }
-    
-    @staticmethod
-    def bulk_update_stock(updates: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Bulk update stock for multiple materials
-        
-        Args:
-            updates (list): List of update dictionaries with keys:
-                          - raw_material_id
-                          - quantity
-                          - operation
-                          - notes (optional)
-        
-        Returns:
-            dict: Results with success count and errors
-        """
-        results = {
-            'success_count': 0,
-            'error_count': 0,
-            'errors': []
-        }
-        
-        for update in updates:
-            try:
-                raw_material_id = update.get('raw_material_id')
-                quantity = update.get('quantity')
-                operation = update.get('operation', 'add')
-                notes = update.get('notes')
-                
-                RawMaterialService.update_stock(raw_material_id, quantity, operation)
-                results['success_count'] += 1
-                
-            except Exception as e:
-                results['error_count'] += 1
-                results['errors'].append({
-                    'raw_material_id': update.get('raw_material_id'),
-                    'error': str(e)
-                })
-                current_app.logger.error(f"Bulk update error for {raw_material_id}: {str(e)}")
-        
-        return results

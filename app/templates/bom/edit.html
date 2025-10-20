@@ -32,7 +32,7 @@
                             <div class="col-md-3">
                                 <div class="mb-3">
                                     <div class="form-check form-switch">
-                                        {{ form.is_active(class="form-check-input") }}
+                                        {{ form.is_active(class="form-check-input", checked=bom.is_active) }}
                                         {{ form.is_active.label(class="form-check-label") }}
                                     </div>
                                 </div>
@@ -43,7 +43,7 @@
                             <div class="col-md-12">
                                 <div class="mb-3">
                                     {{ form.notes.label(class="form-label") }}
-                                    {{ form.notes(class="form-control" + (" is-invalid" if form.notes.errors else ""), rows="2") }}
+                                    {{ form.notes(class="form-control" + (" is-invalid" if form.notes.errors else ""), rows="2", value=bom.notes) }}
                                     {% for error in form.notes.errors %}
                                         <div class="invalid-feedback">{{ error }}</div>
                                     {% endfor %}
@@ -80,7 +80,7 @@
                                         <div class="col-md-2">
                                             <input type="number" class="form-control quantity-input" 
                                                    name="quantity[]" value="{{ item.quantity }}" 
-                                                   placeholder="Qty" step="0.001" min="0" required>
+                                                   placeholder="Qty" step="0.000001" min="0" required>
                                         </div>
                                         <div class="col-md-2">
                                             <input type="text" class="form-control unit-display" 
@@ -95,6 +95,8 @@
                                             </button>
                                         </div>
                                         <input type="hidden" name="existing_item_id[]" value="{{ item.id }}">
+                                        <input type="hidden" name="notes[]" value="{{ item.notes or '' }}">
+                                        <input type="hidden" name="unit[]" value="{{ item.unit or item.raw_material.unit }}">
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -114,9 +116,9 @@
                         </div>
                         
                         <div class="d-flex justify-content-between">
-                            <a href="{{ url_for('bom.index') }}" class="btn btn-secondary">Cancel</a>
+                            <a href="{{ url_for('bom.view_bom', product_id=bom.product_id) }}" class="btn btn-secondary">Cancel</a>
                             <div>
-                                <a href="{{ url_for('bom.view', id=bom.id) }}" class="btn btn-info me-2">View Details</a>
+                                <a href="{{ url_for('bom.view_bom', product_id=bom.product_id) }}" class="btn btn-info me-2">View Details</a>
                                 {{ form.submit(class="btn btn-primary") }}
                             </div>
                         </div>
@@ -141,7 +143,7 @@
             </select>
         </div>
         <div class="col-md-2">
-            <input type="number" class="form-control quantity-input" name="quantity[]" placeholder="Qty" step="0.001" min="0" required>
+            <input type="number" class="form-control quantity-input" name="quantity[]" placeholder="Qty" step="0.000001" min="0" required>
         </div>
         <div class="col-md-2">
             <input type="text" class="form-control unit-display" readonly placeholder="Unit">
@@ -155,6 +157,8 @@
             </button>
         </div>
         <input type="hidden" name="existing_item_id[]" value="">
+        <input type="hidden" name="notes[]" value="">
+        <input type="hidden" name="unit[]" value="">
     </div>
 </template>
 
@@ -190,6 +194,7 @@ function updateRowCost(event) {
     const quantityInput = row.querySelector('.quantity-input');
     const unitDisplay = row.querySelector('.unit-display');
     const costDisplay = row.querySelector('.cost-display');
+    const unitHidden = row.querySelector('input[name="unit[]"]');
     
     const selectedOption = select.options[select.selectedIndex];
     if (selectedOption && selectedOption.value) {
@@ -198,12 +203,15 @@ function updateRowCost(event) {
         const quantity = parseFloat(quantityInput.value || 0);
         
         unitDisplay.value = unit;
+        if (unitHidden) unitHidden.value = unit;
+        
         const totalCost = cost * quantity;
         costDisplay.value = 'Rp ' + totalCost.toLocaleString('id-ID');
         
         calculateTotalCost();
     } else {
         unitDisplay.value = '';
+        if (unitHidden) unitHidden.value = '';
         costDisplay.value = '';
         calculateTotalCost();
     }

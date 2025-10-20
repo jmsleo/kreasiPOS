@@ -38,6 +38,10 @@
     .export-buttons .btn {
         margin-right: 0.5rem;
     }
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
 </style>
 {% endblock %}
 
@@ -84,7 +88,7 @@
             <div class="card stats-card border-success">
                 <div class="card-body text-center">
                     <h6 class="card-title text-muted mb-0">Total Pendapatan</h6>
-                    <h3 class="text-success mb-0">Rp{{ "%.2f"|format(total_revenue) }}</h3>
+                    <h3 class="text-success mb-0">Rp{{ "{:,.0f}".format(total_revenue) }}</h3>
                     <small class="text-muted">Pendapatan kotor</small>
                 </div>
             </div>
@@ -93,7 +97,7 @@
             <div class="card stats-card border-warning">
                 <div class="card-body text-center">
                     <h6 class="card-title text-muted mb-0">Rerata penjualan</h6>
-                    <h3 class="text-warning mb-0">Rp{{ "%.2f"|format(avg_sale) }}</h3>
+                    <h3 class="text-warning mb-0">Rp{{ "{:,.0f}".format(avg_sale) if avg_sale > 0 else 0 }}</h3>
                     <small class="text-muted">Per transaksi</small>
                 </div>
             </div>
@@ -106,14 +110,14 @@
                         {% if request.args.get('start_date') and request.args.get('end_date') %}
                             Custom
                         {% else %}
-                            All Time
+                            Semua
                         {% endif %}
                     </h3>
                     <small class="text-muted">
                         {% if request.args.get('start_date') %}
-                            {{ request.args.get('start_date') }} to {{ request.args.get('end_date') }}
+                            {{ request.args.get('start_date') }} s/d {{ request.args.get('end_date') }}
                         {% else %}
-                            All records
+                            Semua data
                         {% endif %}
                     </small>
                 </div>
@@ -127,28 +131,28 @@
             <div class="card filter-card">
                 <div class="card-body">
                     <h5 class="card-title mb-3">
-                        <i class="bi bi-funnel"></i> Filter Report
+                        <i class="bi bi-funnel"></i> Filter Laporan
                     </h5>
-                    <form method="GET" action="{{ url_for('reports.sales_report') }}">
+                    <form method="GET" action="{{ url_for('reports.sales_report') }}" id="filterForm">
                         <div class="row g-3 align-items-end">
                             <div class="col-md-3">
-                                <label for="start_date" class="form-label">Start Date</label>
+                                <label for="start_date" class="form-label">Tanggal Mulai</label>
                                 <input type="date" class="form-control" id="start_date" name="start_date" 
                                        value="{{ request.args.get('start_date', '') }}">
                             </div>
                             <div class="col-md-3">
-                                <label for="end_date" class="form-label">End Date</label>
+                                <label for="end_date" class="form-label">Tanggal Akhir</label>
                                 <input type="date" class="form-control" id="end_date" name="end_date" 
                                        value="{{ request.args.get('end_date', '') }}">
                             </div>
                             <div class="col-md-4">
                                 <div class="form-text">
-                                    Kosongkan tanggal untuk lihat semua transaksi
+                                    Kosongkan tanggal untuk melihat semua transaksi
                                 </div>
                             </div>
                             <div class="col-md-2">
                                 <button type="submit" class="btn btn-primary w-100">
-                                    <i class="bi bi-filter"></i> Jalankan Filter
+                                    <i class="bi bi-filter"></i> Terapkan Filter
                                 </button>
                             </div>
                         </div>
@@ -167,7 +171,7 @@
                         <i class="bi bi-list-ul"></i> Transaksi Penjualan
                     </h5>
                     <span class="text-muted small">
-                        Menunjukkan {{ sales|length }} transaksi
+                        Menampilkan {{ sales|length }} transaksi
                     </span>
                 </div>
                 <div class="card-body">
@@ -191,10 +195,10 @@
                                     <td>
                                         <strong>{{ sale.receipt_number }}</strong>
                                     </td>
-                                    <td>
-                                        {{ sale.created_at.strftime('%Y-%m-%d') }}<br>
-                                        <small class="text-muted">{{ sale.created_at.strftime('%H:%M') }}</small>
-                                    </td>
+                                        <td>
+                                            {{ sale.local_created_at.strftime('%Y-%m-%d') }}<br>
+                                            <small class="text-muted">{{ sale.local_created_at.strftime('%H:%M') }}</small>
+                                        </td>
                                     <td>
                                         {% if sale.customer %}
                                         <span class="badge bg-light text-dark">{{ sale.customer.name }}</span>
@@ -204,11 +208,11 @@
                                     </td>
                                     <td class="text-center">
                                         <span class="badge bg-primary rounded-pill">
-                                            {{ sale.items.count() }}
+                                            {{ sale.items_count }}
                                         </span>
                                     </td>
                                     <td class="text-end">
-                                        <strong>${{ "%.2f"|format(sale.total_amount) }}</strong>
+                                        <strong>Rp {{ "{:,.0f}".format(sale.total_amount) }}</strong>
                                     </td>
                                     <td>
                                         {% if sale.payment_method == 'cash' %}
@@ -236,11 +240,11 @@
                                     <td class="text-center">
                                         <div class="btn-group btn-group-sm">
                                             <a href="{{ url_for('sales.receipt', sale_id=sale.id) }}" 
-                                               class="btn btn-outline-primary" title="View Receipt">
+                                               class="btn btn-outline-primary" title="View Receipt" target="_blank">
                                                 <i class="bi bi-receipt"></i>
                                             </a>
                                             <button type="button" class="btn btn-outline-secondary" 
-                                                    onclick="showSaleDetails({{ sale.id }})" title="View Details">
+                                                    onclick="showSaleDetails('{{ sale.id }}')" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </button>
                                         </div>
@@ -251,7 +255,7 @@
                             <tfoot>
                                 <tr class="table-active">
                                     <td colspan="4" class="text-end"><strong>Total Akhir:</strong></td>
-                                    <td class="text-end"><strong>${{ "%.2f"|format(total_revenue) }}</strong></td>
+                                    <td class="text-end"><strong>Rp {{ "{:,.0f}".format(total_revenue) }}</strong></td>
                                     <td colspan="2"></td>
                                 </tr>
                             </tfoot>
@@ -262,17 +266,17 @@
                     <div class="empty-state">
                         {% if request.args.get('start_date') %}
                         <i class="bi bi-search display-4"></i>
-                        <h4 class="mt-3">No Sales Found</h4>
-                        <p class="mb-4">No sales transactions match your filter criteria.</p>
+                        <h4 class="mt-3">Tidak Ada Transaksi Ditemukan</h4>
+                        <p class="mb-4">Tidak ada transaksi penjualan yang sesuai dengan kriteria filter Anda.</p>
                         <a href="{{ url_for('reports.sales_report') }}" class="btn btn-outline-primary">
-                            <i class="bi bi-arrow-left"></i> Clear Filters
+                            <i class="bi bi-arrow-left"></i> Hapus Filter
                         </a>
                         {% else %}
                         <i class="bi bi-cart-x display-4"></i>
-                        <h4 class="mt-3">No Sales Data</h4>
-                        <p class="mb-4">Start making sales to see transaction data here.</p>
+                        <h4 class="mt-3">Belum Ada Data Penjualan</h4>
+                        <p class="mb-4">Mulai melakukan penjualan untuk melihat data transaksi di sini.</p>
                         <a href="{{ url_for('sales.pos') }}" class="btn btn-primary">
-                            <i class="bi bi-cash-coin"></i> Go to POS
+                            <i class="bi bi-cash-coin"></i> Ke POS
                         </a>
                         {% endif %}
                     </div>
@@ -282,7 +286,7 @@
         </div>
     </div>
 
-    <!-- Payment Method Breakdown -->
+    <!-- Charts Section -->
     {% if sales %}
     <div class="row mt-4">
         <div class="col-md-6">
@@ -293,7 +297,9 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <canvas id="paymentMethodChart" height="250"></canvas>
+                    <div class="chart-container">
+                        <canvas id="paymentMethodChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -305,7 +311,9 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <canvas id="salesByHourChart" height="250"></canvas>
+                    <div class="chart-container">
+                        <canvas id="salesByHourChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -324,6 +332,9 @@
             <div class="modal-body" id="saleDetailsContent">
                 <!-- Content will be loaded via JavaScript -->
             </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
         </div>
     </div>
 </div>
@@ -334,23 +345,26 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+// Global variables untuk menyimpan chart instances
+let paymentMethodChart = null;
+let salesByHourChart = null;
+
 // Show sale details
 async function showSaleDetails(saleId) {
     try {
-        // Tampilkan loading state
+        // Show loading state
         document.getElementById('saleDetailsContent').innerHTML = `
             <div class="text-center py-4">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                <p class="mt-2 text-muted">Loading sale details...</p>
+                <p class="mt-2 text-muted">Memuat detail penjualan...</p>
             </div>
         `;
         
         const modal = new bootstrap.Modal(document.getElementById('saleDetailsModal'));
         modal.show();
         
-        // PERBAIKAN: Gunakan route yang benar di modul reports
         const response = await fetch(`/reports/sales/${saleId}/details/html`);
         
         if (!response.ok) {
@@ -365,112 +379,329 @@ async function showSaleDetails(saleId) {
         document.getElementById('saleDetailsContent').innerHTML = `
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle"></i> 
-                Failed to load sale details. Please try again.
+                Gagal memuat detail penjualan. Silakan coba lagi.
                 <br><small>Error: ${error.message}</small>
             </div>
         `;
     }
 }
-// Initialize charts if sales data exists
+
+// Initialize page
 document.addEventListener('DOMContentLoaded', function() {
+    initializeFilters();
+    initializeCharts();
+    
+    // Debug info
+    console.log('📊 Sales data:', {
+        totalSales: {{ total_sales }},
+        salesLength: {{ sales|length }},
+        paymentData: {{ payment_data|tojson }},
+        hourlyData: {{ hourly_data|tojson }}
+    });
+});
+
+// Initialize filters
+function initializeFilters() {
+    const today = new Date();
+    const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    // Format dates for input fields
+    const formatDate = (date) => date.toISOString().split('T')[0];
+    
+    // Set default dates if not already set
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    
+    if (!startDateInput.value) {
+        startDateInput.value = formatDate(oneWeekAgo);
+    }
+    if (!endDateInput.value) {
+        endDateInput.value = formatDate(today);
+    }
+    
+    // Add form validation
+    const filterForm = document.getElementById('filterForm');
+    filterForm.addEventListener('submit', function(e) {
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+        
+        if (startDate && endDate && startDate > endDate) {
+            e.preventDefault();
+            alert('Tanggal mulai tidak boleh lebih besar dari tanggal akhir!');
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Memproses...';
+        submitBtn.disabled = true;
+        
+        setTimeout(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }, 2000);
+    });
+}
+
+// Initialize charts
+function initializeCharts() {
     {% if sales %}
+    console.log('🎯 Initializing charts...');
     renderPaymentMethodChart();
     renderSalesByHourChart();
+    {% else %}
+    console.log('ℹ️ No sales data available for charts');
     {% endif %}
-    
-    // Set default dates for filter
-    const today = new Date().toISOString().split('T')[0];
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0];
-    
-    if (!document.getElementById('start_date').value) {
-        document.getElementById('start_date').value = oneWeekAgoStr;
-    }
-    if (!document.getElementById('end_date').value) {
-        document.getElementById('end_date').value = today;
-    }
-});
+}
 
 // Payment method chart
 function renderPaymentMethodChart() {
-    const paymentData = {};
+    const ctx = document.getElementById('paymentMethodChart');
+    if (!ctx) {
+        console.error('❌ Payment method chart canvas not found');
+        return;
+    }
     
-    {% for sale in sales %}
-    const method = '{{ sale.payment_method }}';
-    paymentData[method] = (paymentData[method] || 0) + 1;
-    {% endfor %}
+    // Destroy existing chart
+    if (paymentMethodChart) {
+        paymentMethodChart.destroy();
+    }
     
-    const ctx = document.getElementById('paymentMethodChart').getContext('2d');
+    // Get data from template
+    const paymentData = {{ payment_data|tojson }};
+    
+    console.log('💳 Payment data for chart:', paymentData);
+    
     const labels = Object.keys(paymentData);
     const data = Object.values(paymentData);
+    
+    if (labels.length === 0) {
+        renderEmptyChart(ctx, 'Tidak ada data pembayaran');
+        return;
+    }
     
     const colors = {
         'cash': '#198754',
         'card': '#0d6efd', 
         'transfer': '#0dcaf0',
         'qris': '#ffc107',
+        'ewallet': '#6f42c1',
         'other': '#6c757d'
     };
     
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: labels.map(label => label.charAt(0).toUpperCase() + label.slice(1)),
-            datasets: [{
-                data: data,
-                backgroundColor: labels.map(label => colors[label] || colors.other)
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
+    const labelMap = {
+        'cash': 'Tunai',
+        'card': 'Kartu',
+        'transfer': 'Transfer Bank',
+        'qris': 'QRIS',
+        'ewallet': 'E-Wallet'
+    };
+    
+    try {
+        paymentMethodChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels.map(label => labelMap[label] || label),
+                datasets: [{
+                    data: data,
+                    backgroundColor: labels.map(label => colors[label] || colors.other),
+                    borderWidth: 2,
+                    borderColor: '#ffffff',
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 15,
+                            usePointStyle: true,
+                            font: {
+                                size: 11
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = Math.round((value / total) * 100);
+                                return `${label}: ${value} transaksi (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+                cutout: '50%'
             }
-        }
-    });
+        });
+        console.log('✅ Payment method chart rendered successfully');
+    } catch (error) {
+        console.error('❌ Error rendering payment method chart:', error);
+        renderEmptyChart(ctx, 'Error menampilkan chart pembayaran');
+    }
 }
 
 // Sales by hour chart
+// Sales by hour chart - FIXED VERSION dengan local time
 function renderSalesByHourChart() {
-    const hourData = new Array(24).fill(0);
+    const ctx = document.getElementById('salesByHourChart');
+    if (!ctx) {
+        console.error('❌ Sales by hour chart canvas not found');
+        return;
+    }
     
-    {% for sale in sales %}
-    const hour = new Date('{{ sale.created_at.isoformat() }}').getHours();
-    hourData[hour]++;
-    {% endfor %}
+    // Destroy existing chart
+    if (salesByHourChart) {
+        salesByHourChart.destroy();
+    }
     
-    const ctx = document.getElementById('salesByHourChart').getContext('2d');
+    // Get data dari template - sekarang sudah menggunakan local time
+    const hourlyData = {{ hourly_data|tojson }};
+    
+    console.log('🕒 Hourly data for chart (local time):', hourlyData);
+    
+    // Check if we have any data
+    const hasData = hourlyData.some(count => count > 0);
+    if (!hasData) {
+        renderEmptyChart(ctx, 'Tidak ada data penjualan per jam');
+        return;
+    }
+    
     const labels = Array.from({length: 24}, (_, i) => {
-        return i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i-12} PM`;
+        if (i === 0) return '12 AM';
+        if (i < 12) return `${i} AM`;
+        if (i === 12) return '12 PM';
+        return `${i - 12} PM`;
     });
     
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Sales Count',
-                data: hourData,
-                backgroundColor: 'rgba(13, 110, 253, 0.7)',
-                borderColor: '#0d6efd',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
+    try {
+        salesByHourChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Jumlah Transaksi',
+                    data: hourlyData,
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    borderColor: '#0d6efd',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Transaksi: ${context.parsed.y}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0
+                        },
+                        grid: {
+                            drawBorder: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Jumlah Transaksi'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 0
+                        },
+                        title: {
+                            display: true,
+                            text: 'Jam (Waktu Lokal)'
+                        }
                     }
                 }
             }
-        }
-    });
+        });
+        console.log('✅ Sales by hour chart rendered successfully (local time)');
+    } catch (error) {
+        console.error('❌ Error rendering sales by hour chart:', error);
+        renderEmptyChart(ctx, 'Error menampilkan chart per jam');
+    }
 }
+
+// Helper function untuk menampilkan chart kosong
+function renderEmptyChart(canvasElement, message) {
+    const ctx = canvasElement.getContext('2d');
+    if (!ctx) return;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    
+    // Set background
+    ctx.fillStyle = '#f8f9fa';
+    ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+    
+    // Draw message
+    ctx.fillStyle = '#6c757d';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '14px Arial';
+    
+    // Split message into multiple lines if too long
+    const words = message.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+    
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + " " + word).width;
+        if (width < canvasElement.width - 40) {
+            currentLine += " " + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    lines.push(currentLine);
+    
+    // Draw lines
+    const lineHeight = 20;
+    const startY = canvasElement.height / 2 - (lines.length - 1) * lineHeight / 2;
+    
+    lines.forEach((line, index) => {
+        ctx.fillText(line, canvasElement.width / 2, startY + index * lineHeight);
+    });
+    
+    console.log('ℹ️ Empty chart rendered:', message);
+}
+
+// Handle window resize
+window.addEventListener('resize', function() {
+    if (paymentMethodChart) {
+        paymentMethodChart.resize();
+    }
+    if (salesByHourChart) {
+        salesByHourChart.resize();
+    }
+});
 </script>
 {% endblock %}

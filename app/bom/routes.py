@@ -117,6 +117,10 @@ def create_bom(product_id):
                 db.session.add(bom_item)
                 current_app.logger.info(f"Created BOM item: {item_data}")
             
+            # PERBAIKAN: Update product BOM status
+            product.has_bom = True
+            product.calculate_bom_cost()
+            
             db.session.commit()
             
             flash(f'BOM baru untuk produk "{product.name}" berhasil dibuat dengan {len(items_data)} bahan baku.', 'success')
@@ -152,6 +156,10 @@ def set_primary_bom(bom_id):
         
         # Activate the selected BOM
         bom.is_active = True
+        
+        # PERBAIKAN: Update product BOM cost
+        bom.product.calculate_bom_cost()
+        
         db.session.commit()
         
         flash(f'BOM telah ditetapkan sebagai BOM utama untuk produk "{bom.product.name}".', 'success')
@@ -183,6 +191,10 @@ def edit_bom(bom_id):
     
     form = BOMForm(obj=bom)
     
+    if request.method == 'GET':
+        # PERBAIKAN: Load existing BOM items untuk edit
+        current_app.logger.info(f"Loading BOM {bom_id} with {bom.items.count()} items for edit")
+    
     if request.method == 'POST':
         # PERBAIKAN: Baca SEMUA item dari form
         items_data = []
@@ -197,14 +209,17 @@ def edit_bom(bom_id):
             unit = request.form.get(f'items-{i}-unit')
             notes = request.form.get(f'items-{i}-notes')
             
-            if raw_material_id and raw_material_id != "" and quantity and float(quantity) > 0:
+            # PERBAIKAN: Validasi yang lebih ketat untuk edit
+            if raw_material_id and raw_material_id != "" and quantity:
                 try:
-                    items_data.append({
-                        'raw_material_id': raw_material_id,
-                        'quantity': float(quantity),
-                        'unit': unit or '',
-                        'notes': notes or ''
-                    })
+                    quantity_float = float(quantity)
+                    if quantity_float > 0:  # Hanya tambahkan jika quantity > 0
+                        items_data.append({
+                            'raw_material_id': raw_material_id,
+                            'quantity': quantity_float,
+                            'unit': unit or '',
+                            'notes': notes or ''
+                        })
                 except ValueError:
                     flash('Jumlah harus berupa angka yang valid.', 'danger')
                     return render_template('bom/edit.html', 
@@ -215,8 +230,9 @@ def edit_bom(bom_id):
         
         current_app.logger.info(f"Received {len(items_data)} BOM items for edit: {items_data}")
         
+        # PERBAIKAN: Pesan error yang lebih jelas
         if not items_data:
-            flash('Minimal harus ada satu bahan baku dalam BOM.', 'danger')
+            flash('Minimal harus ada satu bahan baku dalam BOM dengan jumlah yang valid.', 'danger')
             return render_template('bom/edit.html', 
                                  form=form, 
                                  bom=bom, 
@@ -236,9 +252,14 @@ def edit_bom(bom_id):
                     notes=item_data['notes']
                 )
                 db.session.add(bom_item)
+                current_app.logger.info(f"Updated BOM item: {item_data}")
             
             # Update BOM header
             bom.notes = form.notes.data
+            
+            # PERBAIKAN: Update product BOM cost
+            bom.product.calculate_bom_cost()
+            
             db.session.commit()
             
             flash(f'BOM untuk produk "{bom.product.name}" berhasil diupdate dengan {len(items_data)} bahan baku.', 'success')

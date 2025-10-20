@@ -1,9 +1,10 @@
 from app import db
 from app.models import BOMHeader, BOMItem, Product, RawMaterial
 from flask import current_app
+from decimal import Decimal, ROUND_HALF_UP
 
 class BOMService:
-    """Service class for BOM (Bill of Materials) operations"""
+    """Service class for BOM (Bill of Materials) operations with decimal precision support"""
     
     @staticmethod
     def create_bom(product_id, items_data, notes=None):
@@ -33,12 +34,16 @@ class BOMService:
             db.session.add(bom_header)
             db.session.flush()  # Get the ID
             
-            # Create BOM items
+            # Create BOM items with decimal precision
             for item_data in items_data:
+                # Convert quantity to Decimal for precision
+                quantity_decimal = Decimal(str(item_data['quantity']))
+                quantity_float = float(quantity_decimal.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP))
+                
                 bom_item = BOMItem(
                     bom_header_id=bom_header.id,
                     raw_material_id=item_data['raw_material_id'],
-                    quantity=float(item_data['quantity']),
+                    quantity=quantity_float,
                     unit=item_data.get('unit', ''),
                     notes=item_data.get('notes', '')
                 )
@@ -83,12 +88,16 @@ class BOMService:
             # Delete existing items
             BOMItem.query.filter_by(bom_header_id=bom_header_id).delete()
             
-            # Create new items
+            # Create new items with decimal precision
             for item_data in items_data:
+                # Convert quantity to Decimal for precision
+                quantity_decimal = Decimal(str(item_data['quantity']))
+                quantity_float = float(quantity_decimal.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP))
+                
                 bom_item = BOMItem(
                     bom_header_id=bom_header_id,
                     raw_material_id=item_data['raw_material_id'],
-                    quantity=float(item_data['quantity']),
+                    quantity=quantity_float,
                     unit=item_data.get('unit', ''),
                     notes=item_data.get('notes', '')
                 )
@@ -148,7 +157,7 @@ class BOMService:
     @staticmethod
     def validate_bom_availability(bom_header_id, quantity=1):
         """
-        Validate if raw materials are available for BOM production
+        Validate if raw materials are available for BOM production with decimal precision
         
         Args:
             bom_header_id (str): BOM header ID
@@ -163,34 +172,42 @@ class BOMService:
                 return False, {"error": "BOM not found"}
             
             availability = []
-            total_cost = 0
+            total_cost = Decimal('0')
             all_available = True
             
+            # Convert quantity to Decimal for precision
+            quantity_decimal = Decimal(str(quantity))
+            
             for bom_item in bom_header.items:
-                required_quantity = bom_item.quantity * quantity
-                available_quantity = bom_item.raw_material.stock_quantity
+                # Use Decimal for precise calculation
+                bom_quantity = Decimal(str(bom_item.quantity))
+                required_quantity = bom_quantity * quantity_decimal
+                
+                available_quantity = Decimal(str(bom_item.raw_material.stock_quantity or 0))
                 sufficient = available_quantity >= required_quantity
                 
                 if not sufficient:
                     all_available = False
                 
-                item_cost = (bom_item.quantity * (bom_item.raw_material.cost_price or 0)) * quantity
+                # Calculate cost with decimal precision
+                cost_per_unit = Decimal(str(bom_item.raw_material.cost_price or 0))
+                item_cost = bom_quantity * cost_per_unit * quantity_decimal
                 total_cost += item_cost
                 
                 availability.append({
                     'raw_material_id': bom_item.raw_material_id,
                     'raw_material_name': bom_item.raw_material.name,
-                    'required': required_quantity,
-                    'available': available_quantity,
+                    'required': float(required_quantity.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)),
+                    'available': float(available_quantity.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)),
                     'sufficient': sufficient,
                     'unit': bom_item.unit,
-                    'cost_per_unit': bom_item.raw_material.cost_price or 0,
-                    'total_cost': item_cost
+                    'cost_per_unit': float(cost_per_unit.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)),
+                    'total_cost': float(item_cost.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP))
                 })
             
             return all_available, {
                 'valid': all_available,
-                'total_cost': total_cost,
+                'total_cost': float(total_cost.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)),
                 'availability': availability
             }
             
@@ -201,7 +218,7 @@ class BOMService:
     @staticmethod
     def process_bom_deduction(bom_header_id, quantity=1):
         """
-        Process raw material deduction based on BOM
+        Process raw material deduction based on BOM with decimal precision
         
         Args:
             bom_header_id (str): BOM header ID
@@ -220,10 +237,16 @@ class BOMService:
             if not bom_header:
                 raise ValueError("BOM not found")
             
-            # Process deductions
+            # Convert quantity to Decimal for precision
+            quantity_decimal = Decimal(str(quantity))
+            
+            # Process deductions with decimal precision
             for bom_item in bom_header.items:
-                required_quantity = bom_item.quantity * quantity
-                bom_item.raw_material.update_stock(-required_quantity)
+                bom_quantity = Decimal(str(bom_item.quantity))
+                required_quantity = bom_quantity * quantity_decimal
+                
+                # Use the update_stock method which handles decimal precision
+                bom_item.raw_material.update_stock(-float(required_quantity))
             
             return True
             
@@ -233,11 +256,11 @@ class BOMService:
     
     @staticmethod
     def get_bom_by_product(product_id):
-        """Get active BOM for a product - MODIFIED to allow multiple"""
+        """Get active BOM for a product"""
         return BOMHeader.query.filter_by(
             product_id=product_id, 
             is_active=True
-        ).first()  # Tetap first() jika ingin BOM aktif utama
+        ).first()
 
     @staticmethod
     def get_all_boms_by_product(product_id):
@@ -250,7 +273,7 @@ class BOMService:
     @staticmethod
     def get_bom_cost_analysis(tenant_id):
         """
-        Get BOM cost analysis for all products in tenant
+        Get BOM cost analysis for all products in tenant with decimal precision
         
         Args:
             tenant_id (str): Tenant ID
@@ -266,14 +289,22 @@ class BOMService:
                 active_bom = BOMService.get_bom_by_product(product.id)
                 if active_bom:
                     bom_cost = active_bom.calculate_total_cost()
-                    profit_margin = ((product.price - bom_cost) / product.price * 100) if product.price > 0 else 0
+                    
+                    # Use Decimal for precise profit calculation
+                    selling_price = Decimal(str(product.price))
+                    bom_cost_decimal = Decimal(str(bom_cost))
+                    profit_amount = selling_price - bom_cost_decimal
+                    
+                    profit_margin = 0
+                    if selling_price > 0:
+                        profit_margin = float((profit_amount / selling_price * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
                     
                     analysis.append({
                         'product_id': product.id,
                         'product_name': product.name,
-                        'selling_price': product.price,
+                        'selling_price': float(selling_price),
                         'bom_cost': bom_cost,
-                        'profit_amount': product.price - bom_cost,
+                        'profit_amount': float(profit_amount.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)),
                         'profit_margin': profit_margin,
                         'bom_items_count': active_bom.items.count()
                     })

@@ -86,36 +86,53 @@ def pos():
                          products=products_data, 
                          customers=customers)
 
-@bp.route('/create', methods=['POST'])
+@bp.route('/process-sale', methods=['POST'])
 @login_required
 @tenant_required
-def create_sale():
-    """Process new sale - UPDATED for cash payment"""
+def process_sale():
+    """Process new sale with enhanced BOM handling and decimal precision"""
     try:
         data = request.get_json()
-        print('Received sale data:', data)  # Debug print
+        current_app.logger.info(f'Received sale data: {data}')  # Debug log
         
         if not data or 'items' not in data or not data['items']:
             return jsonify({'error': 'No items in sale'}), 400
-        # Validasi pembayaran cash
+
+        # Validate payment
         payment_method = data.get('payment_method', 'cash')
         total_amount = float(data.get('total_amount', 0))
-        amount_paid = float(data.get('amount_paid', 0))
+        amount_paid = float(data.get('amount_paid', total_amount))  # Default to total if not provided
         
         if payment_method == 'cash' and amount_paid < total_amount:
             return jsonify({'error': f'Insufficient payment. Required: {total_amount}, Paid: {amount_paid}'}), 400
+
+        # Validate stock and BOM availability before processing
         for item_data in data['items']:
             product = Product.query.filter_by(
                 id=item_data['product_id'],
                 tenant_id=current_user.tenant_id
             ).first()
             
-            if product and product.has_bom:
+            if not product:
+                return jsonify({'error': f'Product not found: {item_data["product_id"]}'}), 400
+            
+            # Check regular stock if tracking is enabled and no BOM
+            if product.requires_stock_tracking and not product.has_bom:
+                if product.stock_quantity < int(item_data['quantity']):
+                    return jsonify({'error': f'Insufficient stock for {product.name}: need {item_data["quantity"]}, have {product.stock_quantity}'}), 400
+            
+            # Check BOM availability if product has BOM
+            if product.has_bom:
                 active_bom = BOMService.get_bom_by_product(product.id)
                 if active_bom:
                     is_valid, details = BOMService.validate_bom_availability(active_bom.id, item_data['quantity'])
                     if not is_valid:
-                        return jsonify({'error': f'Insufficient BOM materials for {product.name}: {details}'}), 400
+                        error_msg = f'Insufficient BOM materials for {product.name}'
+                        if 'availability' in details:
+                            insufficient_materials = [item['raw_material_name'] for item in details['availability'] if not item['sufficient']]
+                            if insufficient_materials:
+                                error_msg += f': {", ".join(insufficient_materials)}'
+                        return jsonify({'error': error_msg}), 400
         
         # Create sale record
         receipt_number = f"RC-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
@@ -135,7 +152,7 @@ def create_sale():
         db.session.add(sale)
         db.session.flush()  # Get the sale ID
         
-        # Create sale items
+        # Create sale items and process inventory deductions
         for item_data in data['items']:
             product = Product.query.filter_by(
                 id=item_data['product_id'],
@@ -155,21 +172,23 @@ def create_sale():
             
             db.session.add(sale_item)
             
-            # Update product stock if tracking is enabled and no BOM
-            if product.requires_stock_tracking and not product.has_bom:
-                product.stock_quantity -= int(item_data['quantity'])
+            # Process inventory deductions
+            quantity_sold = int(item_data['quantity'])
+            
+            if product.has_bom:
+                # Process BOM deduction with enhanced logging
+                current_app.logger.info(f'Processing BOM deduction for {product.name}, quantity: {quantity_sold}')
+                success = product.process_bom_deduction(quantity_sold)
+                if not success:
+                    raise ValueError(f"Failed to process BOM deduction for {product.name}")
+                current_app.logger.info(f'BOM deduction completed for {product.name}')
+            elif product.requires_stock_tracking:
+                # Update regular product stock
+                current_app.logger.info(f'Updating regular stock for {product.name}: {product.stock_quantity} - {quantity_sold}')
+                product.stock_quantity -= quantity_sold
                 if product.stock_quantity < 0:
                     product.stock_quantity = 0
-        
-        # Process BOM deductions
-        for item_data in data['items']:
-            product = Product.query.filter_by(
-                id=item_data['product_id'],
-                tenant_id=current_user.tenant_id
-            ).first()
-            
-            if product and product.has_bom:
-                product.process_bom_deduction(int(item_data['quantity']))
+                current_app.logger.info(f'New stock for {product.name}: {product.stock_quantity}')
         
         db.session.commit()
         
@@ -182,8 +201,16 @@ def create_sale():
         
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f'Error creating sale: {str(e)}')
+        current_app.logger.error(f'Error processing sale: {str(e)}')
         return jsonify({'error': f'Failed to process sale: {str(e)}'}), 500
+
+# Keep the old route for backward compatibility
+@bp.route('/create', methods=['POST'])
+@login_required
+@tenant_required
+def create_sale():
+    """Legacy route - redirects to process_sale"""
+    return process_sale()
     
 @bp.route('/<sale_id>/details/html')
 @login_required
@@ -375,6 +402,41 @@ def api_product_availability(product_id):
         current_app.logger.error(f'Error checking product availability: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/products')
+@login_required
+@tenant_required
+def api_products():
+    """API endpoint to get products for POS"""
+    try:
+        products = Product.query.filter_by(
+            tenant_id=current_user.tenant_id,
+            is_active=True
+        ).order_by(Product.name).all()
+        
+        products_data = []
+        for product in products:
+            products_data.append({
+                'id': product.id,
+                'name': product.name,
+                'price': float(product.price),
+                'stock_quantity': product.stock_quantity,
+                'unit': product.unit,
+                'sku': product.sku,
+                'image_url': product.image_url,
+                'requires_stock_tracking': product.requires_stock_tracking,
+                'has_bom': product.has_bom,
+                'is_active': product.is_active,
+                'stock_alert': product.stock_alert,
+                'category_name': product.category.name if product.category else '',
+                'bom_available': product.check_bom_availability() if product.has_bom else True
+            })
+        
+        return jsonify(products_data)
+        
+    except Exception as e:
+        current_app.logger.error(f'Error getting products: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/reports/daily')
 @login_required
 @tenant_required
@@ -536,3 +598,8 @@ def _generate_receipt_pdf_content(sale: Sale) -> io.BytesIO:
     # Info Struk - PERBAIKAN: Gunakan sale.local_created_at yang sudah dikonversi
     draw_line(f"RECEIPT: {sale.receipt_number}", 'Helvetica-Bold', 9, line_height_normal, 'center')
     draw_line(sale.local_created_at.strftime('%Y-%m-%d %H:%M:%S'), 'Helvetica', 8, line_height_small, 'center')
+    
+    # Continue with the rest of the PDF generation...
+    p.save()
+    buffer.seek(0)
+    return buffer

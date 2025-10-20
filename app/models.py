@@ -5,6 +5,7 @@ from datetime import datetime
 import uuid
 import json
 from enum import Enum
+from decimal import Decimal, ROUND_HALF_UP
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -173,8 +174,8 @@ class RawMaterial(db.Model):
     sku = db.Column(db.String(100), unique=True)
     unit = db.Column(db.String(20), default='kg')
     cost_price = db.Column(db.Float)
-    stock_quantity = db.Column(db.Integer, default=0)
-    stock_alert = db.Column(db.Integer, default=10)
+    stock_quantity = db.Column(db.Float, default=0.0)  # Changed to Float for decimal support
+    stock_alert = db.Column(db.Float, default=10.0)    # Changed to Float for decimal support
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
@@ -190,12 +191,19 @@ class RawMaterial(db.Model):
         return self.stock_quantity <= self.stock_alert
     
     def update_stock(self, quantity):
-        """Update stock quantity (positive for addition, negative for deduction)"""
-        self.stock_quantity += quantity
-        if self.stock_quantity < 0:
-            self.stock_quantity = 0
-        # HAPUS: db.session.commit() - Jangan commit di dalam model method
-        # Biarkan calling code yang handle commit
+        """Update stock quantity (positive for addition, negative for deduction) with decimal precision"""
+        # Convert to Decimal for precise calculation
+        current_stock = Decimal(str(self.stock_quantity or 0))
+        quantity_decimal = Decimal(str(quantity))
+        
+        new_stock = current_stock + quantity_decimal
+        
+        # Ensure stock doesn't go below 0
+        if new_stock < 0:
+            new_stock = Decimal('0')
+        
+        # Round to 6 decimal places and convert back to float
+        self.stock_quantity = float(new_stock.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP))
     
     def to_dict(self):
         return {
@@ -243,19 +251,23 @@ class Product(db.Model):
     bom_headers = db.relationship('BOMHeader', backref='product', lazy='dynamic')
     
     def calculate_bom_cost(self):
-        """Calculate total cost based on active BOM"""
+        """Calculate total cost based on active BOM with decimal precision"""
         active_bom = self.bom_headers.filter_by(is_active=True).first()
         if active_bom:
-            total_cost = 0
+            total_cost = Decimal('0')
             for bom_item in active_bom.items:
-                if bom_item.raw_material:
-                    total_cost += (bom_item.quantity * (bom_item.raw_material.cost_price or 0))
-            self.bom_cost = total_cost
-            return total_cost
+                if bom_item.raw_material and bom_item.raw_material.cost_price:
+                    item_quantity = Decimal(str(bom_item.quantity))
+                    item_cost = Decimal(str(bom_item.raw_material.cost_price))
+                    total_cost += item_quantity * item_cost
+            
+            # Round to 6 decimal places and convert back to float
+            self.bom_cost = float(total_cost.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP))
+            return self.bom_cost
         return 0
     
     def check_bom_availability(self, quantity=1):
-        """Check if raw materials are available for BOM production - FIXED VERSION"""
+        """Check if raw materials are available for BOM production with decimal precision"""
         if not self.has_bom:
             return True
             
@@ -267,30 +279,53 @@ class Product(db.Model):
             if not bom_item.raw_material:
                 continue  # Skip jika raw_material tidak ada
                 
-            required_quantity = bom_item.quantity * quantity
+            # Use Decimal for precise calculation
+            bom_quantity = Decimal(str(bom_item.quantity))
+            product_quantity = Decimal(str(quantity))
+            required_quantity = bom_quantity * product_quantity
+            
             # Pastikan stock_quantity tidak None
-            current_stock = bom_item.raw_material.stock_quantity or 0
+            current_stock = Decimal(str(bom_item.raw_material.stock_quantity or 0))
             if current_stock < required_quantity:
                 return False
         return True
     
     def process_bom_deduction(self, quantity=1):
-        """Deduct raw materials based on BOM when product is sold - FIXED VERSION"""
+        """Deduct raw materials based on BOM when product is sold with decimal precision"""
         if not self.has_bom:
             return True
             
         active_bom = self.bom_headers.filter_by(is_active=True).first()
         if not active_bom:
             return True
+        
+        # Log the BOM deduction process
+        from flask import current_app
+        current_app.logger.info(f"Processing BOM deduction for product {self.name}, quantity: {quantity}")
             
         for bom_item in active_bom.items:
             if not bom_item.raw_material:
                 continue  # Skip jika raw_material tidak ada
                 
-            required_quantity = bom_item.quantity * quantity
-            # Gunakan method update_stock yang sudah diperbaiki
-            current_stock = bom_item.raw_material.stock_quantity or 0
-            bom_item.raw_material.stock_quantity = max(0, current_stock - required_quantity)
+            # Use Decimal for precise calculation
+            bom_quantity = Decimal(str(bom_item.quantity))
+            product_quantity = Decimal(str(quantity))
+            required_quantity = bom_quantity * product_quantity
+            
+            # Log each raw material deduction
+            current_app.logger.info(f"  - {bom_item.raw_material.name}: BOM qty {bom_quantity} x Product qty {product_quantity} = Required {required_quantity}")
+            current_app.logger.info(f"    Current stock: {bom_item.raw_material.stock_quantity}")
+            
+            # PERBAIKAN: Pastikan stok cukup sebelum pengurangan
+            current_stock = Decimal(str(bom_item.raw_material.stock_quantity or 0))
+            if current_stock < required_quantity:
+                current_app.logger.error(f"    Insufficient stock for {bom_item.raw_material.name}: need {required_quantity}, have {current_stock}")
+                return False
+            
+            # Use the update_stock method which handles decimal precision
+            bom_item.raw_material.update_stock(-float(required_quantity))
+            
+            current_app.logger.info(f"    New stock: {bom_item.raw_material.stock_quantity}")
         
         # Commit dilakukan di level service/route, bukan di model
         return True
@@ -337,19 +372,27 @@ class BOMHeader(db.Model):
     items = db.relationship('BOMItem', backref='bom_header', lazy='dynamic', cascade='all, delete-orphan')
     
     def calculate_total_cost(self):
-        """Calculate total cost of all raw materials in this BOM"""
-        total_cost = 0
+        """Calculate total cost of all raw materials in this BOM with decimal precision"""
+        total_cost = Decimal('0')
         for item in self.items:
             if item.raw_material and item.raw_material.cost_price:
-                total_cost += (item.quantity * item.raw_material.cost_price)
-        return total_cost
+                item_quantity = Decimal(str(item.quantity))
+                item_cost = Decimal(str(item.raw_material.cost_price))
+                total_cost += item_quantity * item_cost
+        
+        # Round to 6 decimal places and return as float
+        return float(total_cost.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP))
     
     def validate_availability(self, quantity=1):
-        """Validate if all raw materials are available for production"""
+        """Validate if all raw materials are available for production with decimal precision"""
         for item in self.items:
-            required_quantity = item.quantity * quantity
-            if item.raw_material.stock_quantity < required_quantity:
-                return False, f"Insufficient {item.raw_material.name}: need {required_quantity}, have {item.raw_material.stock_quantity}"
+            bom_quantity = Decimal(str(item.quantity))
+            product_quantity = Decimal(str(quantity))
+            required_quantity = bom_quantity * product_quantity
+            
+            current_stock = Decimal(str(item.raw_material.stock_quantity or 0))
+            if current_stock < required_quantity:
+                return False, f"Insufficient {item.raw_material.name}: need {required_quantity}, have {current_stock}"
         return True, "All materials available"
 
 # NEW MODEL: BOM Items
@@ -359,11 +402,18 @@ class BOMItem(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
     bom_header_id = db.Column(db.String(36), db.ForeignKey('bom_headers.id'), nullable=False)
     raw_material_id = db.Column(db.String(36), db.ForeignKey('raw_materials.id'), nullable=False)
-    quantity = db.Column(db.Float, nullable=False)
+    quantity = db.Column(db.Float, nullable=False)  # Support decimal quantities
     unit = db.Column(db.String(20))
     notes = db.Column(db.Text)
     
     def to_dict(self):
+        total_cost = 0
+        if self.raw_material and self.raw_material.cost_price:
+            # Use Decimal for precise calculation
+            quantity_decimal = Decimal(str(self.quantity))
+            cost_decimal = Decimal(str(self.raw_material.cost_price))
+            total_cost = float((quantity_decimal * cost_decimal).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP))
+        
         return {
             'id': self.id,
             'raw_material_id': self.raw_material_id,
@@ -371,7 +421,7 @@ class BOMItem(db.Model):
             'quantity': self.quantity,
             'unit': self.unit,
             'cost_per_unit': self.raw_material.cost_price if self.raw_material else 0,
-            'total_cost': (self.quantity * self.raw_material.cost_price) if self.raw_material and self.raw_material.cost_price else 0
+            'total_cost': total_cost
         }
 
 class Customer(db.Model):

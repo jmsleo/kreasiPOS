@@ -128,7 +128,7 @@ class BOMManagement {
                                 <option value="">Select Raw Material</option>
                                 ${this.rawMaterials ? this.rawMaterials.map(rm => 
                                     `<option value="${rm.id}" ${rm.id === item.raw_material_id ? 'selected' : ''}>
-                                        ${rm.name} (${rm.unit}) - Stock: ${rm.stock_quantity}
+                                        ${rm.name} (${rm.unit}) - Stock: ${this.formatDecimal(rm.stock_quantity)}
                                     </option>`
                                 ).join('') : ''}
                             </select>
@@ -137,8 +137,8 @@ class BOMManagement {
                             <label class="form-label">Quantity</label>
                             <input type="number" class="form-control bom-quantity" 
                                    data-item-id="${item.id}" 
-                                   value="${item.quantity}" 
-                                   min="0" step="0.001">
+                                   value="${this.formatDecimal(item.quantity)}" 
+                                   min="0" step="0.000001" placeholder="0.000000">
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">Unit</label>
@@ -149,11 +149,11 @@ class BOMManagement {
                         <div class="col-md-2">
                             <label class="form-label">Cost/Unit</label>
                             <input type="number" class="form-control" 
-                                   value="${item.cost_per_unit}" readonly>
+                                   value="${this.formatDecimal(item.cost_per_unit)}" readonly>
                         </div>
                         <div class="col-md-1">
                             <label class="form-label">Total</label>
-                            <div class="fw-bold">$${item.total_cost.toFixed(2)}</div>
+                            <div class="fw-bold">$${this.formatDecimal(item.total_cost)}</div>
                         </div>
                         <div class="col-md-1">
                             <label class="form-label">&nbsp;</label>
@@ -178,7 +178,7 @@ class BOMManagement {
                     <option value="">Select Raw Material</option>
                     ${this.rawMaterials ? this.rawMaterials.map(rm => 
                         `<option value="${rm.id}">
-                            ${rm.name} (${rm.unit}) - Stock: ${rm.stock_quantity}
+                            ${rm.name} (${rm.unit}) - Stock: ${this.formatDecimal(rm.stock_quantity)}
                         </option>`
                     ).join('') : ''}
                 `;
@@ -205,7 +205,7 @@ class BOMManagement {
                 
                 // Update cost per unit display
                 const costInput = selectElement.closest('.row').querySelector('input[readonly]');
-                if (costInput) costInput.value = material.cost_price || 0;
+                if (costInput) costInput.value = this.formatDecimal(material.cost_price || 0);
                 
                 this.calculateTotalCost();
             }
@@ -221,27 +221,44 @@ class BOMManagement {
                 item.quantity = parseFloat(quantityInput.value) || 0;
             }
             
-            item.total_cost = item.quantity * (item.cost_per_unit || 0);
+            // Use precise decimal calculation
+            const quantity = parseFloat(item.quantity) || 0;
+            const costPerUnit = parseFloat(item.cost_per_unit) || 0;
+            item.total_cost = this.preciseMultiply(quantity, costPerUnit);
             this.totalCost += item.total_cost;
 
             // Update total cost display for this item
             const totalDiv = quantityInput?.closest('.row').querySelector('.fw-bold');
             if (totalDiv) {
-                totalDiv.textContent = `$${item.total_cost.toFixed(2)}`;
+                totalDiv.textContent = `$${this.formatDecimal(item.total_cost)}`;
             }
         });
 
         // Update total BOM cost display
         const totalCostElement = document.getElementById('bomTotalCost');
         if (totalCostElement) {
-            totalCostElement.textContent = `$${this.totalCost.toFixed(2)}`;
+            totalCostElement.textContent = `$${this.formatDecimal(this.totalCost)}`;
         }
 
         // Update product BOM cost field
         const bomCostInput = document.getElementById('bomCost');
         if (bomCostInput) {
-            bomCostInput.value = this.totalCost.toFixed(2);
+            bomCostInput.value = this.formatDecimal(this.totalCost);
         }
+    }
+
+    // Helper function for precise decimal multiplication
+    preciseMultiply(a, b) {
+        const factor = 1000000; // 6 decimal places
+        return Math.round(a * factor) * Math.round(b * factor) / (factor * factor);
+    }
+
+    // Helper function to format decimal numbers consistently
+    formatDecimal(value, decimals = 6) {
+        if (value === null || value === undefined || isNaN(value)) {
+            return '0.000000';
+        }
+        return parseFloat(value).toFixed(decimals);
     }
 
     async validateBOM() {
@@ -279,7 +296,7 @@ class BOMManagement {
             return;
         }
 
-        // Update quantities from form inputs
+        // Update quantities from form inputs with decimal precision
         this.bomItems.forEach(item => {
             const quantityInput = document.querySelector(`input.bom-quantity[data-item-id="${item.id}"]`);
             if (quantityInput) {
