@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h5>Restock Orders Management</h5>
+    <h5>Manajemen Pesanan Restok</h5>
     <div>
         <a href="{{ url_for('marketplace.admin_restock_orders', status='pending') }}" class="btn btn-outline-warning">Pending</a>
         <a href="{{ url_for('marketplace.admin_restock_orders', status='verified') }}" class="btn btn-outline-success">Verified</a>
@@ -85,7 +85,7 @@
                                     {% endif %}
                                     <div class="row mt-3">
                                         <div class="col-md-6">
-                                            <h6>Tenant Information</h6>
+                                            <h6> Informasi Tenant</h6>
                                             <table class="table table-sm">
                                                 <tr>
                                                     <th>Nama Tenant:</th>
@@ -108,7 +108,7 @@
                                             </table>
                                         </div>
                                         <div class="col-md-6">
-                                            <h6>Shipping Address for This Order</h6>
+                                            <h6>Alamat Pengiriman Pesanan Ini</h6>
                                             <div class="border rounded p-3 bg-light">
                                                 {{ order.shipping_address }}<br>
                                                 {{ order.shipping_city }} {{ order.shipping_postal_code }}<br>

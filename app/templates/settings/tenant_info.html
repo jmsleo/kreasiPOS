@@ -25,14 +25,14 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ url_for('settings.index') }}">Settings</a></li>
-                    <li class="breadcrumb-item active">Business Information</li>
+                    <li class="breadcrumb-item active">Informasi Bisnis</li>
                 </ol>
             </nav>
             
             <h1 class="h2 mb-0">
-                <i class="bi bi-building"></i> Business Information
+                <i class="bi bi-briefcase"></i> Informasi Bisnis
             </h1>
-            <small class="text-muted">Update your business details and contact information</small>
+            <small class="text-muted">Perbarui detail bisnis dan informasi kontak</small>
         </div>
     </div>
 
@@ -40,25 +40,25 @@
         <div class="col-lg-8">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Business Details</h5>
+                    <h5 class="card-title mb-0">Details Bisnis</h5>
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('settings.tenant_info') }}">
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="name" class="form-label">Business Name <span class="text-danger">*</span></label>
+                                    <label for="name" class="form-label">Nama Bisnis <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control" id="name" name="name" 
                                            value="{{ tenant.name }}" required>
-                                    <div class="form-text">The official name of your business</div>
+                                    <div class="form-text">Nama Resmi dari Bisnis Anda</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="email" class="form-label">Email Address</label>
+                                    <label for="email" class="form-label">Alamat Email</label>
                                     <input type="email" class="form-control" id="email" name="email" 
                                            value="{{ tenant.email or '' }}">
-                                    <div class="form-text">Primary contact email</div>
+                                    <div class="form-text">Kontak email utama</div>
                                 </div>
                             </div>
                         </div>
@@ -66,10 +66,10 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="phone" class="form-label">Phone Number</label>
+                                    <label for="phone" class="form-label"> Nomor Telepon</label>
                                     <input type="tel" class="form-control" id="phone" name="phone" 
                                            value="{{ tenant.phone or '' }}">
-                                    <div class="form-text">Business contact number</div>
+                                    <div class="form-text">Nomor kontak bisnis</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -77,15 +77,15 @@
                                     <label for="website" class="form-label">Website</label>
                                     <input type="url" class="form-control" id="website" name="website" 
                                            value="{{ tenant.website or '' }}">
-                                    <div class="form-text">Your business website URL</div>
+                                    <div class="form-text">URL website bisnis Anda</div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="address" class="form-label">Business Address</label>
+                            <label for="address" class="form-label">Alamat Business</label>
                             <textarea class="form-control" id="address" name="address" rows="3">{{ tenant.address or '' }}</textarea>
-                            <div class="form-text">Full business address for receipts and documentation</div>
+                            <div class="form-text">Alamat lengkap bisnis untuk struk dan dokumentasi</div>
                         </div>
 
                         <div class="mb-3">
@@ -95,14 +95,14 @@
                             <div class="form-text">Business tax identification number</div>
                         </div>
 
-                    
+                        
 
                         <div class="d-flex justify-content-between">
                             <a href="{{ url_for('settings.index') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-left"></i> Back to Settings
+                                <i class="bi bi-arrow-left"></i> Kembali ke pengaturan
                             </a>
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-circle"></i> Update Information
+                                <i class="bi bi-check-circle"></i> Perbarui Informasi
                             </button>
                         </div>
                     </form>
@@ -112,14 +112,14 @@
             <!-- Business Summary -->
             <div class="card mt-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Current Business Information</h5>
+                    <h5 class="card-title mb-0">Informasi Bisnis Sekarang</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
                             <table class="table table-sm">
                                 <tr>
-                                    <th width="40%">Business Name:</th>
+                                    <th width="40%">Nama Bisnis :</th>
                                     <td>{{ tenant.name }}</td>
                                 </tr>
                                 <tr>
@@ -127,7 +127,7 @@
                                     <td>{{ tenant.email or 'Not set' }}</td>
                                 </tr>
                                 <tr>
-                                    <th>Phone:</th>
+                                    <th>Nomor Telepon:</th>
                                     <td>{{ tenant.phone or 'Not set' }}</td>
                                 </tr>
                             </table>
@@ -135,7 +135,7 @@
                         <div class="col-md-6">
                             <table class="table table-sm">
                                 <tr>
-                                    <th width="40%">Currency:</th>
+                                    <th width="40%">Mata Uang:</th>
                                     <td>{{ tenant.currency or 'IDR' }}</td>
                                 </tr>
                                 <tr>
@@ -151,7 +151,7 @@
                     </div>
                     {% if tenant.address %}
                     <div class="mt-3">
-                        <strong>Address:</strong>
+                        <strong>Alamat:</strong>
                         <p class="mb-0">{{ tenant.address }}</p>
                     </div>
                     {% endif %}

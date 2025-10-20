@@ -42,7 +42,7 @@
                         {% endfor %}
                         {% if method and method.qr_code_url %}
                         <div class="mt-2">
-                            <p>Current QR Code:</p>
+                            <p> QR Code Sekarang:</p>
                             <img src="{{ method.qr_code_url }}" alt="QR Code" style="max-width: 200px;">
                         </div>
                         {% endif %}
@@ -53,8 +53,8 @@
                         {{ form.is_active.label(class="form-check-label") }}
                     </div>
 
-                    <button type="submit" class="btn btn-primary">Save</button>
-                    <a href="{{ url_for('marketplace.payment_methods') }}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                    <a href="{{ url_for('marketplace.payment_methods') }}" class="btn btn-secondary">Batal</a>
                 </form>
             </div>
         </div>

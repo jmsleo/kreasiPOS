@@ -2,18 +2,18 @@
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2"><i class="bi bi-pencil-square"></i> Manage Marketplace Items</h1>
+        <h1 class="h2"><i class="bi bi-pencil-square"></i> Kelola Barang Marketplace </h1>
         <div class="btn-toolbar mb-2 mb-md-0">
             <div class="btn-group me-2">
                 <a href="{{ url_for('marketplace.admin_restock_orders') }}" class="btn btn-outline-primary">
-                    <i class="bi bi-cart-check"></i> Restock Orders
+                    <i class="bi bi-cart-check"></i> Pesanan Restok
                 </a>
                 <a href="{{ url_for('marketplace.payment_methods') }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-credit-card"></i> Payment Methods
+                    <i class="bi bi-credit-card"></i> Metode Pembayaran
                 </a>
             </div>
             <a href="{{ url_for('marketplace.create_item') }}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Add New Item
+                <i class="bi bi-plus-circle"></i> Tambah Barang Baru
             </a>
         </div>
     </div>
@@ -21,12 +21,12 @@
     <!-- Statistics Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card text-white bg-primary">
+            <div class="card stats-card text-primary" style="border-left-color: var(--primary-color);">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between">
+                <div class="d-flex justify-content-between">
                         <div>
                             <h4>{{ items|length }}</h4>
-                            <p class="mb-0">Total Items</p>
+                            <p class="mb-0">Total Barang</p>
                         </div>
                         <div class="align-self-center">
                             <i class="bi bi-box-seam fs-1"></i>
@@ -36,12 +36,12 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-success">
+            <div class="card stats-card text-success" style="border-left-color: var(--success-color);">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h4>{{ items|selectattr('stock', 'gt', 0)|list|length }}</h4>
-                            <p class="mb-0">In Stock</p>
+                            <p class="mb-0">Dalam Stok</p>
                         </div>
                         <div class="align-self-center">
                             <i class="bi bi-check-circle fs-1"></i>
@@ -51,12 +51,12 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-warning">
+            <div class="card stats-card " style="border-left-color: var(--warning-color); color: var(--warning-color)">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h4>{{ items|selectattr('stock', 'eq', 0)|list|length }}</h4>
-                            <p class="mb-0">Out of Stock</p>
+                            <p class="mb-0">Stok Habis</p>
                         </div>
                         <div class="align-self-center">
                             <i class="bi bi-exclamation-circle fs-1"></i>
@@ -66,12 +66,12 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card text-white bg-info">
+            <div class="card stats-card text-info" style="border-left-color: var(--info-color);">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h4>{{ total_value }}</h4>
-                            <p class="mb-0">Total Value</p>
+                            <p class="mb-0">Jumlah Total</p>
                         </div>
                         <div class="align-self-center">
                             <i class="bi bi-currency-dollar fs-1"></i>
@@ -92,13 +92,13 @@
                 <div class="card-body">
                     <div class="d-flex flex-wrap gap-2">
                         <a href="{{ url_for('marketplace.create_item') }}" class="btn btn-primary">
-                            <i class="bi bi-plus-circle"></i> Add New Item
+                            <i class="bi bi-plus-circle"></i> Tambah Barang Baru
                         </a>
                         <a href="{{ url_for('marketplace.admin_restock_orders', status='pending') }}" class="btn btn-warning">
-                            <i class="bi bi-clock"></i> Pending Orders
+                            <i class="bi bi-clock"></i> Pesanan Tertunda
                         </a>
                         <a href="{{ url_for('marketplace.payment_methods') }}" class="btn btn-info">
-                            <i class="bi bi-wallet2"></i> Manage Payment Methods
+                            <i class="bi bi-wallet2"></i> Kelola Metode Pembayaran
                         </a>
                         <a href="{{ url_for('marketplace.manage') }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-repeat"></i> Refresh
@@ -112,15 +112,15 @@
     <div class="card">
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Marketplace Items</h5>
+                <h5 class="mb-0"> Barang Marketplace</h5>
                 <div class="btn-group">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
-                        <i class="bi bi-filter"></i> Filter
+                        <i class="bi bi-filter"></i> Saring
                     </button>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}">All Items</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}?filter=in_stock">In Stock</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}?filter=out_of_stock">Out of Stock</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}">Semua Barang</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}?filter=in_stock">Dalam Stok</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('marketplace.manage') }}?filter=out_of_stock">Stok Habis</a></li>
                     </ul>
                 </div>
             </div>
@@ -130,13 +130,13 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th style="width: 10%;">Image</th>
-                            <th>Name</th>
-                            <th>Price</th>
-                            <th>Stock</th>
+                            <th style="width: 10%;">Gambar</th>
+                            <th>Nama</th>
+                            <th>Harga</th>
+                            <th>Stok</th>
                             <th>SKU</th>
                             <th>Status</th>
-                            <th class="text-center">Actions</th>
+                            <th class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -151,7 +151,7 @@
                                 <br><small class="text-muted">{{ item.description[:50] }}{% if item.description|length > 50 %}...{% endif %}</small>
                                 {% endif %}
                             </td>
-                            <td>${{ "%.2f"|format(item.price) }}</td>
+                            <td>Rp{{ "%.2f"|format(item.price) }}</td>
                             <td>
                                 <span class="badge {% if item.stock > 10 %}bg-success{% elif item.stock > 0 %}bg-warning{% else %}bg-danger{% endif %}">
                                     {{ item.stock }}
@@ -198,7 +198,7 @@
                                             <img src="{{ item.image_url or url_for('static', filename='images/placeholder.png') }}" alt="{{ item.name }}" class="img-fluid" style="max-height: 200px;">
                                         </div>
                                         <p><strong>Description:</strong> {{ item.description or 'No description' }}</p>
-                                        <p><strong>Price:</strong> ${{ "%.2f"|format(item.price) }}</p>
+                                        <p><strong>Price:</strong> Rp{{ "%.2f"|format(item.price) }}</p>
                                         <p><strong>Stock:</strong> {{ item.stock }}</p>
                                         <p><strong>SKU:</strong> {{ item.sku or 'N/A' }}</p>
                                         <p><strong>Created:</strong> {{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</p>

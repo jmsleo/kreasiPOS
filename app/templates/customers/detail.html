@@ -57,16 +57,16 @@
                 <h1 class="h2 mb-1">{{ customer.name }}</h1>
                 <p class="mb-0 opacity-75">
                     Customer ID: {{ customer.id }} • 
-                    Created: {{ customer.created_at|local_date('%d %b %Y') }}
+                    Dibuat: {{ customer.created_at|local_date('%d %b %Y') }}
                 </p>
             </div>
             <div class="col-auto">
                 <div class="action-buttons">
                     <a href="{{ url_for('customers.edit', customer_id=customer.id) }}" class="btn btn-light">
-                        <i class="bi bi-pencil"></i> Edit
+                        <i class="bi bi-pencil"></i> Ubah
                     </a>
                     <button type="button" class="btn btn-outline-light" onclick="deleteCustomer({{ customer.id }}, '{{ customer.name }}')">
-                        <i class="bi bi-trash"></i> Delete
+                        <i class="bi bi-trash"></i> Hapus
                     </button>
                 </div>
             </div>

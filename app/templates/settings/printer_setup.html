@@ -8,47 +8,47 @@
         <div class="col">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('settings.index') }}">Settings</a></li>
-                    <li class="breadcrumb-item active">Printer Setup</li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('settings.index') }}">Pengaturan</a></li>
+                    <li class="breadcrumb-item active">Pengaturan Printer</li>
                 </ol>
             </nav>
             <h1 class="h2 mb-0">
-                <i class="bi bi-printer"></i> Printer Setup with QZ Tray
+                <i class="bi bi-printer"></i> Pengaturan Printer dengan QZ Tray
             </h1>
-            <small class="text-muted">Client-side printing for your POS system</small>
+            <small class="text-muted">Client-side printing untuk sistem POS Anda</small>
         </div>
     </div>
 
     <div class="card">
         <div class="card-body">
-            <h5 class="card-title">How Printing Works</h5>
+            <h5 class="card-title">Cara Kerja Pencetakan</h5>
             <p>
-                This POS system uses <strong>QZ Tray</strong>, a client-side application, to connect to your local thermal printers. This allows you to print receipts directly from your browser, no matter where you are.
+                Sistem POS ini menggunakan QZ Tray, sebuah aplikasi sisi klien (client-side), untuk terhubung ke printer termal lokal Anda. Hal ini memungkinkan Anda mencetak struk langsung dari peramban Anda, di mana pun Anda berada.
             </p>
             <hr>
-            <h6>Setup Instructions:</h6>
+            <h6>Instruksi Pengaturan:</h6>
             <ol>
                 <li>
-                    <strong>Install QZ Tray:</strong> If you haven't already, download and install the QZ Tray application on every computer that will be used for printing. You can download it from <a href="https://qz.io/download/" target="_blank">the official QZ Tray website</a>.
+                    <strong>Instal QZ Tray:</strong> Jika Anda belum melakukannya, unduh dan instal aplikasi QZ Tray pada setiap komputer yang akan digunakan untuk mencetak. Anda dapat mengunduhnya dari <a href="https://qz.io/download/" target="_blank">situs web resmi QZ Tray</a>.
                 </li>
                 <li>
-                    <strong>Run QZ Tray:</strong> Make sure the QZ Tray application is running in the background on your computer before you start making sales. You should see its icon in your system tray.
+                    <strong>Jalankan QZ Tray:</strong> Pastikan aplikasi QZ Tray berjalan di latar belakang pada komputer Anda sebelum Anda mulai melakukan penjualan. Anda akan melihat ikonnya di baki sistem (*system tray*) Anda.
                 </li>
                 <li>
-                    <strong>Connect your Printer:</strong> Ensure your thermal receipt printer is properly connected to your computer (via USB, Bluetooth, etc.) and is installed correctly in your operating system.
+                    <strong>Hubungkan Printer Anda:</strong> Pastikan printer struk termal Anda terhubung dengan benar ke komputer Anda (melalui USB, Bluetooth, dll.) dan telah terinstal dengan benar di sistem operasi Anda.
                 </li>
                 <li>
-                    <strong>Test Your Connection:</strong> Click the button below to send a test page to your printer. If it prints, you're all set!
+                    <strong>Uji Koneksi Anda:</strong> Klik tombol di bawah ini untuk mengirim halaman uji ke printer Anda. Jika berhasil dicetak, berarti Anda sudah siap!
                 </li>
             </ol>
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i> 
-                <strong>No Server-Side Configuration Needed:</strong> With this method, you no longer need to configure printer IP addresses in the settings. Printer selection is handled locally on each machine.
+                <strong>Tidak Perlu Konfigurasi Sisi Server:</strong> Dengan metode ini, Anda tidak perlu lagi mengkonfigurasi alamat IP printer di pengaturan. Pemilihan printer ditangani secara lokal pada setiap mesin.
             </div>
         </div>
         <div class="card-footer text-center">
             <button class="btn btn-primary" id="testPrintBtn">
-                <i class="bi bi-printer-fill"></i> Send Test Print
+                <i class="bi bi-printer-fill"></i> Kirim Uji Cetak
             </button>
             <div id="testPrintStatus" class="mt-3" style="min-height: 2rem;"></div>
         </div>
