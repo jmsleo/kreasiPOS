@@ -356,6 +356,7 @@ def dashboard_data():
     today_utc = now_utc.date()
     
     print(f"🔍 DEBUG: Today UTC = {today_utc}, Now UTC = {now_utc}")
+    print(f"📅 DEBUG: Today weekday = {today_utc.weekday()} (0=Senin, 6=Minggu)")
 
     # 1. Data untuk chart (7 hari terakhir)
     start_date_chart = now_utc - timedelta(days=6)
@@ -373,7 +374,8 @@ def dashboard_data():
     print(f"📊 DEBUG: Daily sales raw data = {daily_sales}")
 
     # 2. Data statistik yang benar
-    # Hari ini - menggunakan UTC date
+    
+    # HARI INI - menggunakan UTC date
     today_sales = db.session.query(
         func.sum(Sale.total_amount),
         func.count(Sale.id)
@@ -384,9 +386,11 @@ def dashboard_data():
     
     print(f"📅 DEBUG: Today sales = {today_sales}")
 
-    # Minggu ini (Senin - Minggu)
-    start_of_week_utc = today_utc - timedelta(days=today_utc.weekday())
-    end_of_week_utc = start_of_week_utc + timedelta(days=6)
+    # MINGGU INI - PERBAIKAN: Gunakan 7 hari terakhir termasuk hari ini
+    start_of_week_utc = today_utc - timedelta(days=6)  # 7 hari termasuk hari ini
+    end_of_week_utc = today_utc
+    
+    print(f"📅 DEBUG: Week range (7 days) = {start_of_week_utc} to {end_of_week_utc}")
     
     week_sales = db.session.query(
         func.sum(Sale.total_amount),
@@ -397,9 +401,9 @@ def dashboard_data():
         cast(Sale.created_at, Date) <= end_of_week_utc
     ).first()
     
-    print(f"📅 DEBUG: Week sales = {week_sales}")
+    print(f"📅 DEBUG: Week sales (7 days) = {week_sales}")
 
-    # Bulan ini
+    # BULAN INI
     start_of_month_utc = today_utc.replace(day=1)
     next_month = start_of_month_utc.replace(day=28) + timedelta(days=4)
     end_of_month_utc = next_month - timedelta(days=next_month.day)
@@ -441,16 +445,23 @@ def dashboard_data():
     month_revenue = month_sales[0] if month_sales and month_sales[0] is not None else 0
     month_count = month_sales[1] if month_sales and month_sales[1] is not None else 0
     
-    # Rata-rata transaksi
+    # Rata-rata transaksi - gunakan data minggu
     avg_sale_week = week_revenue / week_count if week_count > 0 else 0
 
     # Format daily sales dengan date sebagai string
     formatted_daily_sales = []
-    for date, revenue, count in daily_sales:
+    
+    # Generate complete 7-day range
+    for i in range(7):
+        current_date = (now_utc - timedelta(days=6-i)).date()
+        
+        # Cari data untuk tanggal ini
+        daily_data = next((d for d in daily_sales if d[0] == current_date), None)
+        
         formatted_daily_sales.append({
-            'date': date.isoformat() if date else '',
-            'revenue': float(revenue or 0),
-            'count': count or 0
+            'date': current_date.isoformat(),
+            'revenue': float(daily_data[1] if daily_data else 0),
+            'count': daily_data[2] if daily_data else 0
         })
     
     print(f"📈 DEBUG: Formatted daily sales = {formatted_daily_sales}")
@@ -482,7 +493,7 @@ def dashboard_data():
         }
     }
     
-    print(f"📤 DEBUG: Final response data = {response_data}")
+    print(f"📤 DEBUG: Final response data stats = {response_data['stats']}")
     
     return jsonify(response_data)
 
