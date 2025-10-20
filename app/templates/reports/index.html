@@ -351,15 +351,15 @@
 
 <script>
 // Global variables
+// Global variables
 let salesTrendChart = null;
 let currentMetric = 'revenue';
 let chartData = null;
 
 // Format number to Indonesian Rupiah
 function formatRupiah(amount) {
-    if (isNaN(amount) || amount === null) return 'Rp0';
+    if (isNaN(amount) || amount === null || amount === undefined) return 'Rp0';
     
-    // Handle both string and number inputs
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
     
     return new Intl.NumberFormat('id-ID', {
@@ -372,60 +372,8 @@ function formatRupiah(amount) {
 
 // Format number with thousand separators
 function formatNumber(num) {
-    if (isNaN(num) || num === null) return '0';
+    if (isNaN(num) || num === null || num === undefined) return '0';
     return new Intl.NumberFormat('id-ID').format(num);
-}
-
-// Validate and calculate statistics
-function calculateStats(data) {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Validate data structure
-    if (!data || !Array.isArray(data.daily_sales)) {
-        console.error('Invalid data structure:', data);
-        return {
-            todayRevenue: 0,
-            todayCount: 0,
-            weekRevenue: 0,
-            weekCount: 0,
-            monthRevenue: 0,
-            monthCount: 0,
-            avgSale: 0
-        };
-    }
-
-    // Find today's data
-    const todayData = data.daily_sales.find(day => day.date === today) || { revenue: 0, count: 0 };
-    
-    // Calculate weekly stats (from daily_sales array which contains 7 days)
-    const weekStats = data.daily_sales.reduce((acc, day) => {
-        // Validate day data
-        const revenue = typeof day.revenue === 'number' ? day.revenue : 0;
-        const count = typeof day.count === 'number' ? day.count : 0;
-        
-        return {
-            revenue: acc.revenue + revenue,
-            count: acc.count + count
-        };
-    }, { revenue: 0, count: 0 });
-
-    // Calculate monthly stats (approximate - using 4.345 weeks per month)
-    const monthlyMultiplier = 4.345; // More accurate than 4
-    const monthRevenue = weekStats.revenue * monthlyMultiplier;
-    const monthCount = Math.round(weekStats.count * monthlyMultiplier);
-
-    // Calculate average sale per transaction
-    const avgSale = weekStats.count > 0 ? weekStats.revenue / weekStats.count : 0;
-
-    return {
-        todayRevenue: todayData.revenue || 0,
-        todayCount: todayData.count || 0,
-        weekRevenue: weekStats.revenue,
-        weekCount: weekStats.count,
-        monthRevenue: monthRevenue,
-        monthCount: monthCount,
-        avgSale: avgSale
-    };
 }
 
 // Load dashboard data
@@ -461,7 +409,6 @@ async function loadDashboardData() {
 
 // Show loading state
 function showLoadingState() {
-    // Show loading in stats cards
     const statsElements = [
         'todayRevenue', 'todaySalesCount',
         'weekRevenue', 'weekSalesCount', 
@@ -481,24 +428,30 @@ function showLoadingState() {
     });
 }
 
-// Update statistics cards
+// Update statistics cards - PERBAIKAN BESAR DI SINI
 function updateStats(data) {
-    const stats = calculateStats(data);
+    // Gunakan data statistik yang sudah dihitung di backend
+    const stats = data.stats;
+    
+    if (!stats) {
+        console.error('No stats data available');
+        return;
+    }
     
     // Update today's stats
-    document.getElementById('todayRevenue').textContent = formatRupiah(stats.todayRevenue);
-    document.getElementById('todaySalesCount').textContent = `${formatNumber(stats.todayCount)} transaksi`;
+    document.getElementById('todayRevenue').textContent = formatRupiah(stats.today.revenue);
+    document.getElementById('todaySalesCount').textContent = `${formatNumber(stats.today.count)} transaksi`;
     
     // Update weekly stats
-    document.getElementById('weekRevenue').textContent = formatRupiah(stats.weekRevenue);
-    document.getElementById('weekSalesCount').textContent = `${formatNumber(stats.weekCount)} transaksi`;
+    document.getElementById('weekRevenue').textContent = formatRupiah(stats.week.revenue);
+    document.getElementById('weekSalesCount').textContent = `${formatNumber(stats.week.count)} transaksi`;
     
     // Update monthly stats
-    document.getElementById('monthRevenue').textContent = formatRupiah(stats.monthRevenue);
-    document.getElementById('monthSalesCount').textContent = `${formatNumber(stats.monthCount)} transaksi`;
+    document.getElementById('monthRevenue').textContent = formatRupiah(stats.month.revenue);
+    document.getElementById('monthSalesCount').textContent = `${formatNumber(stats.month.count)} transaksi`;
     
     // Update average sale
-    document.getElementById('avgSale').textContent = formatRupiah(stats.avgSale);
+    document.getElementById('avgSale').textContent = formatRupiah(stats.avg_sale);
 }
 
 // Render sales trend chart
@@ -523,8 +476,11 @@ function renderSalesTrendChart(dailySales) {
         return;
     }
     
+    // Ensure we have data for all 7 days
+    const completeData = ensureCompleteWeekData(dailySales);
+    
     // Prepare data
-    const labels = dailySales.map(day => {
+    const labels = completeData.map(day => {
         try {
             const date = new Date(day.date);
             return date.toLocaleDateString('id-ID', { 
@@ -538,8 +494,8 @@ function renderSalesTrendChart(dailySales) {
         }
     });
     
-    const revenueData = dailySales.map(day => day.revenue || 0);
-    const countData = dailySales.map(day => day.count || 0);
+    const revenueData = completeData.map(day => day.revenue || 0);
+    const countData = completeData.map(day => day.count || 0);
     
     // Destroy existing chart
     if (salesTrendChart) {
@@ -634,6 +590,32 @@ function renderSalesTrendChart(dailySales) {
     }
 }
 
+// Ensure we have data for all 7 days (fill missing days with zeros)
+function ensureCompleteWeekData(dailySales) {
+    const completeData = [];
+    const today = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateString = date.toISOString().split('T')[0];
+        
+        const existingData = dailySales.find(day => day.date === dateString);
+        
+        if (existingData) {
+            completeData.push(existingData);
+        } else {
+            completeData.push({
+                date: dateString,
+                revenue: 0,
+                count: 0
+            });
+        }
+    }
+    
+    return completeData;
+}
+
 // Render empty chart state
 function renderEmptyChart(ctx, message) {
     ctx.fillStyle = '#f8f9fa';
@@ -687,7 +669,6 @@ function renderTopProducts(topProducts) {
     
     let html = '';
     topProducts.slice(0, 5).forEach((product, index) => {
-        // Validate product data
         const name = product.name || 'Unknown Product';
         const revenue = typeof product.revenue === 'number' ? product.revenue : 0;
         const quantity = typeof product.quantity === 'number' ? product.quantity : 0;
@@ -710,7 +691,6 @@ function renderTopProducts(topProducts) {
 
 // Show error message
 function showError(message) {
-    // Remove existing alerts
     const existingAlerts = document.querySelectorAll('.alert-danger');
     existingAlerts.forEach(alert => alert.remove());
     
@@ -725,7 +705,6 @@ function showError(message) {
     if (mainElement) {
         mainElement.insertBefore(alertDiv, mainElement.firstChild);
         
-        // Auto-remove alert after 5 seconds
         setTimeout(() => {
             if (alertDiv.parentElement) {
                 alertDiv.remove();
@@ -736,10 +715,8 @@ function showError(message) {
 
 // Initialize dashboard when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    // Load initial data
     loadDashboardData();
     
-    // Add event listeners for metric buttons
     const revenueBtn = document.getElementById('revenueBtn');
     const countBtn = document.getElementById('countBtn');
     
@@ -755,10 +732,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Refresh data every 5 minutes
     setInterval(loadDashboardData, 300000);
     
-    // Add resize event listener for chart
     window.addEventListener('resize', function() {
         if (salesTrendChart && chartData && chartData.daily_sales) {
             renderSalesTrendChart(chartData.daily_sales);
