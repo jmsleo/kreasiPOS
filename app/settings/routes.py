@@ -10,7 +10,6 @@ from .forms import UserForm
 from functools import wraps
 import uuid
 from wtforms.validators import DataRequired
-
 def tenant_admin_required(f):
     """
     Decorator untuk memastikan hanya tenant_admin yang bisa mengakses suatu halaman.

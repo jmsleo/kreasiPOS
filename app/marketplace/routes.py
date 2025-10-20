@@ -254,7 +254,7 @@ def manage():
                          total_items=total_items,
                          in_stock_count=in_stock_count,
                          out_of_stock_count=out_of_stock_count,
-                         total_value="${:,.2f}".format(total_value),
+                         total_value="Rp{:,.2f}".format(total_value),
                          title="Manage Marketplace")
 
 @bp.route('/manage/new', methods=['GET', 'POST'])
@@ -295,7 +295,7 @@ def create_item():
     return render_template('marketplace/create_edit_item.html', 
                          form=form, 
                          title="Create Marketplace Item", 
-                         legend="New Marketplace Item")
+                         legend="Tambah Barang Marketplace")
 
 @bp.route('/manage/edit/<string:item_id>', methods=['GET', 'POST'])
 @login_required

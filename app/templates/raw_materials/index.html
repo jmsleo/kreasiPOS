@@ -6,10 +6,12 @@
 <div class="container-fluid">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
             <h1 class="h3 mb-2 text-gray-800">
-                <i class="fas fa-boxes me-2"></i>Manajemen Bahan Baku
+                <i class="bi bi-basket3"></i>
+                Manajemen Bahan Baku
             </h1>
+        </div>
+        <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
@@ -17,15 +19,99 @@
                 </ol>
             </nav>
         </div>
-        <div>
-            <a href="{{ url_for('raw_materials.create') }}" class="btn btn-primary me-2">
+
+        <!-- Quick Stats -->
+    <div class="row mt-4">
+        <div class="col-xl-3 col-md-6 mb-5">
+            <div class="card stats-card h-100" style="border-left-color: var(--primary-color); color: var(--primary-color);">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-1">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Bahan Baku
+                            </div>
+                            <div class="h5 mb-3 font-weight-bold text-gray-800">
+                                {{ raw_materials.total }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-boxes fa-3x mb-0 text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-5">
+            <div class="card stats-card h-100" style="border-left-color:var(--success-color); color: var(--success-color);">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-1">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">
+                                Bahan Aktif
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ raw_materials.items|selectattr('is_active')|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-3x mb-0 text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-5">
+            <div class="card stats-card h-100" style="border-left-color:var(--warning-color); color: var(--warning-color);">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-1">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">
+                                Stok Rendah
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ low_stock_materials|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-triangle fa-3x mb-0 text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-5">
+            <div class="card stats-card h-100" style="border-left-color:var(--info-color); color: var(--info-color);">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-1">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">
+                                Nilai Inventory
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                Rp{{ "{:,.2f}".format(total_inventory_value) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-3x mb-0 text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <div class="btn-group-outline justify-content-end mb-3">
+            <a href="{{ url_for('raw_materials.create') }}" class="btn btn-sm " style="--btn-color:var(--primary-color)">
                 <i class="fas fa-plus me-2"></i>Tambah Bahan Baku
             </a>
-            <a href="{{ url_for('raw_materials.export') }}" class="btn btn-success">
+            <a href="{{ url_for('raw_materials.export') }}" class="btn btn-sm" style="--btn-color:var(--success-color)">
                 <i class="fas fa-download me-2"></i>Export
             </a>
         </div>
-    </div>
+    
 
     <!-- Alert Cards -->
     {% if low_stock_materials %}
@@ -115,14 +201,14 @@
                     <h6 class="m-0 font-weight-bold text-primary">
                         <i class="fas fa-list me-2"></i>Daftar Bahan Baku
                     </h6>
-                    <div class="btn-group">
-                        <a href="{{ url_for('raw_materials.low_stock') }}" class="btn btn-warning btn-sm">
-                            <i class="fas fa-exclamation-triangle me-1"></i>Stok Rendah
+                    <div class="btn-group-outline">
+                        <a href="{{ url_for('raw_materials.low_stock') }}" class="btn btn-sm" style="--btn-color: var(--warning-color);">
+                            <i class="fas fa-exclamation-triangle me-1"></i> Stok Rendah
                         </a>
-                        <a href="{{ url_for('raw_materials.usage_report') }}" class="btn btn-info btn-sm">
+                        <a href="{{ url_for('raw_materials.usage_report') }}" class="btn btn-sm" style="--btn-color: var(--info-color);">
                             <i class="fas fa-chart-bar me-1"></i>Laporan
                         </a>
-                        <a href="{{ url_for('raw_materials.inventory_value') }}" class="btn btn-success btn-sm">
+                        <a href="{{ url_for('raw_materials.inventory_value') }}" class="btn btn-sm" style="--btn-color: var(--success-color);">
                             <i class="fas fa-dollar-sign me-1"></i>Nilai Inventory
                         </a>
                     </div>
@@ -148,13 +234,10 @@
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            <i class="fas fa-box me-2 text-primary"></i>
-                                            <div>
                                                 <strong>{{ material.name }}</strong>
                                                 {% if material.description %}
                                                 <br><small class="text-muted">{{ material.description[:50] }}{% if material.description|length > 50 %}...{% endif %}</small>
                                                 {% endif %}
-                                            </div>
                                         </div>
                                     </td>
                                     <td>{{ material.sku or '-' }}</td>
@@ -168,7 +251,7 @@
                                     </td>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            <span class="me-2 {% if material.is_low_stock() %}text-warning{% endif %}">
+                                            <span class="me-2 {% if material.is_low_stock() %}text-warning{% endif %}" >
                                                 {{ "%.2f"|format(material.stock_quantity) }}
                                             </span>
                                             {% if material.is_low_stock() %}
@@ -193,9 +276,9 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <div class="btn-group btn-group-sm">
+                                        <div class="btn-group-outline btn-group-sm">
                                             <a href="{{ url_for('raw_materials.edit', raw_material_id=material.id) }}" 
-                                               class="btn btn-outline-primary" title="Edit">
+                                               class="btn btn-outline-primary" title="Edit" style="--btn-color: var(--primary-color)">
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             
@@ -203,38 +286,39 @@
                                             <form method="POST" 
                                                   action="{{ url_for('raw_materials.toggle_status', raw_material_id=material.id) }}"
                                                   class="d-inline">
-                                                <button type="submit" class="btn btn-outline-{% if material.is_active %}warning{% else %}success{% endif %}" 
-                                                        title="{% if material.is_active %}Nonaktifkan{% else %}Aktifkan{% endif %}">
+                                                <button type="submit" class="btn btn-outline-primary" 
+                                                        title="{% if material.is_active %}Nonaktifkan{% else %}Aktifkan{% endif %}"
+                                                        style="--btn-color:{% if material.is_active %}var(--warning-color){% else %}var(--success-color){% endif %}">
                                                     <i class="fas fa-{% if material.is_active %}pause{% else %}play{% endif %}"></i>
                                                 </button>
                                             </form>
 
                                            <!-- Delete Button -->
-{% if material.is_active %}
-    {% set can_delete = material.bom_items.count() == 0 %}
-    {% if can_delete %}
-    <form method="POST" 
-          action="{{ url_for('raw_materials.delete', raw_material_id=material.id) }}"
-          class="d-inline"
-          onsubmit="return confirm('Apakah Anda yakin ingin menghapus {{ material.name }}?');">
-        <button type="submit" class="btn btn-outline-danger" title="Hapus">
-            <i class="fas fa-trash"></i>
-        </button>
-    </form>
-    {% else %}
-    <button class="btn btn-outline-secondary" 
-            title="Tidak dapat menghapus - bahan digunakan dalam {{ material.bom_items.count() }} BOM"
-            disabled>
-        <i class="fas fa-trash"></i>
-    </button>
-    {% endif %}
-{% else %}
-<button class="btn btn-outline-secondary" 
-        title="Tidak dapat menghapus - bahan non-aktif"
-        disabled>
-    <i class="fas fa-trash"></i>
-</button>
-{% endif %}
+                                            {% if material.is_active %}
+                                                {% set can_delete = material.bom_items.count() == 0 %}
+                                                {% if can_delete %}
+                                                <form method="POST" 
+                                                    action="{{ url_for('raw_materials.delete', raw_material_id=material.id) }}"
+                                                    class="d-inline"
+                                                    onsubmit="return confirm('Apakah Anda yakin ingin menghapus {{ material.name }}?');">
+                                                    <button type="submit" class="btn btn-outline-secondary" title="Hapus" >
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                                {% else %}
+                                                <button class="btn btn-outline-secondary" 
+                                                        title="Tidak dapat menghapus - bahan digunakan dalam {{ material.bom_items.count() }} BOM"
+                                                        disabled>
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                                {% endif %}
+                                            {% else %}
+                                            <button class="btn btn-outline-secondary" 
+                                                    title="Tidak dapat menghapus - bahan non-aktif"
+                                                    disabled>
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% endif %}
 
                                         <!-- Stock Update Modal -->
                                         <div class="modal fade" id="stockModal{{ material.id }}" tabindex="-1">
@@ -333,88 +417,6 @@
         </div>
     </div>
 
-    <!-- Quick Stats -->
-    <div class="row mt-4">
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Total Bahan Baku
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                {{ raw_materials.total }}
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-boxes fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-success shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Bahan Aktif
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                {{ raw_materials.items|selectattr('is_active')|list|length }}
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-warning shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Stok Rendah
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                {{ low_stock_materials|length }}
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Nilai Inventory
-                            </div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                Rp {{ "{:,.2f}".format(total_inventory_value) }}
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 

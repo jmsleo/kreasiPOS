@@ -1,8 +1,8 @@
 /* T-POS Enterprise Main Stylesheet */
 :root {
-    --primary-color: #4e73df;
+    --primary-color: #0d6efd;
     --secondary-color: #858796;
-    --success-color: #1cc88a;
+    --success-color: #198754;
     --info-color: #36b9cc;
     --warning-color: #fd7e14;
     --danger-color: #e74a3b;
@@ -22,23 +22,6 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f8f9fc;
     line-height: 1.6;
-}
-/* Notification Styles */
-/* Ubah posisi notifikasi */
-.toast-container {
-    position: fixed;
-    top: 20px; /* Ubah dari bottom ke top */
-    right: 20px;
-    z-index: 1060;
-}
-
-/* Jika menggunakan class khusus untuk notifikasi */
-.notification-container {
-    position: fixed;
-    top: 20px; /* Ubah dari bottom ke top */
-    right: 20px;
-    z-index: 1055;
-    max-width: 400px;
 }
 /* Sidebar Styles */
 .sidebar {
@@ -74,6 +57,8 @@ body {
     padding: 1rem 1.5rem;
     border-left: 3px solid transparent;
     transition: all 0.3s;
+    display: flex;
+    align-items: center;
 }
 
 .sidebar .nav-link:hover {
@@ -100,6 +85,15 @@ body {
 
 .sidebar.collapsed .nav-link i {
     margin-right: 0;
+}
+
+.nav-link:hover {
+    color: var(--light-color);
+}
+
+.nav-link.active {
+    color: var(--light-color);
+    font-weight: 600;
 }
 
 /* Main Content */
@@ -395,3 +389,65 @@ body {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+.btn-group-outline {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-group-outline .btn,
+.btn-group-outline form .btn {
+  background-color: transparent;
+  color: var(--btn-color);
+  border: 2px solid var(--btn-color);
+  font-weight: 500;
+  transition: all 0.25s ease;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: -1px;
+  margin-right: -1px;
+}
+
+.btn-group-outline .btn i {
+  margin-right: 0.4rem;
+}
+
+.btn-group-outline .btn:hover {
+  background-color: var(--btn-color);
+  color: #fff;
+}
+
+/* Hilangkan jarak antar tombol */
+.btn-group-outline .btn + .btn {
+    margin-left: -5px;
+}
+
+/* Tombol pertama (kiri) */
+.btn-group-outline .btn:first-child {
+    border-radius: 6px 0px 0px 6px;
+}
+
+/* Tombol terakhir (kanan) */
+.btn-group-outline .btn:last-child {
+    border-radius: 0px 6px 6px 0px;
+}
+
+.btn-action-group .btn.btn-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    line-height: 1;
+    height: 32px;
+    width: 32px;
+}
+
+.d-flex.gap-1 .btn-sm {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+}
+
+

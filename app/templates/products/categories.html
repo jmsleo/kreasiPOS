@@ -52,19 +52,19 @@
         <div class="col">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('products.index') }}">Products</a></li>
-                    <li class="breadcrumb-item active">Categories</li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('products.index') }}">Produk</a></li>
+                    <li class="breadcrumb-item active">Kategori</li>
                 </ol>
             </nav>
             
             <h1 class="h2 mb-0">
-                <i class="bi bi-tags"></i> Product Categories
+                <i class="bi bi-tags"></i> Kategori Produk
             </h1>
-            <small class="text-muted">Manage product categories and organization</small>
+            <small class="text-muted">Kelola kategori produk dan penyusunannya</small>
         </div>
         <div class="col-auto">
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
-                <i class="bi bi-plus-circle"></i> Add Category
+                <i class="bi bi-plus-circle"></i> Tambah Kategori
             </button>
         </div>
     </div>
@@ -99,7 +99,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title text-muted mb-0">Total Categories</h6>
+                            <h6 class="card-title text-muted mb-0">Total Kategori</h6>
                             <h3 class="mb-0">{{ categories|length }}</h3>
                         </div>
                         <div class="align-self-center">
@@ -114,7 +114,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title text-muted mb-0">Active Products</h6>
+                            <h6 class="card-title text-muted mb-0">Produk Aktif</h6>
                             <h3 class="mb-0">{{ active_products_count }}</h3>
                         </div>
                         <div class="align-self-center">
@@ -129,7 +129,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title text-muted mb-0">Categories with Products</h6>
+                            <h6 class="card-title text-muted mb-0">Kategori dengan Produk</h6>
                             <h3 class="mb-0">{{ used_categories_count }}</h3>
                         </div>
                         <div class="align-self-center">
@@ -144,7 +144,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title text-muted mb-0">Empty Categories</h6>
+                            <h6 class="card-title text-muted mb-0">Kategori Kosong</h6>
                             <h3 class="mb-0">{{ empty_categories_count }}</h3>
                         </div>
                         <div class="align-self-center">
@@ -162,7 +162,7 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-grid"></i> All Categories
+                        <i class="bi bi-grid"></i> Semua Kategori
                     </h5>
                 </div>
                 <div class="card-body">
@@ -182,12 +182,12 @@
                                                 <ul class="dropdown-menu">
                                                     <li>
                                                         <button class="dropdown-item" onclick="editCategory('{{ category.id }}', '{{ category.name }}', '{{ category.description }}')">
-                                                            <i class="bi bi-pencil"></i> Edit
+                                                            <i class="bi bi-pencil"></i> Ubah
                                                         </button>
                                                     </li>
                                                     <li>
                                                         <button class="dropdown-item text-danger" onclick="deleteCategory('{{ category.id }}', '{{ category.name }}')">
-                                                            <i class="bi bi-trash"></i> Delete
+                                                            <i class="bi bi-trash"></i> Hapus
                                                         </button>
                                                     </li>
                                                 </ul>
@@ -228,10 +228,10 @@
                     <!-- Empty State -->
                     <div class="empty-state">
                         <i class="bi bi-tags"></i>
-                        <h4>No Categories Yet</h4>
-                        <p class="mb-4">Get started by creating your first product category to organize your products.</p>
+                        <h4>Belum Ada Kategori Produk</h4>
+                        <p class="mb-4">Mulai dengan membuat kategori produk pertama Anda untuk merapikan produk Anda.</p>
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
-                            <i class="bi bi-plus-circle"></i> Create First Category
+                            <i class="bi bi-plus-circle"></i> Buat Kategori Pertama
                         </button>
                     </div>
                     {% endif %}
@@ -247,7 +247,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="bi bi-plus-circle"></i> Add New Category
+                    <i class="bi bi-plus-circle"></i> Tambah Kategori Baru
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -257,20 +257,20 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     
                     <div class="mb-3">
-                        <label for="name" class="form-label">Category Name</label>
+                        <label for="name" class="form-label">Nama Kategori</label>
                         <!-- GANTI INI: {{ form.name(class="form-control", placeholder="Enter category name") }} -->
-                        <input type="text" class="form-control" id="name" name="name" placeholder="Enter category name" required>
+                        <input type="text" class="form-control" id="name" name="name" placeholder="Masukkan nama kategori" required>
                     </div>
                     <div class="mb-3">
-                        <label for="description" class="form-label">Description</label>
+                        <label for="description" class="form-label">Deskripsi</label>
                         <!-- GANTI INI: {{ form.description(class="form-control", rows="3", placeholder="Optional category description") }} -->
-                        <textarea class="form-control" id="description" name="description" rows="3" placeholder="Optional category description"></textarea>
+                        <textarea class="form-control" id="description" name="description" rows="3" placeholder="Deskripsi kategori (opsional)"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle"></i> Create Category
+                        <i class="bi bi-check-circle"></i> Buat Kategori
                     </button>
                 </div>
             </form>
@@ -284,7 +284,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="bi bi-pencil"></i> Edit Category
+                    <i class="bi bi-pencil"></i> Ubah Kategori
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -292,18 +292,18 @@
                 <div class="modal-body">
                     <input type="hidden" name="category_id" id="editCategoryId">
                     <div class="mb-3">
-                        <label for="editCategoryName" class="form-label">Category Name</label>
+                        <label for="editCategoryName" class="form-label">Nama Kategori</label>
                         <input type="text" class="form-control" id="editCategoryName" name="name" required>
                     </div>
                     <div class="mb-3">
-                        <label for="editCategoryDescription" class="form-label">Description</label>
+                        <label for="editCategoryDescription" class="form-label">Deskripsi</label>
                         <textarea class="form-control" id="editCategoryDescription" name="description" rows="3"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle"></i> Update Category
+                        <i class="bi bi-check-circle"></i> Perbarui Kategori 
                     </button>
                 </div>
             </form>

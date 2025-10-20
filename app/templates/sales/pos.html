@@ -8,9 +8,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-2 text-gray-800">
-                <i class="fas fa-cash-register me-2"></i>Point of Sale
+                <i class="fas bi-cash me-2"></i>Point of Sale
             </h1>
-            <p class="mb-0">Quick and easy sales processing</p>
+            <p class="mb-0">Pengolahan penjualan cepat dan mudah</p>
         </div>
         <div class="d-flex">
             <span class="badge bg-primary me-3">
@@ -29,18 +29,18 @@
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-search me-2"></i>Products
+                        <i class="fas fa-search me-2"></i>Produk
                     </h6>
                 </div>
                 <div class="card-body">
                     <div class="row mb-3">
                         <div class="col-md-8">
                             <input type="text" class="form-control" id="productSearch" 
-                                   placeholder="Search products by name, SKU, or barcode...">
+                                   placeholder="Cari produk berdasarkan nama, SKU, atau barcode...">
                         </div>
                         <div class="col-md-4">
                             <select class="form-select" id="categoryFilter">
-                                <option value="">All Categories</option>
+                                <option value="">Semua Kategori</option>
                                 <!-- Categories will be populated dynamically -->
                             </select>
                         </div>
@@ -94,12 +94,12 @@
                 <!-- Badges -->
                 <div class="d-flex justify-content-center flex-wrap gap-1">
                     {% if not product.is_active %}
-                    <span class="badge bg-warning">Inactive</span>
+                    <span class="badge bg-warning">Nonaktif</span>
                     {% endif %}
                     {% if product.requires_stock_tracking and product.stock_quantity == 0 %}
-                    <span class="badge bg-danger">Out of Stock</span>
+                    <span class="badge bg-danger">Stok Habis</span>
                     {% elif product.requires_stock_tracking and product.stock_quantity <= product.stock_alert %}
-                    <span class="badge bg-warning">Low Stock</span>
+                    <span class="badge bg-warning">Stok Rendah</span>
                     {% endif %}
                     {% if product.has_bom %}
                     <span class="badge bg-info">BOM</span>
@@ -117,8 +117,8 @@
                     <!-- No Products Message -->
                     <div id="noProducts" class="text-center py-5" style="display: none;">
                         <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                        <h4 class="text-muted">No Products Found</h4>
-                        <p class="text-muted">Try adjusting your search criteria</p>
+                        <h4 class="text-muted">Produk Tidak DItemukan</h4>
+                        <p class="text-muted">Coba sesuaikan kriteria pencarian</p>
                     </div>
                 </div>
             </div>
@@ -139,7 +139,7 @@
                     <div id="cartItems" class="mb-3" style="max-height: 300px; overflow-y: auto;">
                         <div class="text-center text-muted py-4">
                             <i class="fas fa-cart-plus fa-2x mb-2"></i>
-                            <p>Cart is empty<br>Add products to start sale</p>
+                            <p>Keranjang kosong<br>Tambah produk untuk mulai penjualan</p>
                         </div>
                     </div>
 
@@ -150,11 +150,11 @@
                             <div class="col-6 text-end" id="cartSubtotal">Rp 0</div>
                         </div>
                         <div class="row mb-2">
-                            <div class="col-6">Tax:</div>
+                            <div class="col-6">Pajak:</div>
                             <div class="col-6 text-end" id="cartTax">Rp 0</div>
                         </div>
                         <div class="row mb-2">
-                            <div class="col-6">Discount:</div>
+                            <div class="col-6">Diskon:</div>
                             <div class="col-6 text-end text-danger" id="cartDiscount">- Rp 0</div>
                         </div>
                         <div class="row mb-3">
@@ -188,11 +188,11 @@
 
         <!-- Payment Method -->
         <div class="mb-3">
-            <label for="paymentMethod" class="form-label">Payment Method</label>
+            <label for="paymentMethod" class="form-label">Metode Pembayaran</label>
             <select class="form-select" id="paymentMethod" onchange="togglePaymentFields()">
-                <option value="cash">Cash</option>
-                <option value="card">Credit/Debit Card</option>
-                <option value="transfer">Bank Transfer</option>
+                <option value="cash">Tunai</option>
+                <option value="card">Kartu Kredit/Debit</option>
+                <option value="transfer">Transfer Bank</option>
                 <option value="qris">QRIS</option>
                 <option value="ewallet">E-Wallet</option>
             </select>
@@ -201,7 +201,7 @@
         <!-- Cash Payment Fields (Hanya tampil untuk cash) -->
         <div id="cashPaymentFields" style="display: none;">
             <div class="mb-3">
-                <label for="cashAmount" class="form-label">Amount Paid</label>
+                <label for="cashAmount" class="form-label">Total Dibayar</label>
                 <div class="input-group">
                     <span class="input-group-text">Rp</span>
                     <input type="number" class="form-control" id="cashAmount" 
@@ -209,7 +209,7 @@
                 </div>
             </div>
             <div class="mb-3">
-                <label class="form-label">Change</label>
+                <label class="form-label">Kembalian</label>
                 <div class="form-control bg-light">
                     <strong id="changeAmount" class="text-success">Rp 0</strong>
                 </div>
@@ -218,7 +218,7 @@
 
         <!-- Discount -->
         <div class="mb-3">
-            <label for="discountAmount" class="form-label">Discount</label>
+            <label for="discountAmount" class="form-label">Diskon</label>
             <div class="input-group">
                 <span class="input-group-text">Rp</span>
                 <input type="number" class="form-control" id="discountAmount" 
@@ -228,7 +228,7 @@
 
         <!-- Tax -->
         <div class="mb-3">
-            <label for="taxPercentage" class="form-label">Tax (%)</label>
+            <label for="taxPercentage" class="form-label">Pajak (%)</label>
             <div class="input-group">
                 <input type="number" class="form-control" id="taxPercentage" 
                        value="0" min="0" max="100" step="0.1" onchange="updateCartSummary()">
@@ -238,23 +238,23 @@
 
         <!-- Notes -->
         <div class="mb-4">
-            <label for="saleNotes" class="form-label">Notes (Optional)</label>
+            <label for="saleNotes" class="form-label">Catatan (Opsional)</label>
             <textarea class="form-control" id="saleNotes" rows="2" 
                       placeholder="Additional notes for this sale..."></textarea>
         </div>
 
         <!-- Checkout Button - ALWAYS ENABLED WHEN CART HAS ITEMS -->
         <button class="btn btn-success btn-lg w-100" id="checkoutBtn" onclick="processCheckout()">
-            <i class="fas fa-check me-2"></i>Process Payment
+            <i class="fas fa-check me-2"></i>Proses Pembayaran
         </button>
 
         <!-- Quick Actions -->
         <div class="d-grid gap-2 mt-3">
             <button class="btn btn-outline-danger" onclick="clearCart()">
-                <i class="fas fa-trash me-2"></i>Clear Cart
+                <i class="fas fa-trash me-2"></i>Kosongkan Keranjang
             </button>
             <button class="btn btn-outline-info" onclick="testPrint()">
-                <i class="fas fa-print me-2"></i>Test Print
+                <i class="fas fa-print me-2"></i>Tes Cetak
             </button>
         </div>
     </div>
@@ -268,14 +268,14 @@
                             <div class="text-primary">
                                 <i class="fas fa-cubes fa-2x mb-2"></i>
                                 <div class="h5 mb-0">{{ products|length }}</div>
-                                <small>Products</small>
+                                <small>Produk</small>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="text-success">
                                 <i class="fas fa-users fa-2x mb-2"></i>
                                 <div class="h5 mb-0">{{ customers|length }}</div>
-                                <small>Customers</small>
+                                <small>Pelanggan</small>
                             </div>
                         </div>
                     </div>
@@ -308,20 +308,20 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Sale Completed</h5>
+                <h5 class="modal-title">Penjualan Selesai</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body text-center">
                 <i class="fas fa-check-circle text-success fa-4x mb-3"></i>
-                <h4 class="text-success">Sale Completed Successfully!</h4>
-                <p class="mb-2">Receipt Number: <strong id="receiptNumber"></strong></p>
-                <p class="mb-3">Total Amount: <strong id="receiptTotal"></strong></p>
+                <h4 class="text-success">Penjualan Berhasil Selesai!</h4>
+                <p class="mb-2">Nomor Struk: <strong id="receiptNumber"></strong></p>
+                <p class="mb-3">Total Harga: <strong id="receiptTotal"></strong></p>
                 <div class="d-flex justify-content-center gap-2">
                     <button class="btn btn-primary" onclick="printReceipt()">
-                        <i class="fas fa-print me-2"></i>Print Receipt
+                        <i class="fas fa-print me-2"></i>Cetak Struk
                     </button>
                     <button class="btn btn-success" onclick="newSale()">
-                        <i class="fas fa-plus me-2"></i>New Sale
+                        <i class="fas fa-plus me-2"></i>Penjualan Baru
                     </button>
                 </div>
             </div>

@@ -7,17 +7,17 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 mb-2 text-gray-800">Create New Product</h1>
+            <h1 class="h3 mb-2 text-gray-800">Tambah Produk Baru</h1>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('products.index') }}">Products</a></li>
-                    <li class="breadcrumb-item active">Create New</li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('products.index') }}">Produk</a></li>
+                    <li class="breadcrumb-item active">Tambah Produk Baru</li>
                 </ol>
             </nav>
         </div>
         <div>
             <a href="{{ url_for('products.index') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Back to Products
+                <i class="fas fa-arrow-left me-2"></i>Kembali ke Produk
             </a>
         </div>
     </div>
@@ -27,7 +27,7 @@
         <div class="col-lg-8">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Product Information</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">Informasi Produk</h6>
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('products.create') }}" enctype="multipart/form-data" id="productForm">
@@ -37,8 +37,8 @@
                         <div class="row mb-4">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="name" class="form-label required">Product Name</label>
-                                    {{ form.name(class="form-control", placeholder="Enter product name") }}
+                                    <label for="name" class="form-label required">Nama Produk</label>
+                                    {{ form.name(class="form-control", placeholder="Masukkan nama produk") }}
                                     {% if form.name.errors %}
                                     <div class="invalid-feedback d-block">
                                         {% for error in form.name.errors %}
@@ -50,7 +50,7 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="category_id" class="form-label">Category</label>
+                                    <label for="category_id" class="form-label">Kategori</label>
                                     {{ form.category_id(class="form-select") }}
                                     {% if form.category_id.errors %}
                                     <div class="invalid-feedback d-block">
@@ -68,8 +68,8 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="sku" class="form-label">SKU</label>
-                                    {{ form.sku(class="form-control", placeholder="Leave empty to auto-generate") }}
-                                    <small class="form-text text-muted">Unique stock keeping unit</small>
+                                    {{ form.sku(class="form-control", placeholder="Kosongkan untuk auto-generate") }}
+                                    <small class="form-text text-muted">Unit penyimpanan stok (Stock Keeping Unit) yang unik</small>
                                     {% if form.sku.errors %}
                                     <div class="invalid-feedback d-block">
                                         {% for error in form.sku.errors %}
@@ -82,7 +82,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="barcode" class="form-label">Barcode</label>
-                                    {{ form.barcode(class="form-control", placeholder="Optional barcode") }}
+                                    {{ form.barcode(class="form-control", placeholder="Barcode opsional") }}
                                     {% if form.barcode.errors %}
                                     <div class="invalid-feedback d-block">
                                         {% for error in form.barcode.errors %}
@@ -98,7 +98,7 @@
                         <div class="row mb-4">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="price" class="form-label required">Selling Price</label>
+                                    <label for="price" class="form-label required">Harga Jual</label>
                                     <div class="input-group">
                                         <span class="input-group-text">Rp</span>
                                         {{ form.price(class="form-control", placeholder="0", step="0.01", min="0") }}
@@ -114,12 +114,12 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="cost_price" class="form-label">Cost Price</label>
+                                    <label for="cost_price" class="form-label">Harga Beli</label>
                                     <div class="input-group">
                                         <span class="input-group-text">Rp</span>
                                         {{ form.cost_price(class="form-control", placeholder="0", step="0.01", min="0") }}
                                     </div>
-                                    <small class="form-text text-muted">Purchase cost for profit calculation</small>
+                                    <small class="form-text text-muted">Harga beli untuk perhitungan keuntungan</small>
                                     {% if form.cost_price.errors %}
                                     <div class="invalid-feedback d-block">
                                         {% for error in form.cost_price.errors %}
@@ -163,7 +163,7 @@
                                 <div class="form-check form-switch mt-4 pt-2">
                                     {{ form.requires_stock_tracking(class="form-check-input") }}
                                     <label class="form-check-label" for="requires_stock_tracking">
-                                        Enable Stock Tracking
+                                        Nyalakan Stock Tracking
                                     </label>
                                 </div>
                             </div>
@@ -173,7 +173,7 @@
                         <div id="stockFields" class="row mb-4" style="display: none;">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="stock_quantity" class="form-label">Initial Stock</label>
+                                    <label for="stock_quantity" class="form-label">Stok Awal</label>
                                     {{ form.stock_quantity(class="form-control", placeholder="0", min="0") }}
                                     {% if form.stock_quantity.errors %}
                                     <div class="invalid-feedback d-block">
@@ -186,9 +186,9 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="stock_alert" class="form-label">Low Stock Alert</label>
+                                    <label for="stock_alert" class="form-label">Peringatan Stok Menipis</label>
                                     {{ form.stock_alert(class="form-control", placeholder="10", min="0") }}
-                                    <small class="form-text text-muted">Alert when stock reaches this level</small>
+                                    <small class="form-text text-muted">Peringatkan saat stok mencapai level berikut</small>
                                     {% if form.stock_alert.errors %}
                                     <div class="invalid-feedback d-block">
                                         {% for error in form.stock_alert.errors %}
@@ -209,13 +209,13 @@
                                         Use Bill of Materials (BOM)
                                     </label>
                                 </div>
-                                <small class="form-text text-muted">Enable if this product is made from raw materials</small>
+                                <small class="form-text text-muted">Nyalakan jika produk ini dibuat dari bahan baku mentah</small>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="image" class="form-label">Product Image</label>
+                                    <label for="image" class="form-label">Gambar Produk</label>
                                     {{ form.image(class="form-control", accept="image/*") }}
-                                    <small class="form-text text-muted">Recommended: 500x500px, JPG/PNG format</small>
+                                    <small class="form-text text-muted">Rekomendasi: 500x500px, JPG/PNG format</small>
                                     {% if form.image.errors %}
                                     <div class="invalid-feedback d-block">
                                         {% for error in form.image.errors %}
@@ -229,8 +229,8 @@
 
                         <!-- Description -->
                         <div class="form-group mb-4">
-                            <label for="description" class="form-label">Description</label>
-                            {{ form.description(class="form-control", rows="3", placeholder="Enter product description...") }}
+                            <label for="description" class="form-label">Deskripsi</label>
+                            {{ form.description(class="form-control", rows="3", placeholder="Masukkan deskripsi produk...") }}
                             {% if form.description.errors %}
                             <div class="invalid-feedback d-block">
                                 {% for error in form.description.errors %}
@@ -244,17 +244,17 @@
                         <div class="form-check form-switch mb-4">
                             {{ form.is_active(class="form-check-input", checked="checked") }}
                             <label class="form-check-label" for="is_active">
-                                Active Product
+                                Produk Aktif
                             </label>
                         </div>
 
                         <!-- Form Actions -->
                         <div class="d-flex justify-content-between">
                             <a href="{{ url_for('products.index') }}" class="btn btn-secondary">
-                                <i class="fas fa-times me-2"></i>Cancel
+                                <i class="fas fa-times me-2"></i>Batal
                             </a>
                             <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-2"></i>Create Product
+                                <i class="fas fa-save me-2"></i>Buat Produk
                             </button>
                         </div>
                     </form>
@@ -266,27 +266,27 @@
         <div class="col-lg-4">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Quick Guide</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">Petunjuk Singkat</h6>
                 </div>
                 <div class="card-body">
                     <h6>Stock Tracking</h6>
-                    <p class="small">Enable to track inventory levels and receive low stock alerts.</p>
+                    <p class="small">Aktifkan untuk melacak tingkat inventaris dan menerima peringatan stok rendah.</p>
                     
                     <h6>Bill of Materials (BOM)</h6>
-                    <p class="small">Enable if product is assembled from raw materials. You'll configure BOM after creating the product.</p>
+                    <p class="small">Aktifkan jika produk dirakit dari bahan mentah. Anda akan mengonfigurasi BOM setelah membuat produk.</p>
                     
-                    <h6>Product Image</h6>
-                    <p class="small">Upload a clear product photo for better identification in POS.</p>
+                    <h6>Gambar Produk</h6>
+                    <p class="small">Unggah foto produk yang jelas untuk identifikasi yang lebih baik di POS.</p>
                     
                     <h6>SKU Generation</h6>
-                    <p class="small">Leave SKU empty to auto-generate a unique identifier.</p>
+                    <p class="small">Biarkan SKU kosong untuk membuat pengidentifikasi unik secara otomatis.</p>
                 </div>
             </div>
 
             <!-- Preview Card -->
             <div class="card shadow">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Product Preview</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">Preview Produk</h6>
                 </div>
                 <div class="card-body text-center">
                     <div id="imagePreview" class="mb-3" style="display: none;">
@@ -294,9 +294,9 @@
                     </div>
                     <div id="noImagePreview" class="text-muted">
                         <i class="fas fa-cube fa-3x mb-2"></i>
-                        <p>No image selected</p>
+                        <p>Tidak ada gambar terpilih</p>
                     </div>
-                    <h6 id="previewName" class="mt-2">Product Name</h6>
+                    <h6 id="previewName" class="mt-2">Nama Produk</h6>
                     <p class="text-muted small" id="previewSku">SKU: Auto-generated</p>
                     <p class="text-success" id="previewPrice">Rp 0</p>
                 </div>

@@ -59,6 +59,68 @@
     height: 250px;
     position: relative;
 }
+
+/* --- Statistik Dashboard --- */
+.stats-card {
+  position: relative;
+  height: 120px; /* tinggi seragam untuk semua card */
+  border-left: 5px solid;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.stats-card:hover {
+  transform: translateY(-3px);
+}
+
+.stats-card .card-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding-bottom: 20px; /* beri ruang agar progress bar tidak menutupi konten */
+}
+
+.stats-card .d-flex {
+  align-items: flex-start;
+}
+
+.stats-card .stats-icon {
+  width: 90px;
+  height: 75px;
+  object-fit: contain;
+}
+
+.stats-card .progress {
+  position: absolute;
+  bottom: 8px; /* sejajar di bawah semua card */
+  left: 15px;
+  right: 15px;
+  height: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #e9ecef;
+}
+
+.stats-card .progress-bar {
+  transition: width 0.6s ease;
+}
+
+.stats-card .card-title {
+  display: flex;
+  align-items: top; /* pusatkan vertikal jika hanya 1 baris */
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.stats-card img {
+    height: 96px;
+    width: auto;
+    margin-top: 2px;
+}
 </style>
 {% endblock %}
 
@@ -88,25 +150,24 @@
     </div>
 
     <!-- Real-time Stats -->
-    <div class="row mb-4">
+    <div class="row mb-0">
         <!-- Today's Revenue -->
         <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-100" style="border-left-color: #0d6efd;">
+            <div class="card stats-card h-80" style="border-left-color: #0d6efd;">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted mb-0">Pendapatan Hari Ini</h6>
-                            <h3 class="mb-0 text-primary">Rp{{ "%.2f"|format(today_revenue) }}</h3>
-                            <small class="text-muted">{{ today_transactions }} transactions</small>
-                        </div>
-                        <div class="align-self-center">
-                            <img src="{{ url_for('static', filename='assets/rp-icon.png') }}" 
-                                alt="Rupiah Icon" 
-                                class="stats-icon" 
-                                style="width: 45px; height: 35px;">
-                        </div>
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted mb-0" >Pendapatan Hari Ini</h6>
+                        <h3 class="mb-0 text-primary">Rp{{ "%.2f"|format(today_revenue) }}</h3>
+                        <small class="text-muted">{{ today_transactions }} Transaksi</small>
                     </div>
-                    <div class="mt-3">
+                    <div>
+                        <img src="{{ url_for('static', filename='assets/icon-rp.png') }}" 
+                            alt="Rupiah Icon" 
+                            class="stats-icon" >
+                                </div>
+                            </div>                    
+                            <div class="mt-1">
                         <div class="progress" style="height: 6px;">
                             <div class="progress-bar bg-primary" role="progressbar" 
                                  style="width: {{ (today_revenue / (today_revenue + 100)) * 100 if today_revenue > 0 else 0 }}%">
@@ -119,7 +180,7 @@
 
         <!-- Today's Transactions -->
         <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-100" style="border-left-color: #198754;">
+            <div class="card stats-card h-80" style="border-left-color: var(--success-color);">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -127,11 +188,13 @@
                             <h3 class="mb-0 text-success">{{ today_transactions }}</h3>
                             <small class="text-muted">Penjualan Selesai</small>
                         </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-cart-check stats-icon text-success"></i>
-                        </div>
+                        <div>
+                        <img src="{{ url_for('static', filename='assets/icon-cart.png') }}" 
+                            alt="Cart Icon" 
+                            class="stats-icon" >
+                                </div>
                     </div>
-                    <div class="mt-3">
+                    <div class="mt-1">
                         <div class="progress" style="height: 6px;">
                             <div class="progress-bar bg-success" role="progressbar" 
                                  style="width: {{ (today_transactions / (today_transactions + 5)) * 100 if today_transactions > 0 else 0 }}%">
@@ -144,19 +207,21 @@
 
         <!-- Total Products -->
         <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-100" style="border-left-color: var(--bs-warning);">
+            <div class="card stats-card h-80" style="border-left-color: var(--bs-warning);">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-muted mb-0">Produk Aktif</h6>
                             <h3 class="mb-0" style="-webkit-text-fill-color: var(--bs-warning)">{{ total_products }}</h3>
-                            <small class="text-muted">In inventory</small>
+                            <small class="text-muted">Dalam inventaris</small>
                         </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-box-seam stats-icon" style="-webkit-text-fill-color: var(--bs-warning);"></i>
-                        </div>
+                        <div>
+                        <img src="{{ url_for('static', filename='assets/icon-box.png') }}" 
+                            alt="Box Icon" 
+                            class="stats-icon" >
+                                </div>
                     </div>
-                    <div class="mt-3">
+                    <div class="mt-1">
                         <div class="progress" style="height: 6px;">
                             <div class="progress-bar" role="progressbar" 
                                  style="background-color: var(--bs-warning); width: {{ (total_products / (total_products + 10)) * 100 if total_products > 0 else 0 }}%">
@@ -169,19 +234,21 @@
 
         <!-- Low Stock Alert -->
         <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-100" style="border-left-color: #dc3545;">
+            <div class="card stats-card h-80" style="border-left-color: var(--danger-color);">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title text-muted mb-0">Peringatan Stok Menipis</h6>
+                            <h6 class="card-title text-muted mb-0" style="font-size: 13px; white-space: nowrap;">Peringatan Stok Menipis</h6>
                             <h3 class="mb-0 text-danger">{{ low_stock_products }}</h3>
                             <small class="text-muted">Butuh stok ulang</small>
                         </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-exclamation-triangle stats-icon text-danger"></i>
-                        </div>
+                        <div>
+                        <img src="{{ url_for('static', filename='assets/icon-danger.png') }}" 
+                            alt="Danger Icon" 
+                            class="stats-icon" >
+                            </div>
                     </div>
-                    <div class="mt-3">
+                    <div class="mt-1">
                         <div class="progress" style="height: 6px;">
                             <div class="progress-bar bg-danger" role="progressbar" 
                                  style="width: {{ (low_stock_products / (low_stock_products + 5)) * 100 if low_stock_products > 0 else 0 }}%">
@@ -309,7 +376,7 @@
                         <a href="{{ url_for('products.index') }}" class="card quick-action-btn text-decoration-none text-dark">
                             <div class="card-body text-center p-3">
                                 <i class="bi bi-box-seam display-6 text-success mb-2"></i>
-                                <h6 class="card-title mb-1">Products</h6>
+                                <h6 class="card-title mb-1">Produk</h6>
                                 <p class="card-text small text-muted mb-0">Kelola persediaan</p>
                             </div>
                         </a>
@@ -320,8 +387,8 @@
                         <a href="{{ url_for('customers.index') }}" class="card quick-action-btn text-decoration-none text-dark">
                             <div class="card-body text-center p-3">
                                 <i class="bi bi-people display-6 text-info mb-2"></i>
-                                <h6 class="card-title mb-1">Customers</h6>
-                                <p class="card-text small text-muted mb-0">Lihat customer</p>
+                                <h6 class="card-title mb-1">Pelanggan</h6>
+                                <p class="card-text small text-muted mb-0">Lihat pelanggan</p>
                             </div>
                         </a>
                     </div>
@@ -331,7 +398,7 @@
                         <a href="{{ url_for('reports.index') }}" class="card quick-action-btn text-decoration-none text-dark">
                             <div class="card-body text-center p-3">
                                 <i class="bi bi-graph-up display-6 text-warning mb-2"></i>
-                                <h6 class="card-title mb-1">Reports</h6>
+                                <h6 class="card-title mb-1">Laporan</h6>
                                 <p class="card-text small text-muted mb-0">Lihat analisis</p>
                             </div>
                         </a>

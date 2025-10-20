@@ -227,22 +227,19 @@ def low_stock():
 @login_required
 @tenant_required
 def usage_report():
-    try:
-        report_data = RawMaterialService.get_stock_usage_report(current_user.tenant_id)
-        
-        # Pastikan report_data tidak None
-        if not report_data:
-            report_data = {'materials': [], 'total_value': 0}
-        
-        total_inventory_value = report_data.get('total_value', 0)
-        
-        return render_template('raw_materials/usage_report.html',
-                             report_data=report_data,
-                             total_inventory_value=total_inventory_value)
-    except Exception as e:
-        current_app.logger.error(f"Error in usage_report: {str(e)}")
-        flash('Error generating report. Please try again.', 'danger')
-        return redirect(url_for('raw_materials.index'))
+    """Show raw material usage report"""
+    report_data = RawMaterialService.get_stock_usage_report(current_user.tenant_id)
+    
+    # PERBAIKAN: Hitung total inventory value yang akurat
+    total_inventory_value = 0
+    if report_data and 'materials' in report_data:
+        for material in report_data['materials']:
+            material_value = (material.cost_price or 0) * (material.stock_quantity or 0)
+            total_inventory_value += material_value
+    
+    return render_template('raw_materials/usage_report.html',
+                         report_data=report_data,
+                         total_inventory_value=total_inventory_value)
 
 @bp.route('/api/search')
 @login_required

@@ -95,7 +95,12 @@
                     <div class="mt-auto">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="fw-bold text-primary">{{ "Rp {:,.0f}".format(item.price) }}</span>
-                            <span class="badge {% if item.stock > 10 %}bg-success{% elif item.stock > 0 %}bg-warning{% else %}bg-danger{% endif %}">
+                            <span class="badge 
+                                {% if item.stock > 10 %}text-primary border border-primary
+                                {% elif item.stock > 0 %}text-success border border-success
+                                {% else %}text-danger border border-danger
+                                {% endif %}
+                                bg-transparent">
                                 Stok: {{ item.stock }}
                             </span>
                         </div>
