@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from app.sales import bp
 from app.sales.forms import SaleForm, CustomerSelectForm
 from app.models import Sale, SaleItem, Product, Customer, db
+from app.services.bom_service import BOMService
 from app.services.inventory_service import InventoryService
 from app.middleware.tenant_middleware import tenant_required
 from app.utils.timezone import get_user_timezone, convert_utc_to_user_timezone
@@ -96,6 +97,25 @@ def create_sale():
         
         if not data or 'items' not in data or not data['items']:
             return jsonify({'error': 'No items in sale'}), 400
+        # Validasi pembayaran cash
+        payment_method = data.get('payment_method', 'cash')
+        total_amount = float(data.get('total_amount', 0))
+        amount_paid = float(data.get('amount_paid', 0))
+        
+        if payment_method == 'cash' and amount_paid < total_amount:
+            return jsonify({'error': f'Insufficient payment. Required: {total_amount}, Paid: {amount_paid}'}), 400
+        for item_data in data['items']:
+            product = Product.query.filter_by(
+                id=item_data['product_id'],
+                tenant_id=current_user.tenant_id
+            ).first()
+            
+            if product and product.has_bom:
+                active_bom = BOMService.get_bom_by_product(product.id)
+                if active_bom:
+                    is_valid, details = BOMService.validate_bom_availability(active_bom.id, item_data['quantity'])
+                    if not is_valid:
+                        return jsonify({'error': f'Insufficient BOM materials for {product.name}: {details}'}), 400
         
         # Create sale record
         receipt_number = f"RC-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
@@ -164,6 +184,21 @@ def create_sale():
         db.session.rollback()
         current_app.logger.error(f'Error creating sale: {str(e)}')
         return jsonify({'error': f'Failed to process sale: {str(e)}'}), 500
+    
+@bp.route('/<sale_id>/details/html')
+@login_required
+@tenant_required
+def sale_details_html(sale_id):
+    """Return sale details as HTML for modal"""
+    sale = Sale.query.filter_by(
+        id=sale_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    # Convert timestamp to user timezone
+    sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
+    
+    return render_template('sales/sale_details_modal.html', sale=sale)
 
 @bp.route('/<sale_id>')
 @login_required

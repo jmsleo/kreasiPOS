@@ -23,7 +23,23 @@ body {
     background-color: #f8f9fc;
     line-height: 1.6;
 }
+/* Notification Styles */
+/* Ubah posisi notifikasi */
+.toast-container {
+    position: fixed;
+    top: 20px; /* Ubah dari bottom ke top */
+    right: 20px;
+    z-index: 1060;
+}
 
+/* Jika menggunakan class khusus untuk notifikasi */
+.notification-container {
+    position: fixed;
+    top: 20px; /* Ubah dari bottom ke top */
+    right: 20px;
+    z-index: 1055;
+    max-width: 400px;
+}
 /* Sidebar Styles */
 .sidebar {
     position: fixed;

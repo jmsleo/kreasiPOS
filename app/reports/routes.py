@@ -8,6 +8,8 @@ import openpyxl
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, A4
 
+from app.utils.timezone import convert_utc_to_user_timezone
+
 @bp.route('/')
 @login_required
 def index():
@@ -43,6 +45,20 @@ def sales_report():
                          total_sales=total_sales,
                          total_revenue=total_revenue,
                          avg_sale=avg_sale)
+
+@bp.route('/sales/<sale_id>/details/html')
+@login_required
+def sale_details_html(sale_id):
+    """Return sale details as HTML for modal - FIX untuk tombol View Details"""
+    sale = Sale.query.filter_by(
+        id=sale_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    # Convert timestamp to user timezone
+    sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
+    
+    return render_template('reports/sale_details_modal.html', sale=sale)
 
 @bp.route('/export-excel')
 @login_required

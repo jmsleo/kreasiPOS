@@ -337,23 +337,40 @@
 // Show sale details
 async function showSaleDetails(saleId) {
     try {
-        const response = await fetch(`/sales/receipt/${saleId}/html`);
-        const html = await response.text();
+        // Tampilkan loading state
+        document.getElementById('saleDetailsContent').innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted">Loading sale details...</p>
+            </div>
+        `;
         
-        document.getElementById('saleDetailsContent').innerHTML = html;
         const modal = new bootstrap.Modal(document.getElementById('saleDetailsModal'));
         modal.show();
+        
+        // PERBAIKAN: Gunakan route yang benar di modul reports
+        const response = await fetch(`/reports/sales/${saleId}/details/html`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const html = await response.text();
+        document.getElementById('saleDetailsContent').innerHTML = html;
         
     } catch (error) {
         console.error('Error loading sale details:', error);
         document.getElementById('saleDetailsContent').innerHTML = `
             <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i> Failed to load sale details.
+                <i class="bi bi-exclamation-triangle"></i> 
+                Failed to load sale details. Please try again.
+                <br><small>Error: ${error.message}</small>
             </div>
         `;
     }
 }
-
 // Initialize charts if sales data exists
 document.addEventListener('DOMContentLoaded', function() {
     {% if sales %}

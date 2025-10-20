@@ -1,5 +1,5 @@
 from datetime import datetime
-from email_validator import ValidatedEmail
+from email_validator import validate_email, EmailNotValidError  # PERUBAHAN: ganti import
 from flask import render_template, request, flash, redirect, url_for, jsonify, abort
 from flask_login import login_required, current_user
 from app.settings import bp
@@ -10,6 +10,7 @@ from .forms import UserForm
 from functools import wraps
 import uuid
 from wtforms.validators import DataRequired
+
 def tenant_admin_required(f):
     """
     Decorator untuk memastikan hanya tenant_admin yang bisa mengakses suatu halaman.
@@ -35,6 +36,13 @@ def user_management():
     users = User.query.filter_by(tenant_id=current_user.tenant_id).order_by(User.username).all()
     return render_template('settings/users.html', users=users, title="User Management")
 
+def is_valid_email(email):
+    """Validasi email menggunakan email_validator"""
+    try:
+        validate_email(email)
+        return True
+    except EmailNotValidError:
+        return False
 
 @bp.route('/users/new', methods=['GET', 'POST'])
 @login_required
@@ -53,7 +61,7 @@ def create_user():
         errors = []
         if not username:
             errors.append('Username is required')
-        if not email or not ValidatedEmail(email):
+        if not email or not is_valid_email(email):  # PERUBAHAN: gunakan fungsi validasi
             errors.append('Valid email is required')
         if not password:
             errors.append('Password is required for new user')
@@ -95,7 +103,6 @@ def create_user():
                          title="Create New User", 
                          legend="New User")
 
-
 @bp.route('/users/edit/<string:user_id>', methods=['GET', 'POST'])
 @login_required
 @tenant_admin_required
@@ -116,7 +123,7 @@ def edit_user(user_id):
         errors = []
         if not username:
             errors.append('Username is required')
-        if not email or not ValidatedEmail(email):
+        if not email or not is_valid_email(email):  # PERUBAHAN: gunakan fungsi validasi
             errors.append('Valid email is required')
         if password and password != confirm_password:
             errors.append('Passwords do not match')
@@ -159,7 +166,6 @@ def edit_user(user_id):
     return render_template('settings/create_edit_user.html', 
                          title="Edit User", 
                          legend=f"Edit User: {user_to_edit.username}")
-
 
 @bp.route('/users/delete/<string:user_id>', methods=['POST'])
 @login_required
@@ -259,4 +265,3 @@ def barcode_scanner():
         flash('Barcode scanner settings updated!', 'success')
     
     return render_template('settings/barcode_scanner.html', tenant=tenant)
-

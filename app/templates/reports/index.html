@@ -132,8 +132,8 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-muted mb-0">Pendapatan Hari ini</h6>
-                            <h3 class="mb-0" id="todayRevenue">Rp0.00</h3>
-                            <small class="text-muted" id="todaySalesCount">0 sales</small>
+                            <h3 class="mb-0" id="todayRevenue">Rp0</h3>
+                            <small class="text-muted" id="todaySalesCount">0 transaksi</small>
                         </div>
                         <div class="align-self-center">
                             <img src="{{ url_for('static', filename='assets/rp-icon.png') }}" 
@@ -151,8 +151,8 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-muted mb-0">Minggu ini</h6>
-                            <h3 class="mb-0" id="weekRevenue">Rp0.00</h3>
-                            <small class="text-muted" id="weekSalesCount">0 sales</small>
+                            <h3 class="mb-0" id="weekRevenue">Rp0</h3>
+                            <small class="text-muted" id="weekSalesCount">0 transaksi</small>
                         </div>
                         <div class="align-self-center">
                             <i class="bi bi-calendar-range stats-icon text-success"></i>
@@ -167,8 +167,8 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-muted mb-0">Bulan ini</h6>
-                            <h3 class="mb-0" id="monthRevenue">Rp0.00</h3>
-                            <small class="text-muted" id="monthSalesCount">0 sales</small>
+                            <h3 class="mb-0" id="monthRevenue">Rp0</h3>
+                            <small class="text-muted" id="monthSalesCount">0 transaksi</small>
                         </div>
                         <div class="align-self-center">
                             <i class="bi bi-calendar stats-icon text-warning"></i>
@@ -183,7 +183,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-muted mb-0">Rerata Penjualan</h6>
-                            <h3 class="mb-0" id="avgSale">Rp0.00</h3>
+                            <h3 class="mb-0" id="avgSale">Rp0</h3>
                             <small class="text-muted">Per transaksi</small>
                         </div>
                         <div class="align-self-center">
@@ -353,13 +353,98 @@
 // Global variables
 let salesTrendChart = null;
 let currentMetric = 'revenue';
-let chartData = null; // Store chart data globally
+let chartData = null;
+
+// Format number to Indonesian Rupiah
+function formatRupiah(amount) {
+    if (isNaN(amount) || amount === null) return 'Rp0';
+    
+    // Handle both string and number inputs
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(num);
+}
+
+// Format number with thousand separators
+function formatNumber(num) {
+    if (isNaN(num) || num === null) return '0';
+    return new Intl.NumberFormat('id-ID').format(num);
+}
+
+// Validate and calculate statistics
+function calculateStats(data) {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Validate data structure
+    if (!data || !Array.isArray(data.daily_sales)) {
+        console.error('Invalid data structure:', data);
+        return {
+            todayRevenue: 0,
+            todayCount: 0,
+            weekRevenue: 0,
+            weekCount: 0,
+            monthRevenue: 0,
+            monthCount: 0,
+            avgSale: 0
+        };
+    }
+
+    // Find today's data
+    const todayData = data.daily_sales.find(day => day.date === today) || { revenue: 0, count: 0 };
+    
+    // Calculate weekly stats (from daily_sales array which contains 7 days)
+    const weekStats = data.daily_sales.reduce((acc, day) => {
+        // Validate day data
+        const revenue = typeof day.revenue === 'number' ? day.revenue : 0;
+        const count = typeof day.count === 'number' ? day.count : 0;
+        
+        return {
+            revenue: acc.revenue + revenue,
+            count: acc.count + count
+        };
+    }, { revenue: 0, count: 0 });
+
+    // Calculate monthly stats (approximate - using 4.345 weeks per month)
+    const monthlyMultiplier = 4.345; // More accurate than 4
+    const monthRevenue = weekStats.revenue * monthlyMultiplier;
+    const monthCount = Math.round(weekStats.count * monthlyMultiplier);
+
+    // Calculate average sale per transaction
+    const avgSale = weekStats.count > 0 ? weekStats.revenue / weekStats.count : 0;
+
+    return {
+        todayRevenue: todayData.revenue || 0,
+        todayCount: todayData.count || 0,
+        weekRevenue: weekStats.revenue,
+        weekCount: weekStats.count,
+        monthRevenue: monthRevenue,
+        monthCount: monthCount,
+        avgSale: avgSale
+    };
+}
 
 // Load dashboard data
 async function loadDashboardData() {
     try {
+        showLoadingState();
+        
         const response = await fetch('{{ url_for("reports.dashboard_data") }}');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        
+        // Validate response data
+        if (!data) {
+            throw new Error('No data received from server');
+        }
         
         // Store data globally for metric switching
         chartData = data;
@@ -370,39 +455,60 @@ async function loadDashboardData() {
         
     } catch (error) {
         console.error('Error loading dashboard data:', error);
-        showError('Failed to load dashboard data');
+        showError('Gagal memuat data dashboard. Silakan refresh halaman.');
     }
+}
+
+// Show loading state
+function showLoadingState() {
+    // Show loading in stats cards
+    const statsElements = [
+        'todayRevenue', 'todaySalesCount',
+        'weekRevenue', 'weekSalesCount', 
+        'monthRevenue', 'monthSalesCount',
+        'avgSale'
+    ];
+    
+    statsElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            if (id.includes('Revenue') || id.includes('avgSale')) {
+                element.textContent = 'Rp...';
+            } else if (id.includes('Count')) {
+                element.textContent = '... transaksi';
+            }
+        }
+    });
 }
 
 // Update statistics cards
 function updateStats(data) {
-    const today = new Date().toISOString().split('T')[0];
-    const todayData = data.daily_sales.find(day => day.date === today);
+    const stats = calculateStats(data);
     
-    // Today's stats
-    if (todayData) {
-        document.getElementById('todayRevenue').textContent = `Rp${todayData.revenue.toFixed(2)}`;
-        document.getElementById('todaySalesCount').textContent = `${todayData.count} sales`;
-    }
+    // Update today's stats
+    document.getElementById('todayRevenue').textContent = formatRupiah(stats.todayRevenue);
+    document.getElementById('todaySalesCount').textContent = `${formatNumber(stats.todayCount)} transaksi`;
     
-    // Weekly stats
-    const weekRevenue = data.daily_sales.reduce((sum, day) => sum + day.revenue, 0);
-    const weekCount = data.daily_sales.reduce((sum, day) => sum + day.count, 0);
-    document.getElementById('weekRevenue').textContent = `Rp${weekRevenue.toFixed(2)}`;
-    document.getElementById('weekSalesCount').textContent = `${weekCount} sales`;
+    // Update weekly stats
+    document.getElementById('weekRevenue').textContent = formatRupiah(stats.weekRevenue);
+    document.getElementById('weekSalesCount').textContent = `${formatNumber(stats.weekCount)} transaksi`;
     
-    // Average sale
-    const avgSale = weekCount > 0 ? weekRevenue / weekCount : 0;
-    document.getElementById('avgSale').textContent = `Rp${avgSale.toFixed(2)}`;
+    // Update monthly stats
+    document.getElementById('monthRevenue').textContent = formatRupiah(stats.monthRevenue);
+    document.getElementById('monthSalesCount').textContent = `${formatNumber(stats.monthCount)} transaksi`;
     
-    // Monthly (approximate - using week data for demo)
-    document.getElementById('monthRevenue').textContent = `Rp${(weekRevenue * 4).toFixed(2)}`;
-    document.getElementById('monthSalesCount').textContent = `${weekCount * 4} sales`;
+    // Update average sale
+    document.getElementById('avgSale').textContent = formatRupiah(stats.avgSale);
 }
 
 // Render sales trend chart
 function renderSalesTrendChart(dailySales) {
     const canvas = document.getElementById('salesTrendChart');
+    if (!canvas) {
+        console.error('Sales trend chart canvas not found');
+        return;
+    }
+    
     const ctx = canvas.getContext('2d');
     
     // Set canvas size berdasarkan parent container
@@ -410,106 +516,152 @@ function renderSalesTrendChart(dailySales) {
     canvas.width = container.clientWidth;
     canvas.height = container.clientHeight;
     
+    // Validate and prepare data
+    if (!Array.isArray(dailySales) || dailySales.length === 0) {
+        console.warn('No daily sales data available for chart');
+        renderEmptyChart(ctx, 'Tidak ada data penjualan tersedia');
+        return;
+    }
+    
     // Prepare data
     const labels = dailySales.map(day => {
-        const date = new Date(day.date);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        try {
+            const date = new Date(day.date);
+            return date.toLocaleDateString('id-ID', { 
+                weekday: 'short',
+                month: 'short', 
+                day: 'numeric' 
+            });
+        } catch (error) {
+            console.error('Error parsing date:', day.date, error);
+            return 'Invalid Date';
+        }
     });
     
-    const revenueData = dailySales.map(day => day.revenue);
-    const countData = dailySales.map(day => day.count);
+    const revenueData = dailySales.map(day => day.revenue || 0);
+    const countData = dailySales.map(day => day.count || 0);
     
+    // Destroy existing chart
     if (salesTrendChart) {
         salesTrendChart.destroy();
     }
     
     // Determine which data to show based on current metric
     const dataToShow = currentMetric === 'revenue' ? revenueData : countData;
-    const labelText = currentMetric === 'revenue' ? 'Pendapatan (Rp)' : 'Jumlah Transaksi';
+    const labelText = currentMetric === 'revenue' ? 'Pendapatan' : 'Jumlah Transaksi';
     const borderColor = currentMetric === 'revenue' ? '#0d6efd' : '#28a745';
     const backgroundColor = currentMetric === 'revenue' ? 'rgba(13, 110, 253, 0.1)' : 'rgba(40, 167, 69, 0.1)';
     
-    salesTrendChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: labelText,
-                data: dataToShow,
-                borderColor: borderColor,
-                backgroundColor: backgroundColor,
-                tension: 0.4,
-                fill: true,
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false, // Penting: biarkan container mengatur aspect ratio
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
+    try {
+        salesTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: labelText,
+                    data: dataToShow,
+                    borderColor: borderColor,
+                    backgroundColor: backgroundColor,
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 2,
+                    pointBackgroundColor: borderColor,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                if (currentMetric === 'revenue') {
+                                    return `Pendapatan: ${formatRupiah(value)}`;
+                                } else {
+                                    return `Transaksi: ${formatNumber(value)}`;
+                                }
+                            }
+                        }
+                    }
                 },
-                tooltip: {
-                    mode: 'index',
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            drawBorder: false
+                        },
+                        ticks: {
+                            maxTicksLimit: 6,
+                            callback: function(value) {
+                                if (currentMetric === 'revenue') {
+                                    return formatRupiah(value).replace('Rp', '');
+                                } else {
+                                    return formatNumber(value);
+                                }
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
+                    }
+                },
+                interaction: {
                     intersect: false,
-                    callbacks: {
-                        label: function(context) {
-                            const value = context.parsed.y;
-                            if (currentMetric === 'revenue') {
-                                return `${labelText}: Rp${value.toFixed(2)}`;
-                            } else {
-                                return `${labelText}: ${value}`;
-                            }
-                        }
-                    }
+                    mode: 'nearest'
                 }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        drawBorder: false
-                    },
-                    ticks: {
-                        maxTicksLimit: 6,
-                        callback: function(value) {
-                            if (currentMetric === 'revenue') {
-                                return 'Rp' + value.toFixed(0);
-                            } else {
-                                return value;
-                            }
-                        }
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        maxRotation: 0,
-                        minRotation: 0
-                    }
-                }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'nearest'
             }
-        }
-    });
+        });
+    } catch (error) {
+        console.error('Error rendering chart:', error);
+        renderEmptyChart(ctx, 'Error rendering chart');
+    }
+}
+
+// Render empty chart state
+function renderEmptyChart(ctx, message) {
+    ctx.fillStyle = '#f8f9fa';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    
+    ctx.fillStyle = '#6c757d';
+    ctx.textAlign = 'center';
+    ctx.font = '16px Arial';
+    ctx.fillText(message, ctx.canvas.width / 2, ctx.canvas.height / 2);
 }
 
 // Update chart based on selected metric
 function updateChartMetric(metric) {
-    if (!chartData || !chartData.daily_sales) return;
+    if (!chartData || !chartData.daily_sales) {
+        console.warn('No chart data available for metric update');
+        return;
+    }
     
     currentMetric = metric;
     
     // Update button states
-    document.getElementById('revenueBtn').classList.toggle('active', metric === 'revenue');
-    document.getElementById('countBtn').classList.toggle('active', metric === 'count');
+    const revenueBtn = document.getElementById('revenueBtn');
+    const countBtn = document.getElementById('countBtn');
+    
+    if (revenueBtn && countBtn) {
+        revenueBtn.classList.toggle('active', metric === 'revenue');
+        countBtn.classList.toggle('active', metric === 'count');
+    }
     
     // Re-render chart with new metric
     renderSalesTrendChart(chartData.daily_sales);
@@ -518,12 +670,16 @@ function updateChartMetric(metric) {
 // Render top products list
 function renderTopProducts(topProducts) {
     const container = document.getElementById('topProductsList');
+    if (!container) {
+        console.error('Top products container not found');
+        return;
+    }
     
-    if (!topProducts || topProducts.length === 0) {
+    if (!Array.isArray(topProducts) || topProducts.length === 0) {
         container.innerHTML = `
             <div class="text-center text-muted py-4">
                 <i class="bi bi-inbox display-4"></i>
-                <p class="mt-2">No product data available</p>
+                <p class="mt-2">Tidak ada data produk tersedia</p>
             </div>
         `;
         return;
@@ -531,14 +687,16 @@ function renderTopProducts(topProducts) {
     
     let html = '';
     topProducts.slice(0, 5).forEach((product, index) => {
-        const revenue = product.revenue || 0;
-        const quantity = product.quantity || 0;
+        // Validate product data
+        const name = product.name || 'Unknown Product';
+        const revenue = typeof product.revenue === 'number' ? product.revenue : 0;
+        const quantity = typeof product.quantity === 'number' ? product.quantity : 0;
         
         html += `
             <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
                 <div class="flex-grow-1">
-                    <h6 class="mb-1">${product.name}</h6>
-                    <small class="text-muted">${quantity} sold • Rp${revenue.toFixed(2)}</small>
+                    <h6 class="mb-1 text-truncate" title="${name}">${name}</h6>
+                    <small class="text-muted">${formatNumber(quantity)} terjual • ${formatRupiah(revenue)}</small>
                 </div>
                 <div class="text-end">
                     <span class="badge bg-primary">#${index + 1}</span>
@@ -552,30 +710,60 @@ function renderTopProducts(topProducts) {
 
 // Show error message
 function showError(message) {
+    // Remove existing alerts
+    const existingAlerts = document.querySelectorAll('.alert-danger');
+    existingAlerts.forEach(alert => alert.remove());
+    
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert alert-danger alert-dismissible fade show';
     alertDiv.innerHTML = `
         <i class="bi bi-exclamation-triangle"></i> ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    document.querySelector('main').insertBefore(alertDiv, document.querySelector('main').firstChild);
+    
+    const mainElement = document.querySelector('main');
+    if (mainElement) {
+        mainElement.insertBefore(alertDiv, mainElement.firstChild);
+        
+        // Auto-remove alert after 5 seconds
+        setTimeout(() => {
+            if (alertDiv.parentElement) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
 }
 
 // Initialize dashboard when page loads
 document.addEventListener('DOMContentLoaded', function() {
+    // Load initial data
     loadDashboardData();
     
     // Add event listeners for metric buttons
-    document.getElementById('revenueBtn').addEventListener('click', function() {
-        updateChartMetric('revenue');
-    });
+    const revenueBtn = document.getElementById('revenueBtn');
+    const countBtn = document.getElementById('countBtn');
     
-    document.getElementById('countBtn').addEventListener('click', function() {
-        updateChartMetric('count');
-    });
+    if (revenueBtn) {
+        revenueBtn.addEventListener('click', function() {
+            updateChartMetric('revenue');
+        });
+    }
+    
+    if (countBtn) {
+        countBtn.addEventListener('click', function() {
+            updateChartMetric('count');
+        });
+    }
     
     // Refresh data every 5 minutes
     setInterval(loadDashboardData, 300000);
+    
+    // Add resize event listener for chart
+    window.addEventListener('resize', function() {
+        if (salesTrendChart && chartData && chartData.daily_sales) {
+            renderSalesTrendChart(chartData.daily_sales);
+        }
+    });
 });
 </script>
 {% endblock %}

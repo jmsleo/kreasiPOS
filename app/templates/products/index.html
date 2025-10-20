@@ -66,9 +66,7 @@
             {% for product in bom_issues %}
             <li>
                 <strong>{{ product.name }}</strong> - Insufficient raw materials for production
-                <a href="{{ url_for('bom.create_bom', product_id=product.id) }}" class="btn btn-sm btn-outline-info ms-2">
-                    Check BOM
-                </a>
+                <a href="{{ url_for('bom.view_bom', product_id=issue.id) }}" class="btn btn-warning">Check BOM</a>
             </li>
             {% endfor %}
         </ul>
