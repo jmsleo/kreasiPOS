@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from app.maintenance import bp
 from app.services.maintenance_service import MaintenanceService
 from datetime import datetime, timedelta
+from ..superadmin.routes import superadmin_required
 
 @bp.route('/api/maintenance/status')
 def maintenance_status():
@@ -21,6 +22,7 @@ def maintenance_page():
 
 @bp.route('/admin/maintenance', methods=['GET', 'POST'])
 @login_required
+@superadmin_required
 def admin_maintenance():
     """Admin panel untuk manage maintenance mode dengan email whitelist"""
     if not current_user.is_admin:
@@ -80,6 +82,7 @@ def admin_maintenance():
 
 @bp.route('/api/admin/maintenance/toggle', methods=['POST'])
 @login_required
+@superadmin_required
 def api_toggle_maintenance():
     """API untuk toggle maintenance mode"""
     if not current_user.is_admin:
@@ -104,6 +107,7 @@ def api_toggle_maintenance():
 
 @bp.route('/api/admin/maintenance/emails', methods=['POST'])
 @login_required
+@superadmin_required
 def api_manage_emails():
     """API untuk manage email whitelist"""
     if not current_user.is_admin:

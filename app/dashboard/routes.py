@@ -29,6 +29,8 @@ def index():
     """Dashboard utama dengan statistik real-time"""
     if current_user.role == 'cashier':
         return redirect(url_for('sales.pos'))
+    elif current_user.role=='superadmin':
+        return redirect(url_for('marketplace.manage'))
     
     # Get current time in user's timezone
     local_now = now_local()
