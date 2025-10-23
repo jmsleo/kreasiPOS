@@ -53,6 +53,7 @@ def index():
 @tenant_required
 def create():
     """Create new raw material"""
+    # PERBAIKAN: Panggil form tanpa parameter
     form = RawMaterialForm()
     
     # PERBAIKAN: Set default choices untuk unit
@@ -104,7 +105,15 @@ def edit(raw_material_id):
         tenant_id=current_user.tenant_id
     ).first_or_404()
     
-    form = RawMaterialForm(obj=raw_material)
+    # PERBAIKAN: Logika inisiasi form dipisah
+    if request.method == 'POST':
+        # Saat POST, kirim 'original_object' untuk validasi.
+        # 'validate_on_submit' akan mengisi data dari request.form
+        form = RawMaterialForm(original_object=raw_material)
+    else:
+        # Saat GET, kirim 'obj' untuk mengisi field form
+        # dan 'original_object' untuk konteks
+        form = RawMaterialForm(obj=raw_material, original_object=raw_material)
     
     # PERBAIKAN: Set choices untuk unit
     form.unit.choices = [
@@ -124,8 +133,10 @@ def edit(raw_material_id):
             # PERBAIKAN: Handle None values
             cost_price = form.cost_price.data if form.cost_price.data else 0
             
+            # PERBAIKAN: Pass user_id untuk tracking stock changes
             updated_material = RawMaterialService.update_raw_material(
                 raw_material_id=raw_material_id,
+                user_id=current_user.id,  # Add user_id for stock tracking
                 name=form.name.data,
                 description=form.description.data,
                 sku=form.sku.data,
@@ -143,6 +154,8 @@ def edit(raw_material_id):
             flash(f'Error mengupdate bahan baku: {str(e)}', 'danger')
             current_app.logger.error(f'Error updating raw material: {str(e)}')
     
+    # Saat render, 'form' akan berisi data dari 'obj' (saat GET)
+    # atau data yang disubmit pengguna (jika validasi POST gagal)
     return render_template('raw_materials/edit.html', form=form, raw_material=raw_material)
 
 @bp.route('/<raw_material_id>/delete', methods=['POST'])
@@ -180,6 +193,8 @@ def update_stock(raw_material_id):
         tenant_id=current_user.tenant_id
     ).first_or_404()
     
+    # PERBAIKAN: Form diinisiasi tanpa request.form, 
+    # 'validate_on_submit' akan otomatis mengambil data dari request.form
     form = StockUpdateForm()
     
     if form.validate_on_submit():
@@ -191,10 +206,14 @@ def update_stock(raw_material_id):
                     flash(f'Stok tidak cukup. Stok saat ini: {current_stock} {raw_material.unit}', 'danger')
                     return redirect(url_for('raw_materials.index'))
             
+            # PERBAIKAN: Pass additional parameters for better tracking
             updated_material = RawMaterialService.update_stock(
                 raw_material_id=raw_material_id,
                 quantity=form.quantity.data,
-                operation=form.operation.data
+                operation=form.operation.data,
+                user_id=current_user.id,
+                reason=form.notes.data or f'Manual {form.operation.data}',
+                notes=form.notes.data
             )
             
             operation_text = 'ditambah' if form.operation.data == 'add' else 'dikurangi'
@@ -203,6 +222,16 @@ def update_stock(raw_material_id):
         except Exception as e:
             flash(f'Error mengupdate stok: {str(e)}', 'danger')
             current_app.logger.error(f'Error updating stock: {str(e)}')
+    
+    # PERBAIKAN: Tambahkan else untuk menangani validasi yang gagal
+    else:
+        # Jika form tidak valid, tampilkan error
+        for field, errors in form.errors.items():
+            for error in errors:
+                # Dapatkan label field jika ada, jika tidak gunakan nama field
+                field_label = getattr(getattr(form, field, {}), 'label', None)
+                field_name = field_label.text if field_label else field.capitalize()
+                flash(f'Error pada field {field_name}: {error}', 'danger')
     
     return redirect(url_for('raw_materials.index'))
 
@@ -381,3 +410,21 @@ def inventory_value():
     return render_template('raw_materials/inventory_value.html',
                          inventory_data=inventory_data,
                          total_value=total_value)
+
+# NEW ROUTES: Stock Adjustment History
+@bp.route('/<raw_material_id>/stock_history')
+@login_required
+@tenant_required
+def stock_history(raw_material_id):
+    """Show stock adjustment history for a raw material"""
+    raw_material = RawMaterial.query.filter_by(
+        id=raw_material_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    # Get stock adjustment history
+    adjustments = RawMaterialService.get_stock_adjustment_history(raw_material_id, limit=100)
+    
+    return render_template('raw_materials/stock_history.html',
+                         raw_material=raw_material,
+                         adjustments=adjustments)

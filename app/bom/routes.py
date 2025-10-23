@@ -1,5 +1,6 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
+from app import bom
 from app.bom import bp
 from app.bom.forms import BOMForm, BOMValidationForm
 from app.models import BOMItem, Product, BOMHeader, RawMaterial, db
@@ -32,7 +33,7 @@ def view_bom(product_id):
 @login_required
 @tenant_required
 def create_bom(product_id):
-    """Create BOM for a product"""
+    """Create BOM for a product - AUTO DEACTIVATE OLD BOMs"""
     product = Product.query.filter_by(
         id=product_id,
         tenant_id=current_user.tenant_id
@@ -96,34 +97,13 @@ def create_bom(product_id):
                                  raw_materials=raw_materials)
         
         try:
-            # Buat BOM header
-            bom = BOMHeader(
-                product_id=product_id,
-                notes=form.notes.data,
-                is_active=True
+            # **GUNAKAN METHOD BARU DARI MODEL: Auto-deactivate BOM lama dan buat versi baru**
+            new_bom = product.create_new_bom_version(
+                items_data=items_data,
+                notes=form.notes.data
             )
-            db.session.add(bom)
-            db.session.flush()  # Get the bom ID
             
-            # Create BOM items dari SEMUA data yang dikumpulkan
-            for item_data in items_data:
-                bom_item = BOMItem(
-                    bom_header_id=bom.id,
-                    raw_material_id=item_data['raw_material_id'],
-                    quantity=item_data['quantity'],
-                    unit=item_data['unit'],
-                    notes=item_data['notes']
-                )
-                db.session.add(bom_item)
-                current_app.logger.info(f"Created BOM item: {item_data}")
-            
-            # PERBAIKAN: Update product BOM status
-            product.has_bom = True
-            product.calculate_bom_cost()
-            
-            db.session.commit()
-            
-            flash(f'BOM baru untuk produk "{product.name}" berhasil dibuat dengan {len(items_data)} bahan baku.', 'success')
+            flash(f'BOM v{new_bom.version} untuk produk "{product.name}" berhasil dibuat dengan {len(items_data)} bahan baku. BOM lama telah dinonaktifkan.', 'success')
             return redirect(url_for('bom.view_bom', product_id=product_id))
             
         except Exception as e:
@@ -149,20 +129,9 @@ def set_primary_bom(bom_id):
         return redirect(url_for('products.index'))
     
     try:
-        # Deactivate all BOMs for this product
-        BOMHeader.query.filter_by(
-            product_id=bom.product_id
-        ).update({'is_active': False})
-        
-        # Activate the selected BOM
-        bom.is_active = True
-        
-        # PERBAIKAN: Update product BOM cost
-        bom.product.calculate_bom_cost()
-        
-        db.session.commit()
-        
-        flash(f'BOM telah ditetapkan sebagai BOM utama untuk produk "{bom.product.name}".', 'success')
+        # **GUNAKAN METHOD BARU DARI MODEL**
+        bom.set_as_active()
+        flash(f'BOM v{bom.version} telah ditetapkan sebagai BOM utama untuk produk "{bom.product.name}".', 'success')
         
     except Exception as e:
         db.session.rollback()
@@ -175,7 +144,7 @@ def set_primary_bom(bom_id):
 @login_required
 @tenant_required
 def edit_bom(bom_id):
-    """Edit existing BOM"""
+    """Edit existing BOM - PRESERVE ACTIVE STATUS"""
     bom = BOMHeader.query.filter_by(id=bom_id).first_or_404()
     
     # Check if BOM belongs to current tenant's product
@@ -191,10 +160,6 @@ def edit_bom(bom_id):
     
     form = BOMForm(obj=bom)
     
-    if request.method == 'GET':
-        # PERBAIKAN: Load existing BOM items untuk edit
-        current_app.logger.info(f"Loading BOM {bom_id} with {bom.items.count()} items for edit")
-    
     if request.method == 'POST':
         # PERBAIKAN: Baca SEMUA item dari form
         items_data = []
@@ -209,17 +174,14 @@ def edit_bom(bom_id):
             unit = request.form.get(f'items-{i}-unit')
             notes = request.form.get(f'items-{i}-notes')
             
-            # PERBAIKAN: Validasi yang lebih ketat untuk edit
-            if raw_material_id and raw_material_id != "" and quantity:
+            if raw_material_id and raw_material_id != "" and quantity and float(quantity) > 0:
                 try:
-                    quantity_float = float(quantity)
-                    if quantity_float > 0:  # Hanya tambahkan jika quantity > 0
-                        items_data.append({
-                            'raw_material_id': raw_material_id,
-                            'quantity': quantity_float,
-                            'unit': unit or '',
-                            'notes': notes or ''
-                        })
+                    items_data.append({
+                        'raw_material_id': raw_material_id,
+                        'quantity': float(quantity),
+                        'unit': unit or '',
+                        'notes': notes or ''
+                    })
                 except ValueError:
                     flash('Jumlah harus berupa angka yang valid.', 'danger')
                     return render_template('bom/edit.html', 
@@ -230,15 +192,22 @@ def edit_bom(bom_id):
         
         current_app.logger.info(f"Received {len(items_data)} BOM items for edit: {items_data}")
         
-        # PERBAIKAN: Pesan error yang lebih jelas
         if not items_data:
-            flash('Minimal harus ada satu bahan baku dalam BOM dengan jumlah yang valid.', 'danger')
+            flash('Minimal harus ada satu bahan baku dalam BOM.', 'danger')
             return render_template('bom/edit.html', 
                                  form=form, 
                                  bom=bom, 
                                  raw_materials=raw_materials)
         
         try:
+            # **PERBAIKAN: Jika BOM ini aktif, nonaktifkan yang lain dulu**
+            if bom.is_active:
+                # Nonaktifkan semua BOM lain untuk produk ini
+                BOMHeader.query.filter(
+                    BOMHeader.product_id == bom.product_id,
+                    BOMHeader.id != bom.id
+                ).update({'is_active': False})
+            
             # Hapus item lama
             BOMItem.query.filter_by(bom_header_id=bom_id).delete()
             
@@ -252,17 +221,15 @@ def edit_bom(bom_id):
                     notes=item_data['notes']
                 )
                 db.session.add(bom_item)
-                current_app.logger.info(f"Updated BOM item: {item_data}")
             
             # Update BOM header
             bom.notes = form.notes.data
-            
-            # PERBAIKAN: Update product BOM cost
-            bom.product.calculate_bom_cost()
+            # **PERBAIKAN: Pastikan BOM ini tetap aktif setelah edit**
+            bom.is_active = True
             
             db.session.commit()
             
-            flash(f'BOM untuk produk "{bom.product.name}" berhasil diupdate dengan {len(items_data)} bahan baku.', 'success')
+            flash(f'BOM v{bom.version} untuk produk "{bom.product.name}" berhasil diupdate dengan {len(items_data)} bahan baku.', 'success')
             return redirect(url_for('bom.view_bom', product_id=bom.product_id))
             
         except Exception as e:

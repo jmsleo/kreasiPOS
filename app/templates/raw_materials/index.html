@@ -282,6 +282,15 @@
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             
+                                            <!-- PERBAIKAN: Stock Update Button -->
+                                            <button type="button" class="btn btn-outline-info" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#stockModal{{ material.id }}"
+                                                    title="Update Stok"
+                                                    style="--btn-color: var(--info-color)">
+                                                <i class="fas fa-plus-minus"></i>
+                                            </button>
+                                            
                                             <!-- Toggle Status Button -->
                                             <form method="POST" 
                                                   action="{{ url_for('raw_materials.toggle_status', raw_material_id=material.id) }}"
@@ -320,7 +329,14 @@
                                             </button>
                                             {% endif %}
 
-                                        <!-- Stock Update Modal -->
+                                            <!-- PERBAIKAN: Stock History Button -->
+                                            <a href="{{ url_for('raw_materials.stock_history', raw_material_id=material.id) }}" 
+                                               class="btn btn-outline-secondary" title="Riwayat Stok">
+                                                <i class="fas fa-history"></i>
+                                            </a>
+                                        </div>
+
+                                        <!-- PERBAIKAN: Enhanced Stock Update Modal -->
                                         <div class="modal fade" id="stockModal{{ material.id }}" tabindex="-1">
                                             <div class="modal-dialog">
                                                 <div class="modal-content">
@@ -329,32 +345,51 @@
                                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                     </div>
                                                     <form method="POST" 
-                                                          action="{{ url_for('raw_materials.update_stock', raw_material_id=material.id) }}">
+                                                          action="{{ url_for('raw_materials.update_stock', raw_material_id=material.id) }}"
+                                                          id="stockForm{{ material.id }}">
                                                         <div class="modal-body">
                                                             <div class="alert alert-info">
                                                                 <i class="fas fa-info-circle me-2"></i>
                                                                 Stok saat ini: <strong>{{ "%.2f"|format(material.stock_quantity) }} {{ material.unit }}</strong>
                                                             </div>
+                                                            
                                                             <div class="mb-3">
                                                                 <label class="form-label">Operasi Stok</label>
-                                                                <select name="operation" class="form-select" required>
+                                                                <select name="operation" class="form-select" required 
+                                                                        onchange="updateStockPreview('{{ material.id }}')">
+                                                                    <option value="">Pilih Operasi</option>
                                                                     <option value="add">Tambah Stok</option>
                                                                     <option value="subtract">Kurangi Stok</option>
                                                                 </select>
                                                             </div>
+                                                            
                                                             <div class="mb-3">
                                                                 <label class="form-label">Jumlah</label>
                                                                 <input type="number" name="quantity" 
                                                                        class="form-control" min="0.01" step="0.01" 
-                                                                       placeholder="0.00" required>
+                                                                       placeholder="0.00" required
+                                                                       oninput="updateStockPreview('{{ material.id }}')"
+                                                                       data-current-stock="{{ material.stock_quantity }}">
                                                                 <small class="form-text text-muted">
                                                                     Gunakan titik (.) untuk bilangan desimal
                                                                 </small>
                                                             </div>
+                                                            
+                                                            <div class="mb-3">
+                                                                <label class="form-label">Catatan</label>
+                                                                <textarea name="notes" class="form-control" rows="2" 
+                                                                         placeholder="Alasan penyesuaian stok (opsional)"></textarea>
+                                                            </div>
+                                                            
+                                                            <!-- PERBAIKAN: Stock Preview -->
+                                                            <div class="alert alert-secondary" id="stockPreview{{ material.id }}" style="display: none;">
+                                                                <strong>Preview:</strong>
+                                                                <div id="previewText{{ material.id }}"></div>
+                                                            </div>
                                                         </div>
                                                         <div class="modal-footer">
                                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                                                            <button type="submit" class="btn btn-primary">Update Stok</button>
+                                                            <button type="submit" class="btn btn-primary" id="submitBtn{{ material.id }}">Update Stok</button>
                                                         </div>
                                                     </form>
                                                 </div>
@@ -439,14 +474,89 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Confirm stock update
+// PERBAIKAN: Enhanced stock preview function
+function updateStockPreview(materialId) {
+    const form = document.getElementById(`stockForm${materialId}`);
+    const operation = form.querySelector('select[name="operation"]').value;
+    const quantityInput = form.querySelector('input[name="quantity"]');
+    const quantity = parseFloat(quantityInput.value) || 0;
+    const currentStock = parseFloat(quantityInput.dataset.currentStock) || 0;
+    const preview = document.getElementById(`stockPreview${materialId}`);
+    const previewText = document.getElementById(`previewText${materialId}`);
+    const submitBtn = document.getElementById(`submitBtn${materialId}`);
+    
+    if (operation && quantity > 0) {
+        let newStock;
+        let operationText;
+        let alertClass = 'alert-secondary';
+        
+        if (operation === 'add') {
+            newStock = currentStock + quantity;
+            operationText = `Menambah ${quantity}`;
+        } else if (operation === 'subtract') {
+            newStock = currentStock - quantity;
+            operationText = `Mengurangi ${quantity}`;
+            
+            if (newStock < 0) {
+                alertClass = 'alert-danger';
+                previewText.innerHTML = `
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Error:</strong> Stok tidak mencukupi!<br>
+                    Stok saat ini: ${currentStock.toFixed(2)}<br>
+                    Akan dikurangi: ${quantity.toFixed(2)}<br>
+                    <span class="text-danger">Hasil: ${newStock.toFixed(2)} (tidak valid)</span>
+                `;
+                preview.className = `alert ${alertClass}`;
+                preview.style.display = 'block';
+                submitBtn.disabled = true;
+                return;
+            }
+        }
+        
+        previewText.innerHTML = `
+            ${operationText}<br>
+            Stok sebelum: ${currentStock.toFixed(2)}<br>
+            Stok setelah: <strong>${newStock.toFixed(2)}</strong>
+        `;
+        
+        preview.className = `alert ${alertClass}`;
+        preview.style.display = 'block';
+        submitBtn.disabled = false;
+    } else {
+        preview.style.display = 'none';
+        submitBtn.disabled = false;
+    }
+}
+
+// Confirm stock update with enhanced validation
 document.querySelectorAll('form[action*="update_stock"]').forEach(form => {
     form.addEventListener('submit', function(e) {
         const operation = this.querySelector('select[name="operation"]').value;
         const quantity = parseFloat(this.querySelector('input[name="quantity"]').value);
-        const action = operation === 'add' ? 'menambah' : 'mengurangi';
+        const currentStock = parseFloat(this.querySelector('input[name="quantity"]').dataset.currentStock);
         
-        if (!confirm(`Apakah Anda yakin ingin ${action} stok sebanyak ${quantity}?`)) {
+        if (!operation) {
+            e.preventDefault();
+            alert('Pilih jenis operasi stok!');
+            return;
+        }
+        
+        if (!quantity || quantity <= 0) {
+            e.preventDefault();
+            alert('Masukkan jumlah yang valid!');
+            return;
+        }
+        
+        if (operation === 'subtract' && quantity > currentStock) {
+            e.preventDefault();
+            alert(`Stok tidak mencukupi! Stok saat ini: ${currentStock.toFixed(2)}`);
+            return;
+        }
+        
+        const action = operation === 'add' ? 'menambah' : 'mengurangi';
+        const newStock = operation === 'add' ? currentStock + quantity : currentStock - quantity;
+        
+        if (!confirm(`Apakah Anda yakin ingin ${action} stok sebanyak ${quantity.toFixed(2)}?\n\nStok akan berubah dari ${currentStock.toFixed(2)} menjadi ${newStock.toFixed(2)}`)) {
             e.preventDefault();
         }
     });

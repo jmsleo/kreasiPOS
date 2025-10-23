@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Riwayat Stok - {{ raw_material.name }} - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-history me-2"></i>Riwayat Stok
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('raw_materials.index') }}">
+                            <i class="fas fa-boxes me-1"></i>Bahan Baku
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">{{ raw_material.name }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('raw_materials.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali
+            </a>
+        </div>
+    </div>
+
+    <!-- Material Info -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-info-circle me-2"></i>Informasi Bahan Baku
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Nama:</strong><br>
+                            {{ raw_material.name }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>SKU:</strong><br>
+                            {{ raw_material.sku or '-' }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Unit:</strong><br>
+                            {{ raw_material.unit }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Stok Saat Ini:</strong><br>
+                            <span class="{% if raw_material.is_low_stock() %}text-warning{% else %}text-success{% endif %}">
+                                {{ "%.2f"|format(raw_material.stock_quantity) }} {{ raw_material.unit }}
+                            </span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Status:</strong><br>
+                            {% if raw_material.is_active %}
+                            <span class="badge bg-success">Aktif</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Non-aktif</span>
+                            {% endif %}
+                            {% if raw_material.is_low_stock() %}
+                            <span class="badge bg-warning">Stok Rendah</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock History -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-list me-2"></i>Riwayat Perubahan Stok
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if adjustments %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Jenis</th>
+                                    <th>Stok Sebelum</th>
+                                    <th>Perubahan</th>
+                                    <th>Stok Setelah</th>
+                                    <th>Alasan</th>
+                                    <th>User</th>
+                                    <th>Catatan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for adjustment in adjustments %}
+                                <tr>
+                                    <td>
+                                        <small>{{ adjustment.created_at.strftime('%d/%m/%Y %H:%M') }}</small>
+                                    </td>
+                                    <td>
+                                        {% if adjustment.adjustment_type == 'edit' %}
+                                        <span class="badge bg-info">Edit</span>
+                                        {% elif adjustment.adjustment_type == 'manual_add' %}
+                                        <span class="badge bg-success">Tambah Manual</span>
+                                        {% elif adjustment.adjustment_type == 'manual_subtract' %}
+                                        <span class="badge bg-warning">Kurang Manual</span>
+                                        {% elif adjustment.adjustment_type == 'sale' %}
+                                        <span class="badge bg-danger">Penjualan</span>
+                                        {% elif adjustment.adjustment_type == 'refund' %}
+                                        <span class="badge bg-primary">Refund</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ adjustment.adjustment_type|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="text-muted">{{ "%.2f"|format(adjustment.quantity_before) }}</span>
+                                    </td>
+                                    <td>
+                                        {% if adjustment.quantity_changed > 0 %}
+                                        <span class="text-success">+{{ "%.2f"|format(adjustment.quantity_changed) }}</span>
+                                        {% elif adjustment.quantity_changed < 0 %}
+                                        <span class="text-danger">{{ "%.2f"|format(adjustment.quantity_changed) }}</span>
+                                        {% else %}
+                                        <span class="text-muted">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ "%.2f"|format(adjustment.quantity_after) }}</strong>
+                                    </td>
+                                    <td>
+                                        <small>{{ adjustment.reason or '-' }}</small>
+                                    </td>
+                                    <td>
+                                        <small>{{ adjustment.user.username if adjustment.user else '-' }}</small>
+                                    </td>
+                                    <td>
+                                        <small>{{ adjustment.notes or '-' }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Belum ada riwayat perubahan stok</h5>
+                        <p class="text-muted">Riwayat akan muncul setelah ada perubahan stok.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,5 +1,5 @@
 from app import db
-from app.models import RawMaterial
+from app.models import RawMaterial, StockAdjustment
 from flask import current_app
 from sqlalchemy import or_
 from typing import List, Optional, Dict, Any
@@ -116,12 +116,13 @@ class RawMaterialService:
             return f"RM-{str(uuid.uuid4())[:8].upper()}"
     
     @staticmethod
-    def update_raw_material(raw_material_id: str, **kwargs) -> RawMaterial:
+    def update_raw_material(raw_material_id: str, user_id: str = None, **kwargs) -> RawMaterial:
         """
-        Update existing raw material
+        Update existing raw material with proper stock tracking
         
         Args:
             raw_material_id (str): Raw material ID
+            user_id (str): User performing the update
             **kwargs: Fields to update
             
         Returns:
@@ -132,11 +133,30 @@ class RawMaterialService:
             if not raw_material:
                 raise ValueError("Raw material not found")
             
+            # Store original stock for comparison
+            original_stock = raw_material.stock_quantity or 0.0
+            
             # PERBAIKAN: Handle float conversions and validations
             if 'stock_quantity' in kwargs and kwargs['stock_quantity'] is not None:
-                kwargs['stock_quantity'] = float(kwargs['stock_quantity'])
-                if kwargs['stock_quantity'] < 0:
+                new_stock = float(kwargs['stock_quantity'])
+                if new_stock < 0:
                     raise ValueError("Stock quantity cannot be negative")
+                
+                # PERBAIKAN: Track stock changes when editing
+                if new_stock != original_stock and user_id:
+                    stock_change = new_stock - original_stock
+                    RawMaterialService._create_stock_adjustment(
+                        raw_material_id=raw_material_id,
+                        user_id=user_id,
+                        adjustment_type='edit',
+                        quantity_before=original_stock,
+                        quantity_after=new_stock,
+                        quantity_changed=stock_change,
+                        reason='Manual edit via form',
+                        notes=f'Stock updated from {original_stock} to {new_stock}'
+                    )
+                
+                kwargs['stock_quantity'] = new_stock
             
             if 'stock_alert' in kwargs and kwargs['stock_alert'] is not None:
                 kwargs['stock_alert'] = float(kwargs['stock_alert'])
@@ -175,6 +195,52 @@ class RawMaterialService:
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Error updating raw material: {str(e)}")
+            raise
+    
+    @staticmethod
+    def _create_stock_adjustment(raw_material_id: str, user_id: str, adjustment_type: str,
+                               quantity_before: float, quantity_after: float, quantity_changed: float,
+                               reason: str = None, notes: str = None) -> StockAdjustment:
+        """
+        Create stock adjustment record for tracking
+        
+        Args:
+            raw_material_id (str): Raw material ID
+            user_id (str): User ID
+            adjustment_type (str): Type of adjustment
+            quantity_before (float): Stock before change
+            quantity_after (float): Stock after change
+            quantity_changed (float): Amount changed
+            reason (str): Reason for adjustment
+            notes (str): Additional notes
+            
+        Returns:
+            StockAdjustment: Created adjustment record
+        """
+        try:
+            raw_material = RawMaterial.query.get(raw_material_id)
+            if not raw_material:
+                raise ValueError("Raw material not found")
+            
+            adjustment = StockAdjustment(
+                tenant_id=raw_material.tenant_id,
+                raw_material_id=raw_material_id,
+                user_id=user_id,
+                adjustment_type=adjustment_type,
+                quantity_before=quantity_before,
+                quantity_after=quantity_after,
+                quantity_changed=quantity_changed,
+                reason=reason,
+                notes=notes
+            )
+            
+            db.session.add(adjustment)
+            db.session.flush()  # Get ID without committing
+            
+            return adjustment
+            
+        except Exception as e:
+            current_app.logger.error(f"Error creating stock adjustment: {str(e)}")
             raise
     
     @staticmethod
@@ -283,14 +349,18 @@ class RawMaterialService:
             return []
     
     @staticmethod
-    def update_stock(raw_material_id: str, quantity: float, operation: str = 'add') -> RawMaterial:
+    def update_stock(raw_material_id: str, quantity: float, operation: str = 'add', 
+                    user_id: str = None, reason: str = None, notes: str = None) -> RawMaterial:
         """
-        Update raw material stock
+        Update raw material stock with proper tracking
         
         Args:
             raw_material_id (str): Raw material ID
             quantity (float): Quantity to add or subtract (support decimal)
             operation (str): 'add' or 'subtract'
+            user_id (str): User performing the operation
+            reason (str): Reason for stock update
+            notes (str): Additional notes
             
         Returns:
             RawMaterial: Updated raw material
@@ -305,23 +375,41 @@ class RawMaterialService:
             if quantity_float <= 0:
                 raise ValueError("Quantity must be positive")
             
-            current_stock = raw_material.stock_quantity or 0.0
+            original_stock = raw_material.stock_quantity or 0.0
             
             if operation == 'add':
-                new_stock = current_stock + quantity_float
+                new_stock = original_stock + quantity_float
+                stock_change = quantity_float
             elif operation == 'subtract':
-                new_stock = current_stock - quantity_float
+                new_stock = original_stock - quantity_float
                 if new_stock < 0:
-                    raise ValueError(f"Insufficient stock. Current: {current_stock}, Attempting to subtract: {quantity_float}")
+                    raise ValueError(f"Insufficient stock. Current: {original_stock}, Attempting to subtract: {quantity_float}")
+                stock_change = -quantity_float
             else:
                 raise ValueError("Invalid operation. Use 'add' or 'subtract'")
             
+            # Update stock
             raw_material.stock_quantity = new_stock
+            
+            # Create stock adjustment record if user_id provided
+            if user_id:
+                adjustment_type = f'manual_{operation}'
+                RawMaterialService._create_stock_adjustment(
+                    raw_material_id=raw_material_id,
+                    user_id=user_id,
+                    adjustment_type=adjustment_type,
+                    quantity_before=original_stock,
+                    quantity_after=new_stock,
+                    quantity_changed=stock_change,
+                    reason=reason or f'Manual {operation}',
+                    notes=notes
+                )
+            
             db.session.commit()
             
             current_app.logger.info(
                 f"Stock updated for {raw_material.name}: {operation} {quantity_float}, "
-                f"from {current_stock} to {new_stock}"
+                f"from {original_stock} to {new_stock}"
             )
             return raw_material
             
@@ -460,3 +548,24 @@ class RawMaterialService:
         except Exception as e:
             current_app.logger.error(f"Error validating stock: {str(e)}")
             return False, str(e)
+    
+    @staticmethod
+    def get_stock_adjustment_history(raw_material_id: str, limit: int = 50) -> List[StockAdjustment]:
+        """
+        Get stock adjustment history for a raw material
+        
+        Args:
+            raw_material_id (str): Raw material ID
+            limit (int): Maximum number of records to return
+            
+        Returns:
+            List[StockAdjustment]: List of stock adjustments
+        """
+        try:
+            return StockAdjustment.query.filter_by(
+                raw_material_id=raw_material_id
+            ).order_by(StockAdjustment.created_at.desc()).limit(limit).all()
+            
+        except Exception as e:
+            current_app.logger.error(f"Error getting stock adjustment history: {str(e)}")
+            return []

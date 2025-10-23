@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Buat Refund - {{ sale.receipt_number }} - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-undo me-2"></i>Buat Refund
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('sales.refunds_index') }}">
+                            <i class="fas fa-undo me-1"></i>Refund
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('sales.search_refundable_sales') }}">Cari Transaksi</a>
+                    </li>
+                    <li class="breadcrumb-item active">{{ sale.receipt_number }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('sales.search_refundable_sales') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Sale Information -->
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-receipt me-2"></i>Informasi Transaksi
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong>No. Struk:</strong><br>
+                        <span class="text-primary">{{ sale.receipt_number }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Tanggal:</strong><br>
+                        {{ sale.local_created_at.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Pelanggan:</strong><br>
+                        {% if sale.customer %}
+                        {{ sale.customer.name }}
+                        {% else %}
+                        <span class="text-muted">Walk-in Customer</span>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Kasir:</strong><br>
+                        {{ sale.user.username }}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Total Transaksi:</strong><br>
+                        <span class="text-success h5">Rp {{ "{:,.2f}".format(sale.total_amount) }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Dapat Direfund:</strong><br>
+                        <span class="text-info h5">Rp {{ "{:,.2f}".format(sale.get_refundable_amount()) }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Metode Pembayaran:</strong><br>
+                        <span class="badge bg-secondary">
+                            {% if sale.payment_method == 'cash' %}Tunai
+                            {% elif sale.payment_method == 'card' %}Kartu
+                            {% elif sale.payment_method == 'transfer' %}Transfer
+                            {% else %}{{ sale.payment_method|title }}{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Refund Summary -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-success">
+                        <i class="fas fa-calculator me-2"></i>Ringkasan Refund
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <strong>Total Item Refund:</strong>
+                        <span id="total-items" class="float-end">0</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Total Qty Refund:</strong>
+                        <span id="total-quantity" class="float-end">0</span>
+                    </div>
+                    <hr>
+                    <div class="mb-0">
+                        <strong class="text-success">Total Nilai Refund:</strong>
+                        <span id="total-refund-amount" class="float-end text-success h6">Rp 0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Refund Form -->
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-edit me-2"></i>Form Refund
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('sales.create_refund', sale_id=sale.id) }}" id="refund-form">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Items to Refund -->
+                        <div class="mb-4">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-boxes me-2"></i>Pilih Item untuk Refund
+                            </h6>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Produk</th>
+                                            <th>Harga Satuan</th>
+                                            <th>Qty Asli</th>
+                                            <th>Sudah Direfund</th>
+                                            <th>Dapat Direfund</th>
+                                            <th>Qty Refund</th>
+                                            <th>Total Refund</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in sale.items %}
+                                        {% set refundable_qty = item.get_refundable_quantity() %}
+                                        {% if refundable_qty > 0 %}
+                                        <tr data-item-id="{{ item.id }}" data-unit-price="{{ item.unit_price }}">
+                                            <td>
+                                                <strong>{{ item.product.name }}</strong>
+                                                {% if item.product.sku %}
+                                                <br><small class="text-muted">SKU: {{ item.product.sku }}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                Rp {{ "{:,.2f}".format(item.unit_price) }}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">{{ item.quantity }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-warning">{{ item.get_refunded_quantity() }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-success">{{ refundable_qty }}</span>
+                                            </td>
+                                            <td>
+                                                <input type="number" 
+                                                       name="refund_quantity_{{ item.id }}" 
+                                                       class="form-control refund-quantity-input" 
+                                                       min="0" 
+                                                       max="{{ refundable_qty }}" 
+                                                       value="0"
+                                                       data-item-id="{{ item.id }}">
+                                            </td>
+                                            <td>
+                                                <span class="refund-item-total text-success" data-item-id="{{ item.id }}">
+                                                    Rp 0
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Refund Details -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="refund_reason" class="form-label required">
+                                        <i class="fas fa-question-circle me-1"></i>Alasan Refund
+                                    </label>
+                                    {{ form.refund_reason(class="form-select") }}
+                                    {% if form.refund_reason.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.refund_reason.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label for="notes" class="form-label">
+                                <i class="fas fa-sticky-note me-1"></i>Catatan Tambahan
+                            </label>
+                            {{ form.notes(class="form-control", rows="3", placeholder="Catatan tambahan tentang refund (opsional)") }}
+                            {% if form.notes.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.notes.errors %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('sales.search_refundable_sales') }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Batal
+                            </a>
+                            <div>
+                                <button type="submit" class="btn btn-success" id="submit-refund" disabled>
+                                    <i class="fas fa-undo me-2"></i>Buat Refund
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const refundQuantityInputs = document.querySelectorAll('.refund-quantity-input');
+    const submitButton = document.getElementById('submit-refund');
+    
+    // Function to update refund calculations
+    function updateRefundCalculations() {
+        let totalItems = 0;
+        let totalQuantity = 0;
+        let totalRefundAmount = 0;
+        
+        refundQuantityInputs.forEach(input => {
+            const itemId = input.dataset.itemId;
+            const quantity = parseInt(input.value) || 0;
+            const unitPrice = parseFloat(input.closest('tr').dataset.unitPrice);
+            const itemTotal = quantity * unitPrice;
+            
+            // Update item total display
+            const itemTotalSpan = document.querySelector(`[data-item-id="${itemId}"].refund-item-total`);
+            if (itemTotalSpan) {
+                itemTotalSpan.textContent = `Rp ${itemTotal.toLocaleString('id-ID', {minimumFractionDigits: 2})}`;
+            }
+            
+            if (quantity > 0) {
+                totalItems++;
+                totalQuantity += quantity;
+                totalRefundAmount += itemTotal;
+            }
+        });
+        
+        // Update summary
+        document.getElementById('total-items').textContent = totalItems;
+        document.getElementById('total-quantity').textContent = totalQuantity;
+        document.getElementById('total-refund-amount').textContent = 
+            `Rp ${totalRefundAmount.toLocaleString('id-ID', {minimumFractionDigits: 2})}`;
+        
+        // Enable/disable submit button
+        submitButton.disabled = totalItems === 0;
+    }
+    
+    // Add event listeners to quantity inputs
+    refundQuantityInputs.forEach(input => {
+        input.addEventListener('input', updateRefundCalculations);
+        input.addEventListener('change', function() {
+            const max = parseInt(this.max);
+            const value = parseInt(this.value) || 0;
+            
+            if (value > max) {
+                this.value = max;
+                updateRefundCalculations();
+            }
+        });
+    });
+    
+    // Form validation
+    document.getElementById('refund-form').addEventListener('submit', function(e) {
+        let hasRefundItems = false;
+        
+        refundQuantityInputs.forEach(input => {
+            if (parseInt(input.value) > 0) {
+                hasRefundItems = true;
+            }
+        });
+        
+        if (!hasRefundItems) {
+            e.preventDefault();
+            alert('Pilih minimal satu item untuk direfund.');
+            return false;
+        }
+        
+        const totalRefundAmount = parseFloat(document.getElementById('total-refund-amount').textContent.replace(/[^\d.-]/g, ''));
+        const maxRefundable = {{ sale.get_refundable_amount() }};
+        
+        if (totalRefundAmount > maxRefundable) {
+            e.preventDefault();
+            alert(`Total refund (${totalRefundAmount.toLocaleString('id-ID')}) melebihi jumlah yang dapat direfund (${maxRefundable.toLocaleString('id-ID')})`);
+            return false;
+        }
+        
+        return confirm('Apakah Anda yakin ingin membuat refund ini?');
+    });
+    
+    // Initialize calculations
+    updateRefundCalculations();
+});
+</script>
+{% endblock %}

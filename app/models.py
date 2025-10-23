@@ -249,6 +249,30 @@ class Product(db.Model):
     # Relationships
     sale_items = db.relationship('SaleItem', backref='product', lazy='dynamic')
     bom_headers = db.relationship('BOMHeader', backref='product', lazy='dynamic')
+
+    def get_active_bom(self):
+        """Get active BOM for this product"""
+        return BOMHeader.query.filter_by(
+            product_id=self.id,
+            is_active=True
+        ).first()
+    
+    def get_bom_history(self):
+        """Get all BOMs for this product"""
+        return BOMHeader.query.filter_by(
+            product_id=self.id
+        ).order_by(
+            BOMHeader.is_active.desc(),
+            BOMHeader.created_at.desc()
+        ).all()
+    
+    def has_active_bom(self):
+        """Check if product has active BOM"""
+        return self.get_active_bom() is not None
+    
+    def create_new_bom_version(self, items_data, notes=None):
+        """Create new BOM version for this product"""
+        return BOMHeader.create_new_version(self.id, items_data, notes)
     
     def calculate_bom_cost(self):
         """Calculate total cost based on active BOM with decimal precision"""
@@ -358,6 +382,8 @@ class Product(db.Model):
             .scalar() or 0
 
 # NEW MODEL: BOM Header
+# Di class BOMHeader, tambahkan method berikut:
+
 class BOMHeader(db.Model):
     __tablename__ = 'bom_headers'
     
@@ -372,28 +398,95 @@ class BOMHeader(db.Model):
     items = db.relationship('BOMItem', backref='bom_header', lazy='dynamic', cascade='all, delete-orphan')
     
     def calculate_total_cost(self):
-        """Calculate total cost of all raw materials in this BOM with decimal precision"""
-        total_cost = Decimal('0')
+        """Calculate total cost of all raw materials in this BOM"""
+        total_cost = 0
         for item in self.items:
             if item.raw_material and item.raw_material.cost_price:
-                item_quantity = Decimal(str(item.quantity))
-                item_cost = Decimal(str(item.raw_material.cost_price))
-                total_cost += item_quantity * item_cost
-        
-        # Round to 6 decimal places and return as float
-        return float(total_cost.quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP))
+                total_cost += (item.quantity * item.raw_material.cost_price)
+        return total_cost
     
     def validate_availability(self, quantity=1):
-        """Validate if all raw materials are available for production with decimal precision"""
+        """Validate if all raw materials are available for production"""
         for item in self.items:
-            bom_quantity = Decimal(str(item.quantity))
-            product_quantity = Decimal(str(quantity))
-            required_quantity = bom_quantity * product_quantity
-            
-            current_stock = Decimal(str(item.raw_material.stock_quantity or 0))
-            if current_stock < required_quantity:
-                return False, f"Insufficient {item.raw_material.name}: need {required_quantity}, have {current_stock}"
+            required_quantity = item.quantity * quantity
+            if item.raw_material.stock_quantity < required_quantity:
+                return False, f"Insufficient {item.raw_material.name}: need {required_quantity}, have {item.raw_material.stock_quantity}"
         return True, "All materials available"
+    
+    # **TAMBAHKAN METHOD BARU INI:**
+    def set_as_active(self):
+        """Set this BOM as active and deactivate all other BOMs for the same product"""
+        try:
+            # Deactivate all other BOMs for this product
+            BOMHeader.query.filter(
+                BOMHeader.product_id == self.product_id,
+                BOMHeader.id != self.id
+            ).update({'is_active': False})
+            
+            # Activate this BOM
+            self.is_active = True
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            raise e
+    
+    @classmethod
+    def get_active_bom(cls, product_id):
+        """Get active BOM for a product"""
+        return cls.query.filter_by(
+            product_id=product_id,
+            is_active=True
+        ).first()
+    
+    @classmethod
+    def get_bom_history(cls, product_id):
+        """Get all BOMs for a product ordered by activity and date"""
+        return cls.query.filter_by(
+            product_id=product_id
+        ).order_by(
+            cls.is_active.desc(),
+            cls.created_at.desc()
+        ).all()
+    
+    @classmethod
+    def create_new_version(cls, product_id, items_data, notes=None):
+        """Create new BOM version and auto-deactivate old ones"""
+        try:
+            # Get current active BOM to determine next version
+            current_active = cls.get_active_bom(product_id)
+            next_version = (current_active.version + 1) if current_active else 1
+            
+            # Deactivate all existing BOMs
+            cls.query.filter_by(product_id=product_id).update({'is_active': False})
+            
+            # Create new BOM
+            new_bom = cls(
+                product_id=product_id,
+                version=next_version,
+                is_active=True,
+                notes=notes
+            )
+            db.session.add(new_bom)
+            db.session.flush()  # Get ID without committing
+            
+            # Create BOM items
+            for item_data in items_data:
+                bom_item = BOMItem(
+                    bom_header_id=new_bom.id,
+                    raw_material_id=item_data['raw_material_id'],
+                    quantity=item_data['quantity'],
+                    unit=item_data.get('unit', ''),
+                    notes=item_data.get('notes', '')
+                )
+                db.session.add(bom_item)
+            
+            db.session.commit()
+            return new_bom
+            
+        except Exception as e:
+            db.session.rollback()
+            raise e
 
 # NEW MODEL: BOM Items
 class BOMItem(db.Model):
@@ -480,11 +573,21 @@ class Sale(db.Model):
     # Relationships
     user = db.relationship('User', backref='sales')
     items = db.relationship('SaleItem', backref='sale', lazy='dynamic', cascade='all, delete-orphan')
+    refunds = db.relationship('Refund', backref='original_sale', lazy='dynamic', cascade='all, delete-orphan')
     
     def calculate_totals(self):
         """Calculate totals from sale items"""
         subtotal = sum(item.total_price for item in self.items)
         self.total_amount = subtotal + self.tax_amount - self.discount_amount
+
+    def get_refundable_amount(self):
+        """Calculate remaining refundable amount"""
+        total_refunded = sum(refund.refund_amount for refund in self.refunds if refund.status == 'completed')
+        return self.total_amount - total_refunded
+
+    def can_be_refunded(self):
+        """Check if sale can still be refunded"""
+        return self.get_refundable_amount() > 0 and self.payment_status == 'completed'
 
 class SaleItem(db.Model):
     __tablename__ = 'sale_items'
@@ -498,9 +601,120 @@ class SaleItem(db.Model):
     sale_id = db.Column(db.String(36), db.ForeignKey('sales.id'), nullable=False)
     product_id = db.Column(db.String(36), db.ForeignKey('products.id'), nullable=False)
     
+    # Relationships
+    refund_items = db.relationship('RefundItem', backref='original_sale_item', lazy='dynamic')
+    
     @property
     def product_name(self):
         return self.product.name
+
+    def get_refunded_quantity(self):
+        """Get total quantity already refunded for this item"""
+        return sum(refund_item.quantity for refund_item in self.refund_items 
+                  if refund_item.refund.status == 'completed')
+
+    def get_refundable_quantity(self):
+        """Get remaining refundable quantity"""
+        return self.quantity - self.get_refunded_quantity()
+
+    def can_be_refunded(self):
+        """Check if this item can still be refunded"""
+        return self.get_refundable_quantity() > 0
+
+# NEW MODEL: Refund
+class RefundStatus(Enum):
+    PENDING = 'pending'
+    COMPLETED = 'completed'
+    CANCELLED = 'cancelled'
+
+class Refund(db.Model):
+    __tablename__ = 'refunds'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    refund_number = db.Column(db.String(50), unique=True, nullable=False)
+    refund_amount = db.Column(db.Float, nullable=False)
+    refund_reason = db.Column(db.String(200))
+    notes = db.Column(db.Text)
+    status = db.Column(db.Enum(RefundStatus), default=RefundStatus.PENDING)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    processed_at = db.Column(db.DateTime)
+    
+    # Foreign keys
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=False)
+    original_sale_id = db.Column(db.String(36), db.ForeignKey('sales.id'), nullable=False)
+    processed_by = db.Column(db.String(36), db.ForeignKey('users.id'))
+    
+    # Relationships
+    processor = db.relationship('User', backref='processed_refunds')
+    items = db.relationship('RefundItem', backref='refund', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def process_refund(self):
+        """Process the refund and restore inventory"""
+        if self.status != RefundStatus.PENDING:
+            raise ValueError("Refund has already been processed")
+        
+        try:
+            # Process each refund item
+            for refund_item in self.items:
+                # Restore product stock if tracking is enabled
+                product = refund_item.original_sale_item.product
+                
+                if product.requires_stock_tracking and not product.has_bom:
+                    # Restore regular product stock
+                    product.stock_quantity += refund_item.quantity
+                elif product.has_bom:
+                    # Restore raw materials based on BOM
+                    active_bom = product.get_active_bom()
+                    if active_bom:
+                        for bom_item in active_bom.items:
+                            if bom_item.raw_material:
+                                # Calculate quantity to restore
+                                restore_quantity = bom_item.quantity * refund_item.quantity
+                                bom_item.raw_material.update_stock(restore_quantity)
+            
+            # Update refund status
+            self.status = RefundStatus.COMPLETED
+            self.processed_at = utc_now()
+            
+            return True
+            
+        except Exception as e:
+            raise e
+
+# NEW MODEL: Refund Item
+class RefundItem(db.Model):
+    __tablename__ = 'refund_items'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False)
+    total_price = db.Column(db.Float, nullable=False)
+    
+    # Foreign keys
+    refund_id = db.Column(db.String(36), db.ForeignKey('refunds.id'), nullable=False)
+    original_sale_item_id = db.Column(db.String(36), db.ForeignKey('sale_items.id'), nullable=False)
+
+# NEW MODEL: Stock Adjustment History
+class StockAdjustment(db.Model):
+    __tablename__ = 'stock_adjustments'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    adjustment_type = db.Column(db.String(20), nullable=False)  # 'edit', 'manual_add', 'manual_subtract', 'sale', 'refund'
+    quantity_before = db.Column(db.Float, nullable=False)
+    quantity_after = db.Column(db.Float, nullable=False)
+    quantity_changed = db.Column(db.Float, nullable=False)
+    reason = db.Column(db.String(200))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    
+    # Foreign keys
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=False)
+    raw_material_id = db.Column(db.String(36), db.ForeignKey('raw_materials.id'), nullable=False)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    
+    # Relationships
+    raw_material = db.relationship('RawMaterial', backref='stock_adjustments')
+    user = db.relationship('User', backref='stock_adjustments')
 
 @login_manager.user_loader
 def load_user(user_id):

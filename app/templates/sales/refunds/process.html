@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Proses Refund - {{ refund.refund_number }} - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-check me-2"></i>Proses Refund
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('sales.refunds_index') }}">
+                            <i class="fas fa-undo me-1"></i>Refund
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('sales.view_refund', refund_id=refund.id) }}">{{ refund.refund_number }}</a>
+                    </li>
+                    <li class="breadcrumb-item active">Proses</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('sales.view_refund', refund_id=refund.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali
+            </a>
+        </div>
+    </div>
+
+    {% if refund.status.value != 'pending' %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Perhatian!</strong> Refund ini sudah diproses dengan status: 
+        <strong>{{ refund.status.value|title }}</strong>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Refund Summary -->
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-info-circle me-2"></i>Ringkasan Refund
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong>No. Refund:</strong><br>
+                        <span class="text-primary h6">{{ refund.refund_number }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Transaksi Asli:</strong><br>
+                        <a href="{{ url_for('sales.view_sale', sale_id=refund.original_sale_id) }}" 
+                           class="text-decoration-none">
+                            {{ refund.original_sale.receipt_number }}
+                        </a>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Tanggal Dibuat:</strong><br>
+                        {{ refund.local_created_at.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Total Refund:</strong><br>
+                        <span class="text-success h5">Rp {{ "{:,.2f}".format(refund.refund_amount) }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Alasan:</strong><br>
+                        <span class="badge bg-secondary">
+                            {% if refund.refund_reason == 'defective' %}Produk Rusak/Cacat
+                            {% elif refund.refund_reason == 'wrong_item' %}Barang Salah
+                            {% elif refund.refund_reason == 'customer_request' %}Permintaan Pelanggan
+                            {% elif refund.refund_reason == 'expired' %}Produk Kadaluarsa
+                            {% elif refund.refund_reason == 'damaged_shipping' %}Rusak saat Pengiriman
+                            {% else %}Lainnya{% endif %}
+                        </span>
+                    </div>
+                    {% if refund.notes %}
+                    <div class="mb-3">
+                        <strong>Catatan:</strong><br>
+                        <small class="text-muted">{{ refund.notes }}</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Impact Analysis -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Dampak Proses Refund
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Yang akan terjadi jika refund diproses:</strong>
+                    </div>
+                    
+                    <ul class="list-unstyled">
+                        {% for item in refund.items %}
+                        {% set product = item.original_sale_item.product %}
+                        <li class="mb-2">
+                            <i class="fas fa-box text-primary me-2"></i>
+                            <strong>{{ product.name }}</strong>
+                            <br>
+                            <small class="text-muted ms-4">
+                                {% if product.requires_stock_tracking and not product.has_bom %}
+                                • Stok produk akan bertambah {{ item.quantity }}
+                                {% elif product.has_bom %}
+                                • Stok bahan baku akan dikembalikan sesuai BOM
+                                {% else %}
+                                • Tidak ada perubahan stok (tracking disabled)
+                                {% endif %}
+                            </small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <small><strong>Peringatan:</strong> Proses ini tidak dapat dibatalkan setelah dikonfirmasi!</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Process Form -->
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-edit me-2"></i>Form Proses Refund
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <!-- Refund Items Detail -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-boxes me-2"></i>Item yang Akan Direfund
+                        </h6>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Produk</th>
+                                        <th>Harga Satuan</th>
+                                        <th>Qty Refund</th>
+                                        <th>Total Refund</th>
+                                        <th>Dampak Stok</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in refund.items %}
+                                    {% set product = item.original_sale_item.product %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ product.name }}</strong>
+                                            {% if product.sku %}
+                                            <br><small class="text-muted">SKU: {{ product.sku }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            Rp {{ "{:,.2f}".format(item.unit_price) }}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">{{ item.quantity }}</span>
+                                        </td>
+                                        <td>
+                                            <strong class="text-success">Rp {{ "{:,.2f}".format(item.total_price) }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if product.requires_stock_tracking and not product.has_bom %}
+                                            <span class="badge bg-success">+{{ item.quantity }} stok</span>
+                                            {% elif product.has_bom %}
+                                            <span class="badge bg-info">Restore BOM</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">No tracking</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <th colspan="3" class="text-end">Total Refund:</th>
+                                        <th colspan="2">
+                                            <strong class="text-success h6">Rp {{ "{:,.2f}".format(refund.refund_amount) }}</strong>
+                                        </th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Action Form -->
+                    {% if refund.status.value == 'pending' %}
+                    <form method="POST" action="{{ url_for('sales.process_refund', refund_id=refund.id) }}" id="process-form">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="action" class="form-label required">
+                                        <i class="fas fa-cog me-1"></i>Pilih Aksi
+                                    </label>
+                                    {{ form.action(class="form-select") }}
+                                    {% if form.action.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.action.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label for="admin_notes" class="form-label">
+                                <i class="fas fa-sticky-note me-1"></i>Catatan Admin/Manager
+                            </label>
+                            {{ form.admin_notes(class="form-control", rows="3", placeholder="Catatan tambahan dari admin/manager (opsional)") }}
+                            {% if form.admin_notes.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.admin_notes.errors %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('sales.view_refund', refund_id=refund.id) }}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Batal
+                            </a>
+                            <div>
+                                <button type="submit" class="btn btn-success" id="submit-process">
+                                    <i class="fas fa-check me-2"></i>Konfirmasi Proses
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Refund ini sudah diproses dan tidak dapat diubah lagi.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('process-form');
+    const actionSelect = document.getElementById('action');
+    const submitButton = document.getElementById('submit-process');
+    
+    if (form && actionSelect && submitButton) {
+        // Update button text and style based on action
+        function updateSubmitButton() {
+            const action = actionSelect.value;
+            
+            if (action === 'process') {
+                submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Proses Refund';
+                submitButton.className = 'btn btn-success';
+            } else if (action === 'cancel') {
+                submitButton.innerHTML = '<i class="fas fa-times me-2"></i>Batalkan Refund';
+                submitButton.className = 'btn btn-danger';
+            } else {
+                submitButton.innerHTML = '<i class="fas fa-check me-2"></i>Konfirmasi Proses';
+                submitButton.className = 'btn btn-success';
+            }
+        }
+        
+        actionSelect.addEventListener('change', updateSubmitButton);
+        updateSubmitButton(); // Initialize
+        
+        // Form validation and confirmation
+        form.addEventListener('submit', function(e) {
+            const action = actionSelect.value;
+            
+            if (!action) {
+                e.preventDefault();
+                alert('Pilih aksi yang akan dilakukan!');
+                return false;
+            }
+            
+            let confirmMessage = '';
+            if (action === 'process') {
+                confirmMessage = 'Apakah Anda yakin ingin MEMPROSES refund ini?\n\n' +
+                               'Tindakan ini akan:\n' +
+                               '• Mengembalikan stok produk/bahan baku\n' +
+                               '• Mengubah status refund menjadi SELESAI\n' +
+                               '• Tidak dapat dibatalkan\n\n' +
+                               'Lanjutkan?';
+            } else if (action === 'cancel') {
+                confirmMessage = 'Apakah Anda yakin ingin MEMBATALKAN refund ini?\n\n' +
+                               'Tindakan ini akan:\n' +
+                               '• Mengubah status refund menjadi DIBATALKAN\n' +
+                               '• Tidak mengembalikan stok\n' +
+                               '• Tidak dapat diubah lagi\n\n' +
+                               'Lanjutkan?';
+            }
+            
+            if (!confirm(confirmMessage)) {
+                e.preventDefault();
+                return false;
+            }
+            
+            // Disable submit button to prevent double submission
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Memproses...';
+            
+            return true;
+        });
+    }
+});
+</script>
+{% endblock %}

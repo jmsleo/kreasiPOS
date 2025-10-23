@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Detail Refund - {{ refund.refund_number }} - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-undo me-2"></i>Detail Refund
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('sales.refunds_index') }}">
+                            <i class="fas fa-undo me-1"></i>Refund
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">{{ refund.refund_number }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('sales.refunds_index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali
+            </a>
+            {% if refund.status.value == 'pending' and current_user.is_manager() %}
+            <a href="{{ url_for('sales.process_refund', refund_id=refund.id) }}" class="btn btn-success">
+                <i class="fas fa-check me-2"></i>Proses Refund
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Refund Information -->
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-info-circle me-2"></i>Informasi Refund
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong>No. Refund:</strong><br>
+                        <span class="text-primary h6">{{ refund.refund_number }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Status:</strong><br>
+                        {% if refund.status.value == 'pending' %}
+                        <span class="badge bg-warning">Pending</span>
+                        {% elif refund.status.value == 'completed' %}
+                        <span class="badge bg-success">Selesai</span>
+                        {% elif refund.status.value == 'cancelled' %}
+                        <span class="badge bg-danger">Dibatalkan</span>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Tanggal Dibuat:</strong><br>
+                        {{ refund.local_created_at.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                    {% if refund.processed_at %}
+                    <div class="mb-3">
+                        <strong>Tanggal Diproses:</strong><br>
+                        {{ refund.local_processed_at.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <strong>Total Refund:</strong><br>
+                        <span class="text-success h5">Rp {{ "{:,.2f}".format(refund.refund_amount) }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Alasan:</strong><br>
+                        <span class="badge bg-secondary">
+                            {% if refund.refund_reason == 'defective' %}Produk Rusak/Cacat
+                            {% elif refund.refund_reason == 'wrong_item' %}Barang Salah
+                            {% elif refund.refund_reason == 'customer_request' %}Permintaan Pelanggan
+                            {% elif refund.refund_reason == 'expired' %}Produk Kadaluarsa
+                            {% elif refund.refund_reason == 'damaged_shipping' %}Rusak saat Pengiriman
+                            {% else %}Lainnya{% endif %}
+                        </span>
+                    </div>
+                    {% if refund.notes %}
+                    <div class="mb-3">
+                        <strong>Catatan:</strong><br>
+                        <small class="text-muted">{{ refund.notes }}</small>
+                    </div>
+                    {% endif %}
+                    {% if refund.processor %}
+                    <div class="mb-3">
+                        <strong>Diproses Oleh:</strong><br>
+                        {{ refund.processor.username }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Original Sale Information -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-info">
+                        <i class="fas fa-receipt me-2"></i>Transaksi Asli
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong>No. Struk:</strong><br>
+                        <a href="{{ url_for('sales.view_sale', sale_id=refund.original_sale_id) }}" 
+                           class="text-decoration-none">
+                            {{ refund.original_sale.receipt_number }}
+                        </a>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Tanggal Transaksi:</strong><br>
+                        {{ refund.original_sale.created_at.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Pelanggan:</strong><br>
+                        {% if refund.original_sale.customer %}
+                        {{ refund.original_sale.customer.name }}
+                        {% else %}
+                        <span class="text-muted">Walk-in Customer</span>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Total Transaksi:</strong><br>
+                        <span class="text-success">Rp {{ "{:,.2f}".format(refund.original_sale.total_amount) }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Sisa Dapat Direfund:</strong><br>
+                        <span class="text-info">Rp {{ "{:,.2f}".format(refund.original_sale.get_refundable_amount()) }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Kasir:</strong><br>
+                        {{ refund.original_sale.user.username }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Refund Items -->
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-boxes me-2"></i>Item yang Direfund
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Produk</th>
+                                    <th>Harga Satuan</th>
+                                    <th>Qty Refund</th>
+                                    <th>Total Refund</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in refund.items %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ item.original_sale_item.product.name }}</strong>
+                                        {% if item.original_sale_item.product.sku %}
+                                        <br><small class="text-muted">SKU: {{ item.original_sale_item.product.sku }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        Rp {{ "{:,.2f}".format(item.unit_price) }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ item.quantity }}</span>
+                                    </td>
+                                    <td>
+                                        <strong class="text-success">Rp {{ "{:,.2f}".format(item.total_price) }}</strong>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <th colspan="3" class="text-end">Total Refund:</th>
+                                    <th>
+                                        <strong class="text-success h6">Rp {{ "{:,.2f}".format(refund.refund_amount) }}</strong>
+                                    </th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status History -->
+            {% if refund.status.value != 'pending' %}
+            <div class="card shadow mt-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-secondary">
+                        <i class="fas fa-history me-2"></i>Riwayat Status
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-primary"></div>
+                            <div class="timeline-content">
+                                <h6 class="timeline-title">Refund Dibuat</h6>
+                                <p class="timeline-text">{{ refund.local_created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                            </div>
+                        </div>
+                        {% if refund.processed_at %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if refund.status.value == 'completed' %}bg-success{% else %}bg-danger{% endif %}"></div>
+                            <div class="timeline-content">
+                                <h6 class="timeline-title">
+                                    {% if refund.status.value == 'completed' %}
+                                    Refund Disetujui & Diproses
+                                    {% else %}
+                                    Refund Dibatalkan
+                                    {% endif %}
+                                </h6>
+                                <p class="timeline-text">
+                                    {{ refund.local_processed_at.strftime('%d/%m/%Y %H:%M') }}
+                                    {% if refund.processor %}
+                                    oleh {{ refund.processor.username }}
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -23px;
+    top: 5px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    border-left: 3px solid #007bff;
+}
+
+.timeline-title {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.timeline-text {
+    margin: 0;
+    font-size: 13px;
+    color: #6c757d;
+}
+</style>
+{% endblock %}

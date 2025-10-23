@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+
+{% block title %}Laporan Refund - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-chart-bar me-2"></i>Laporan Refund
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('sales.refunds_index') }}">
+                            <i class="fas fa-undo me-1"></i>Refund
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">Laporan</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('sales.refunds_index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Kembali
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-filter me-2"></i>Filter Laporan
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('sales.refund_reports') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="form-group mb-3">
+                                    <label for="start_date" class="form-label">Tanggal Mulai</label>
+                                    {{ form.start_date(class="form-control") }}
+                                    {% if form.start_date.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.start_date.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group mb-3">
+                                    <label for="end_date" class="form-label">Tanggal Akhir</label>
+                                    {{ form.end_date(class="form-control") }}
+                                    {% if form.end_date.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.end_date.errors %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="form-group mb-3">
+                                    <label for="status_filter" class="form-label">Status</label>
+                                    {{ form.status_filter(class="form-select") }}
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="form-group mb-3">
+                                    <label for="reason_filter" class="form-label">Alasan</label>
+                                    {{ form.reason_filter(class="form-select") }}
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="form-group mb-3">
+                                    <label class="form-label">&nbsp;</label>
+                                    <div class="d-grid">
+                                        {{ form.submit(class="btn btn-primary") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if report_data %}
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Refund
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ report_data.stats.total_refunds }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-list fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Total Nilai
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                Rp {{ "{:,.2f}".format(report_data.stats.total_refund_amount) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-money-bill-wave fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Pending
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ report_data.stats.pending_refunds }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Selesai
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ report_data.stats.completed_refunds }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Refunds by Reason Chart -->
+    {% if report_data.stats.refunds_by_reason %}
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-pie-chart me-2"></i>Refund Berdasarkan Alasan
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Alasan</th>
+                                    <th>Jumlah</th>
+                                    <th>Total Nilai</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reason, data in report_data.stats.refunds_by_reason.items() %}
+                                <tr>
+                                    <td>
+                                        {% if reason == 'defective' %}Produk Rusak/Cacat
+                                        {% elif reason == 'wrong_item' %}Barang Salah
+                                        {% elif reason == 'customer_request' %}Permintaan Pelanggan
+                                        {% elif reason == 'expired' %}Produk Kadaluarsa
+                                        {% elif reason == 'damaged_shipping' %}Rusak saat Pengiriman
+                                        {% else %}{{ reason }}{% endif %}
+                                    </td>
+                                    <td>{{ data.count }}</td>
+                                    <td>Rp {{ "{:,.2f}".format(data.total_amount) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-chart-bar me-2"></i>Status Distribution
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="border-right">
+                                <div class="h4 mb-0 text-warning">{{ report_data.stats.pending_refunds }}</div>
+                                <div class="text-xs text-uppercase">Pending</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="border-right">
+                                <div class="h4 mb-0 text-success">{{ report_data.stats.completed_refunds }}</div>
+                                <div class="text-xs text-uppercase">Selesai</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="h4 mb-0 text-danger">{{ report_data.stats.cancelled_refunds }}</div>
+                            <div class="text-xs text-uppercase">Dibatalkan</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Detailed Refunds Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-table me-2"></i>Detail Refund
+                        <span class="text-muted">({{ report_data.start_date.strftime('%d/%m/%Y') }} - {{ report_data.end_date.strftime('%d/%m/%Y') }})</span>
+                    </h6>
+                    <button class="btn btn-sm btn-success" onclick="exportToCSV()">
+                        <i class="fas fa-download me-1"></i>Export CSV
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if report_data.refunds %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="refundsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>No. Refund</th>
+                                    <th>Tanggal</th>
+                                    <th>Transaksi Asli</th>
+                                    <th>Nilai Refund</th>
+                                    <th>Alasan</th>
+                                    <th>Status</th>
+                                    <th>Diproses Oleh</th>
+                                    <th>Tanggal Proses</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for refund in report_data.refunds %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('sales.view_refund', refund_id=refund.id) }}" 
+                                           class="text-decoration-none">
+                                            {{ refund.refund_number }}
+                                        </a>
+                                    </td>
+                                    <td>{{ refund.local_created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('sales.view_sale', sale_id=refund.original_sale_id) }}" 
+                                           class="text-decoration-none">
+                                            {{ refund.original_sale.receipt_number }}
+                                        </a>
+                                    </td>
+                                    <td>Rp {{ "{:,.2f}".format(refund.refund_amount) }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary">
+                                            {% if refund.refund_reason == 'defective' %}Produk Rusak
+                                            {% elif refund.refund_reason == 'wrong_item' %}Barang Salah
+                                            {% elif refund.refund_reason == 'customer_request' %}Permintaan Pelanggan
+                                            {% elif refund.refund_reason == 'expired' %}Kadaluarsa
+                                            {% elif refund.refund_reason == 'damaged_shipping' %}Rusak Pengiriman
+                                            {% else %}Lainnya{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if refund.status.value == 'pending' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                        {% elif refund.status.value == 'completed' %}
+                                        <span class="badge bg-success">Selesai</span>
+                                        {% elif refund.status.value == 'cancelled' %}
+                                        <span class="badge bg-danger">Dibatalkan</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if refund.processor %}
+                                        {{ refund.processor.username }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if refund.local_processed_at %}
+                                        {{ refund.local_processed_at.strftime('%d/%m/%Y %H:%M') }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Tidak ada data refund</h5>
+                        <p class="text-muted">Tidak ada refund dalam periode yang dipilih.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default dates if not set
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    
+    if (!startDateInput.value) {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+    
+    if (!endDateInput.value) {
+        const today = new Date();
+        endDateInput.value = today.toISOString().split('T')[0];
+    }
+});
+
+function exportToCSV() {
+    const table = document.getElementById('refundsTable');
+    if (!table) return;
+    
+    let csv = [];
+    const rows = table.querySelectorAll('tr');
+    
+    for (let i = 0; i < rows.length; i++) {
+        const row = [];
+        const cols = rows[i].querySelectorAll('td, th');
+        
+        for (let j = 0; j < cols.length; j++) {
+            // Get text content and clean it
+            let cellText = cols[j].textContent.trim();
+            // Escape quotes and wrap in quotes if contains comma
+            if (cellText.includes(',') || cellText.includes('"')) {
+                cellText = '"' + cellText.replace(/"/g, '""') + '"';
+            }
+            row.push(cellText);
+        }
+        csv.push(row.join(','));
+    }
+    
+    // Create and download file
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `laporan_refund_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+</script>
+{% endblock %}

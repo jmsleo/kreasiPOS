@@ -1,14 +1,15 @@
 from flask import render_template, request, redirect, send_file, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from app.sales import bp
-from app.sales.forms import SaleForm, CustomerSelectForm
-from app.models import Sale, SaleItem, Product, Customer, db
+from app.sales.forms import SaleForm, CustomerSelectForm, RefundForm, RefundSearchForm, ProcessRefundForm, RefundReportForm
+from app.models import Sale, SaleItem, Product, Customer, Refund, RefundItem, RefundStatus, db
 from app.services.bom_service import BOMService
 from app.services.inventory_service import InventoryService
+from app.services.refund_service import RefundService
 from app.middleware.tenant_middleware import tenant_required
 from app.utils.timezone import get_user_timezone, convert_utc_to_user_timezone
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import mm
@@ -480,6 +481,245 @@ def daily_report():
                          top_products=top_products,
                          start_date=start_date,
                          end_date=end_date)
+
+# --- REFUND ROUTES ---
+@bp.route('/refunds')
+@login_required
+@tenant_required
+def refunds_index():
+    """Refunds management index page"""
+    page = request.args.get('page', 1, type=int)
+    status_filter = request.args.get('status', '')
+    
+    # Get refunds with pagination
+    status_enum = None
+    if status_filter:
+        try:
+            status_enum = RefundStatus(status_filter)
+        except ValueError:
+            status_enum = None
+    
+    refunds = RefundService.get_refunds_by_tenant(
+        tenant_id=current_user.tenant_id,
+        status=status_enum,
+        page=page,
+        per_page=20
+    )
+    
+    # Convert timestamps to user timezone
+    if refunds and refunds.items:
+        for refund in refunds.items:
+            refund.local_created_at = convert_utc_to_user_timezone(refund.created_at)
+            if refund.processed_at:
+                refund.local_processed_at = convert_utc_to_user_timezone(refund.processed_at)
+    
+    # Get refund statistics
+    stats = RefundService.get_refund_statistics(current_user.tenant_id)
+    
+    return render_template('sales/refunds/index.html',
+                         refunds=refunds,
+                         status_filter=status_filter,
+                         stats=stats)
+
+@bp.route('/refunds/search', methods=['GET', 'POST'])
+@login_required
+@tenant_required
+def search_refundable_sales():
+    """Search for refundable sales"""
+    form = RefundSearchForm()
+    sales = None
+    
+    if form.validate_on_submit():
+        search_type = form.search_type.data
+        search_value = form.search_value.data
+        days_limit = int(form.days_limit.data)
+        
+        try:
+            # Get refundable sales based on search criteria
+            if search_type == 'receipt_number':
+                sale = Sale.query.filter(
+                    Sale.tenant_id == current_user.tenant_id,
+                    Sale.receipt_number.ilike(f'%{search_value}%'),
+                    Sale.payment_status == 'completed'
+                ).first()
+                
+                if sale and sale.can_be_refunded():
+                    sales = [sale]
+                else:
+                    sales = []
+                    
+            elif search_type == 'customer_name':
+                from app.models import Customer
+                sales_query = Sale.query.join(Customer).filter(
+                    Sale.tenant_id == current_user.tenant_id,
+                    Customer.name.ilike(f'%{search_value}%'),
+                    Sale.payment_status == 'completed',
+                    Sale.created_at >= datetime.utcnow() - timedelta(days=days_limit)
+                ).order_by(Sale.created_at.desc()).all()
+                
+                # Filter only refundable sales
+                sales = [sale for sale in sales_query if sale.can_be_refunded()]
+                
+            elif search_type == 'date':
+                try:
+                    search_date = datetime.strptime(search_value, '%Y-%m-%d').date()
+                    sales_query = Sale.query.filter(
+                        Sale.tenant_id == current_user.tenant_id,
+                        db.func.date(Sale.created_at) == search_date,
+                        Sale.payment_status == 'completed'
+                    ).order_by(Sale.created_at.desc()).all()
+                    
+                    # Filter only refundable sales
+                    sales = [sale for sale in sales_query if sale.can_be_refunded()]
+                    
+                except ValueError:
+                    flash('Format tanggal tidak valid. Gunakan format YYYY-MM-DD', 'danger')
+                    sales = []
+            
+            # Convert timestamps
+            if sales:
+                for sale in sales:
+                    sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
+            
+            if not sales:
+                flash('Tidak ditemukan transaksi yang dapat direfund dengan kriteria tersebut.', 'info')
+                
+        except Exception as e:
+            current_app.logger.error(f'Error searching refundable sales: {str(e)}')
+            flash('Terjadi kesalahan saat mencari transaksi.', 'danger')
+            sales = []
+    
+    return render_template('sales/refunds/search.html', form=form, sales=sales)
+
+@bp.route('/refunds/create/<sale_id>', methods=['GET', 'POST'])
+@login_required
+@tenant_required
+def create_refund(sale_id):
+    """Create a new refund for a sale"""
+    sale = Sale.query.filter_by(
+        id=sale_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    if not sale.can_be_refunded():
+        flash('Transaksi ini tidak dapat direfund.', 'danger')
+        return redirect(url_for('sales.refunds_index'))
+    
+    form = RefundForm()
+    
+    if form.validate_on_submit():
+        try:
+            # Get refund items from form data
+            refund_items_data = []
+            
+            for item in sale.items:
+                refund_qty_key = f'refund_quantity_{item.id}'
+                refund_qty = request.form.get(refund_qty_key, type=int)
+                
+                if refund_qty and refund_qty > 0:
+                    # Validate refund quantity
+                    if refund_qty > item.get_refundable_quantity():
+                        flash(f'Jumlah refund untuk {item.product.name} melebihi yang tersedia.', 'danger')
+                        return render_template('sales/refunds/create.html', form=form, sale=sale)
+                    
+                    refund_items_data.append({
+                        'sale_item_id': item.id,
+                        'quantity': refund_qty
+                    })
+            
+            if not refund_items_data:
+                flash('Pilih minimal satu item untuk direfund.', 'danger')
+                return render_template('sales/refunds/create.html', form=form, sale=sale)
+            
+            # Validate refund request
+            is_valid, error_message = RefundService.validate_refund_request(sale_id, refund_items_data)
+            if not is_valid:
+                flash(f'Validasi refund gagal: {error_message}', 'danger')
+                return render_template('sales/refunds/create.html', form=form, sale=sale)
+            
+            # Create refund
+            refund = RefundService.create_refund(
+                sale_id=sale_id,
+                refund_items=refund_items_data,
+                refund_reason=form.refund_reason.data,
+                notes=form.notes.data,
+                user_id=current_user.id
+            )
+            
+            flash(f'Refund berhasil dibuat dengan nomor: {refund.refund_number}', 'success')
+            return redirect(url_for('sales.view_refund', refund_id=refund.id))
+            
+        except Exception as e:
+            current_app.logger.error(f'Error creating refund: {str(e)}')
+            flash(f'Gagal membuat refund: {str(e)}', 'danger')
+    
+    # Convert timestamp
+    sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
+    
+    return render_template('sales/refunds/create.html', form=form, sale=sale)
+
+@bp.route('/refunds/<refund_id>')
+@login_required
+@tenant_required
+def view_refund(refund_id):
+    """View refund details"""
+    refund = Refund.query.filter_by(
+        id=refund_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    # Convert timestamps
+    refund.local_created_at = convert_utc_to_user_timezone(refund.created_at)
+    if refund.processed_at:
+        refund.local_processed_at = convert_utc_to_user_timezone(refund.processed_at)
+    
+    return render_template('sales/refunds/view.html', refund=refund)
+
+@bp.route('/refunds/<refund_id>/process', methods=['GET', 'POST'])
+@login_required
+@tenant_required
+def process_refund(refund_id):
+    """Process a pending refund"""
+    refund = Refund.query.filter_by(
+        id=refund_id,
+        tenant_id=current_user.tenant_id
+    ).first_or_404()
+    
+    if refund.status != RefundStatus.PENDING:
+        flash('Refund ini sudah diproses.', 'info')
+        return redirect(url_for('sales.view_refund', refund_id=refund_id))
+    
+    form = ProcessRefundForm()
+    form.refund_id.data = refund_id
+    
+    if form.validate_on_submit():
+        try:
+            action = form.action.data
+            
+            if action == 'process':
+                processed_refund = RefundService.process_refund(
+                    refund_id=refund_id,
+                    user_id=current_user.id
+                )
+                flash(f'Refund {processed_refund.refund_number} berhasil diproses.', 'success')
+                
+            elif action == 'cancel':
+                cancelled_refund = RefundService.cancel_refund(
+                    refund_id=refund_id,
+                    user_id=current_user.id
+                )
+                flash(f'Refund {cancelled_refund.refund_number} dibatalkan.', 'info')
+            
+            return redirect(url_for('sales.view_refund', refund_id=refund_id))
+            
+        except Exception as e:
+            current_app.logger.error(f'Error processing refund: {str(e)}')
+            flash(f'Gagal memproses refund: {str(e)}', 'danger')
+    
+    # Convert timestamp
+    refund.local_created_at = convert_utc_to_user_timezone(refund.created_at)
+    
+    return render_template('sales/refunds/process.html', form=form, refund=refund)
 
 # --- FUNGSI BARU UNTUK ROUTE PDF ---
 @bp.route('/<sale_id>/receipt/download_pdf')

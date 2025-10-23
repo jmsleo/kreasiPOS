@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block title %}Manajemen Refund - POS System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">
+                <i class="fas fa-undo me-2"></i>Manajemen Refund
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{{ url_for('sales.history') }}">
+                            <i class="fas fa-receipt me-1"></i>Penjualan
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">Refund</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ url_for('sales.search_refundable_sales') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Buat Refund Baru
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Refund
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ stats.total_refunds }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-list fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Total Nilai Refund
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                Rp {{ "{:,.2f}".format(stats.total_refund_amount) }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-money-bill-wave fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Pending
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ stats.pending_refunds }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Selesai
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ stats.completed_refunds }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter and Actions -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-filter me-2"></i>Filter & Aksi
+                    </h6>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <form method="GET" action="{{ url_for('sales.refunds_index') }}">
+                        <div class="input-group">
+                            <select name="status" class="form-select">
+                                <option value="">Semua Status</option>
+                                <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Selesai</option>
+                                <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Dibatalkan</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-md-8 text-end">
+                    <a href="{{ url_for('sales.refund_reports') }}" class="btn btn-info">
+                        <i class="fas fa-chart-bar me-2"></i>Laporan Refund
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Refunds Table -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-table me-2"></i>Daftar Refund
+            </h6>
+        </div>
+        <div class="card-body">
+            {% if refunds and refunds.items %}
+            <div class="table-responsive">
+                <table class="table table-bordered" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>No. Refund</th>
+                            <th>Transaksi Asli</th>
+                            <th>Tanggal</th>
+                            <th>Nilai Refund</th>
+                            <th>Alasan</th>
+                            <th>Status</th>
+                            <th>Diproses Oleh</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for refund in refunds.items %}
+                        <tr>
+                            <td>
+                                <strong>{{ refund.refund_number }}</strong>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('sales.view_sale', sale_id=refund.original_sale_id) }}" 
+                                   class="text-decoration-none">
+                                    {{ refund.original_sale.receipt_number }}
+                                </a>
+                            </td>
+                            <td>
+                                <small>{{ refund.local_created_at.strftime('%d/%m/%Y %H:%M') }}</small>
+                            </td>
+                            <td>
+                                <strong class="text-success">
+                                    Rp {{ "{:,.2f}".format(refund.refund_amount) }}
+                                </strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">
+                                    {% if refund.refund_reason == 'defective' %}Produk Rusak
+                                    {% elif refund.refund_reason == 'wrong_item' %}Barang Salah
+                                    {% elif refund.refund_reason == 'customer_request' %}Permintaan Pelanggan
+                                    {% elif refund.refund_reason == 'expired' %}Kadaluarsa
+                                    {% elif refund.refund_reason == 'damaged_shipping' %}Rusak Pengiriman
+                                    {% else %}Lainnya{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if refund.status.value == 'pending' %}
+                                <span class="badge bg-warning">Pending</span>
+                                {% elif refund.status.value == 'completed' %}
+                                <span class="badge bg-success">Selesai</span>
+                                {% elif refund.status.value == 'cancelled' %}
+                                <span class="badge bg-danger">Dibatalkan</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if refund.processor %}
+                                {{ refund.processor.username }}
+                                {% if refund.local_processed_at %}
+                                <br><small class="text-muted">{{ refund.local_processed_at.strftime('%d/%m/%Y %H:%M') }}</small>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('sales.view_refund', refund_id=refund.id) }}" 
+                                       class="btn btn-sm btn-outline-primary" title="Lihat Detail">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if refund.status.value == 'pending' and current_user.is_manager() %}
+                                    <a href="{{ url_for('sales.process_refund', refund_id=refund.id) }}" 
+                                       class="btn btn-sm btn-outline-success" title="Proses">
+                                        <i class="fas fa-check"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if refunds.pages > 1 %}
+            <nav aria-label="Refunds pagination">
+                <ul class="pagination justify-content-center">
+                    {% if refunds.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('sales.refunds_index', page=refunds.prev_num, status=status_filter) }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for page_num in refunds.iter_pages() %}
+                    {% if page_num %}
+                    {% if page_num != refunds.page %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('sales.refunds_index', page=page_num, status=status_filter) }}">
+                            {{ page_num }}
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    {% if refunds.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('sales.refunds_index', page=refunds.next_num, status=status_filter) }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-inbox fa-3x text-gray-300 mb-3"></i>
+                <h5 class="text-gray-600">Belum ada refund</h5>
+                <p class="text-muted">Refund akan muncul di sini setelah dibuat.</p>
+                <a href="{{ url_for('sales.search_refundable_sales') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Buat Refund Pertama
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-refresh pending refunds every 30 seconds
+    if ({{ stats.pending_refunds }} > 0) {
+        setInterval(function() {
+            if (window.location.pathname === '{{ url_for("sales.refunds_index") }}') {
+                window.location.reload();
+            }
+        }, 30000);
+    }
+});
+</script>
+{% endblock %}
