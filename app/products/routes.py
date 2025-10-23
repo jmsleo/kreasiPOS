@@ -7,6 +7,8 @@ from app.services.bom_service import BOMService
 from app.middleware.tenant_middleware import tenant_required
 from app.services.s3_service import S3Service
 from app.utils.timezone import get_user_timezone, convert_utc_to_user_timezone
+from app.services.cache_service import ProductCacheService, CacheService, InventoryCacheService
+from app.services.enhanced_inventory_service import EnhancedInventoryService
 import uuid
 
 try:
@@ -37,73 +39,81 @@ except ImportError:
                 if item.raw_material.stock_quantity < required:
                     return False, f"Insufficient {item.raw_material.name}"
             return True, "All materials available"
-        
+
 @bp.route('/')
 @login_required
 @tenant_required
 def index():
-    """Products listing page - FIXED: Include inactive products with filter"""
+    """Products listing page dengan cache"""
     search_form = ProductSearchForm()
     page = request.args.get('page', 1, type=int)
     category_id = request.args.get('category_id', '')
     search = request.args.get('search', '')
     show_inactive = request.args.get('show_inactive', False, type=bool)
     
-    # Build query - FIXED: Add option to show inactive products
-    query = Product.query.filter_by(tenant_id=current_user.tenant_id)
+    # Build cache key berdasarkan parameter
+    filters = {
+        'page': page,
+        'category_id': category_id,
+        'search': search,
+        'show_inactive': show_inactive
+    }
     
-    # Only filter by active status if not showing inactive
-    if not show_inactive:
-        query = query.filter_by(is_active=True)
+    # Coba dapatkan dari cache
+    cached_products = ProductCacheService.get_cached_product_list(current_user.tenant_id, filters)
     
-    if category_id:
-        query = query.filter_by(category_id=category_id)
-    
-    if search:
-        search_term = f"%{search}%"
-        query = query.filter(
-            db.or_(
-                Product.name.ilike(search_term),
-                Product.sku.ilike(search_term),
-                Product.barcode.ilike(search_term)
+    if cached_products is not None:
+        products = cached_products
+    else:
+        # Build query
+        query = Product.query.filter_by(tenant_id=current_user.tenant_id)
+        
+        if not show_inactive:
+            query = query.filter_by(is_active=True)
+        
+        if category_id:
+            query = query.filter_by(category_id=category_id)
+        
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Product.name.ilike(search_term),
+                    Product.sku.ilike(search_term),
+                    Product.barcode.ilike(search_term)
+                )
             )
+        
+        products = query.order_by(Product.name).paginate(
+            page=page, per_page=20, error_out=False
         )
+        
+        # Cache hasil query
+        ProductCacheService.cache_product_list(current_user.tenant_id, filters, products)
     
-    products = query.order_by(Product.name).paginate(
-        page=page, per_page=20, error_out=False
+    # Get categories dengan cache
+    categories_cache_key = CacheService.get_cache_key('categories', tenant_id=current_user.tenant_id)
+    categories = CacheService.get_or_set(
+        categories_cache_key,
+        lambda: Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all(),
+        timeout='long'
     )
     
-    # Get categories for filter
-    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all()
+    # Get inventory alerts dengan cache
+    inventory_status = EnhancedInventoryService.get_inventory_status(current_user.tenant_id)
+    low_stock_alerts = EnhancedInventoryService.get_low_stock_alerts(current_user.tenant_id)
     
-    # FIXED: Low stock query - hanya untuk products yang active dan require stock tracking
-    low_stock_products = Product.query.filter(
-        Product.tenant_id == current_user.tenant_id,
-        Product.is_active == True,  # Only active products for alerts
-        Product.requires_stock_tracking == True,
-        Product.stock_quantity <= Product.stock_alert,
-        Product.stock_quantity > 0  # Tidak termasuk yang stock 0
-    ).all()
+    # Filter alerts untuk products saja
+    low_stock_products = [alert for alert in low_stock_alerts if alert['type'] == 'product' and alert['severity'] == 'warning']
+    out_of_stock_products = [alert for alert in low_stock_alerts if alert['type'] == 'product' and alert['severity'] == 'critical']
     
-    # Out of stock products (only active)
-    out_of_stock_products = Product.query.filter(
-        Product.tenant_id == current_user.tenant_id,
-        Product.is_active == True,  # Only active products
-        Product.requires_stock_tracking == True,
-        Product.stock_quantity == 0
-    ).all()
-    
-    # Get BOM availability issues (only active products with BOM)
-    bom_issues = []
-    bom_products = Product.query.filter_by(
-        tenant_id=current_user.tenant_id,
-        is_active=True,  # Only active products
-        has_bom=True
-    ).all()
-    
-    for product in bom_products:
-        if not product.check_bom_availability():
-            bom_issues.append(product)
+    # Get BOM availability issues
+    bom_issues_cache_key = CacheService.get_cache_key('bom_issues', tenant_id=current_user.tenant_id)
+    bom_issues = CacheService.get_or_set(
+        bom_issues_cache_key,
+        lambda: _get_bom_issues(current_user.tenant_id),
+        timeout='short'
+    )
     
     return render_template('products/index.html',
                          products=products,
@@ -116,15 +126,35 @@ def index():
                          out_of_stock_products=out_of_stock_products,
                          bom_issues=bom_issues)
 
+def _get_bom_issues(tenant_id):
+    """Helper function untuk mendapatkan BOM issues"""
+    bom_products = Product.query.filter_by(
+        tenant_id=tenant_id,
+        is_active=True,
+        has_bom=True
+    ).all()
+    
+    bom_issues = []
+    for product in bom_products:
+        if not product.check_bom_availability():
+            bom_issues.append(product)
+    
+    return bom_issues
+
 @bp.route('/create', methods=['GET', 'POST'])
 @login_required
 @tenant_required
 def create():
-    """Create new product - FIXED STOCK HANDLING"""
+    """Create new product dengan cache invalidation"""
     form = ProductForm()
 
-    # Populate category choices
-    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all()
+    # Populate category choices dengan cache
+    categories_cache_key = CacheService.get_cache_key('categories', tenant_id=current_user.tenant_id)
+    categories = CacheService.get_or_set(
+        categories_cache_key,
+        lambda: Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all(),
+        timeout='long'
+    )
     form.category_id.choices = [('', 'Select Category')] + [(c.id, c.name) for c in categories]
 
     if form.validate_on_submit():
@@ -140,11 +170,10 @@ def create():
                 s3_service = S3Service()
                 image_url = s3_service.upload_product_image(form.image.data, f"product_{sku}")
 
-            # FIXED: Handle stock quantity properly
+            # Handle stock quantity properly
             stock_quantity = form.stock_quantity.data if form.requires_stock_tracking.data else 0
             stock_alert = form.stock_alert.data if form.requires_stock_tracking.data else 0
 
-            # Validate stock cannot be negative
             if stock_quantity < 0:
                 flash('Stock quantity cannot be negative.', 'danger')
                 return render_template('products/create.html', form=form)
@@ -171,12 +200,14 @@ def create():
             db.session.add(product)
             db.session.commit()
 
-            # Refresh product untuk memastikan data terbaru
-            db.session.refresh(product)
+            # Invalidate relevant caches
+            ProductCacheService.invalidate_product_cache(product.id, current_user.tenant_id)
+            CacheService.invalidate_tenant_cache(current_user.tenant_id, 'product_list')
+            CacheService.invalidate_tenant_cache(current_user.tenant_id, 'categories')
+            InventoryCacheService.invalidate_inventory_cache(current_user.tenant_id)
 
             flash(f'Product "{product.name}" has been created successfully. Stock: {product.stock_quantity}', 'success')
 
-            # If BOM is enabled, redirect to BOM configuration
             if form.has_bom.data:
                 flash('Please configure the BOM (Bill of Materials) for this product.', 'info')
                 return redirect(url_for('bom.create_bom', product_id=product.id))
@@ -194,13 +225,18 @@ def create():
 @login_required
 @tenant_required
 def edit(id):
-    """Edit existing product - FIXED STOCK HANDLING"""
+    """Edit existing product dengan cache invalidation"""
     product = Product.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
 
     form = ProductForm(obj=product)
 
-    # Populate category choices
-    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all()
+    # Populate category choices dengan cache
+    categories_cache_key = CacheService.get_cache_key('categories', tenant_id=current_user.tenant_id)
+    categories = CacheService.get_or_set(
+        categories_cache_key,
+        lambda: Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all(),
+        timeout='long'
+    )
     form.category_id.choices = [('', 'Select Category')] + [(c.id, c.name) for c in categories]
 
     if form.validate_on_submit():
@@ -232,7 +268,7 @@ def edit(id):
             product.has_bom = form.has_bom.data
             product.is_active = form.is_active.data
 
-            # FIXED: Update stock fields dengan validasi
+            # Update stock fields
             if form.requires_stock_tracking.data:
                 if form.stock_quantity.data < 0:
                     flash('Stock quantity cannot be negative.', 'danger')
@@ -241,7 +277,6 @@ def edit(id):
                 product.stock_quantity = form.stock_quantity.data
                 product.stock_alert = form.stock_alert.data
             else:
-                # Jika stock tracking dimatikan, set stock ke 0
                 product.stock_quantity = 0
                 product.stock_alert = 0
 
@@ -253,9 +288,14 @@ def edit(id):
 
             db.session.commit()
 
+            # Invalidate relevant caches
+            ProductCacheService.invalidate_product_cache(product.id, current_user.tenant_id)
+            CacheService.invalidate_tenant_cache(current_user.tenant_id, 'product_list')
+            CacheService.invalidate_tenant_cache(current_user.tenant_id, 'categories')
+            InventoryCacheService.invalidate_inventory_cache(current_user.tenant_id)
+
             flash(f'Product "{product.name}" has been updated successfully. Stock: {product.stock_quantity}', 'success')
 
-            # If BOM was just enabled and no BOM exists, redirect to BOM creation
             if form.has_bom.data and bom_status_changed and product.bom_headers.count() == 0:
                 flash('Please configure the BOM (Bill of Materials) for this product.', 'info')
                 return redirect(url_for('bom.create_bom', product_id=product.id))
@@ -285,7 +325,7 @@ def edit(id):
 @login_required
 @tenant_required
 def delete(id):
-    """Delete product"""
+    """Delete product dengan cache invalidation"""
     product = Product.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
     
     try:
@@ -303,6 +343,12 @@ def delete(id):
         db.session.delete(product)
         db.session.commit()
         
+        # Invalidate relevant caches
+        ProductCacheService.invalidate_product_cache(product.id, current_user.tenant_id)
+        CacheService.invalidate_tenant_cache(current_user.tenant_id, 'product_list')
+        CacheService.invalidate_tenant_cache(current_user.tenant_id, 'categories')
+        InventoryCacheService.invalidate_inventory_cache(current_user.tenant_id)
+        
         flash(f'Product "{product_name}" has been deleted successfully.', 'success')
         
     except Exception as e:
@@ -316,12 +362,17 @@ def delete(id):
 @login_required
 @tenant_required
 def toggle_status(id):
-    """Toggle product active status"""
+    """Toggle product active status dengan cache invalidation"""
     product = Product.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
     
     try:
         product.is_active = not product.is_active
         db.session.commit()
+        
+        # Invalidate caches
+        ProductCacheService.invalidate_product_cache(product.id, current_user.tenant_id)
+        CacheService.invalidate_tenant_cache(current_user.tenant_id, 'product_list')
+        InventoryCacheService.invalidate_inventory_cache(current_user.tenant_id)
         
         status = 'activated' if product.is_active else 'deactivated'
         flash(f'Product "{product.name}" has been {status}.', 'success')
@@ -337,16 +388,22 @@ def toggle_status(id):
 @login_required
 @tenant_required
 def categories():
-    """Categories management page"""
-    categories = Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all()
-    form = CategoryForm()  # Tambahkan ini
+    """Categories management page dengan cache"""
+    categories_cache_key = CacheService.get_cache_key('categories', tenant_id=current_user.tenant_id)
+    categories = CacheService.get_or_set(
+        categories_cache_key,
+        lambda: Category.query.filter_by(tenant_id=current_user.tenant_id).order_by(Category.name).all(),
+        timeout='long'
+    )
+    form = CategoryForm()
     
     return render_template('products/categories.html', categories=categories, form=form)
+
 @bp.route('/categories/create', methods=['GET', 'POST'])
 @login_required
 @tenant_required
 def create_category():
-    """Create new category"""
+    """Create new category dengan cache invalidation"""
     form = CategoryForm()
     
     if form.validate_on_submit():
@@ -359,6 +416,10 @@ def create_category():
             
             db.session.add(category)
             db.session.commit()
+            
+            # Invalidate categories cache
+            CacheService.invalidate_tenant_cache(current_user.tenant_id, 'categories')
+            CacheService.invalidate_tenant_cache(current_user.tenant_id, 'product_list')
             
             flash(f'Category "{category.name}" has been created successfully.', 'success')
             return redirect(url_for('products.categories'))
@@ -374,7 +435,7 @@ def create_category():
 @login_required
 @tenant_required
 def update_category(id):
-    """Update category - API endpoint for AJAX updates"""
+    """Update category dengan cache invalidation"""
     category = Category.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
     
     try:
@@ -383,16 +444,21 @@ def update_category(id):
         
         db.session.commit()
         
+        # Invalidate categories cache
+        CacheService.invalidate_tenant_cache(current_user.tenant_id, 'categories')
+        CacheService.invalidate_tenant_cache(current_user.tenant_id, 'product_list')
+        
         return jsonify({'success': True, 'message': f'Category "{category.name}" has been updated successfully.'})
         
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
 @bp.route('/categories/<id>/delete', methods=['POST'])
 @login_required
 @tenant_required
 def delete_category(id):
-    """Delete category"""
+    """Delete category dengan cache invalidation"""
     category = Category.query.filter_by(id=id, tenant_id=current_user.tenant_id).first_or_404()
     
     try:
@@ -404,6 +470,10 @@ def delete_category(id):
         category_name = category.name
         db.session.delete(category)
         db.session.commit()
+        
+        # Invalidate categories cache
+        CacheService.invalidate_tenant_cache(current_user.tenant_id, 'categories')
+        CacheService.invalidate_tenant_cache(current_user.tenant_id, 'product_list')
         
         flash(f'Category "{category_name}" has been deleted successfully.', 'success')
         
@@ -418,11 +488,24 @@ def delete_category(id):
 @login_required
 @tenant_required
 def api_search():
-    """API endpoint for product search (for POS)"""
+    """API endpoint untuk product search dengan cache"""
     search = request.args.get('q', '')
     
+    # Cache key untuk search
+    cache_key = CacheService.get_cache_key('product_search', search, tenant_id=current_user.tenant_id)
+    
+    results = CacheService.get_or_set(
+        cache_key,
+        lambda: _perform_product_search(search, current_user.tenant_id),
+        timeout='short'
+    )
+    
+    return jsonify(results)
+
+def _perform_product_search(search, tenant_id):
+    """Helper function untuk melakukan product search"""
     products = Product.query.filter(
-        Product.tenant_id == current_user.tenant_id,
+        Product.tenant_id == tenant_id,
         Product.is_active == True,
         db.or_(
             Product.name.ilike(f'%{search}%'),
@@ -433,7 +516,6 @@ def api_search():
     
     results = []
     for product in products:
-        # Check BOM availability if applicable
         bom_available = True
         if product.has_bom:
             bom_available = product.check_bom_availability()
@@ -451,25 +533,37 @@ def api_search():
             'barcode': product.barcode
         })
     
-    return jsonify(results)
+    return results
 
 @bp.route('/api/<product_id>')
 @login_required
 @tenant_required
 def api_get_product(product_id):
-    """API endpoint to get product details"""
+    """API endpoint untuk mendapatkan detail product dengan cache"""
+    # Coba dapatkan dari cache
+    cached_product = ProductCacheService.get_cached_product_details(product_id, current_user.tenant_id)
+    
+    if cached_product:
+        return jsonify(cached_product)
+    
+    # Jika tidak ada di cache, query database
     product = Product.query.filter_by(
         id=product_id,
         tenant_id=current_user.tenant_id
     ).first_or_404()
     
-    return jsonify(product.to_dict())
+    product_data = product.to_dict()
+    
+    # Cache hasilnya
+    ProductCacheService.cache_product_details(product_id, current_user.tenant_id, product_data)
+    
+    return jsonify(product_data)
 
 @bp.route('/api/<product_id>/bom_validation')
 @login_required
 @tenant_required
 def api_bom_validation(product_id):
-    """API endpoint to validate BOM availability for a product"""
+    """API endpoint untuk validasi BOM availability dengan cache"""
     product = Product.query.filter_by(
         id=product_id,
         tenant_id=current_user.tenant_id
@@ -480,24 +574,32 @@ def api_bom_validation(product_id):
     
     quantity = request.args.get('quantity', 1, type=int)
     
-    # PERBAIKAN: Gunakan query langsung sebagai fallback
+    # Cache key untuk BOM validation
+    cache_key = CacheService.get_cache_key('bom_validation', product_id, quantity, tenant_id=current_user.tenant_id)
+    
+    validation_result = CacheService.get_or_set(
+        cache_key,
+        lambda: _perform_bom_validation(product_id, quantity),
+        timeout='short'
+    )
+    
+    return jsonify(validation_result)
+
+def _perform_bom_validation(product_id, quantity):
+    """Helper function untuk melakukan validasi BOM"""
     try:
         active_bom = BOMService.get_bom_by_product(product_id)
     except:
         active_bom = BOMHeader.query.filter_by(product_id=product_id, is_active=True).first()
     
     if not active_bom:
-        return jsonify({'valid': False, 'message': 'No active BOM found'})
+        return {'valid': False, 'message': 'No active BOM found'}
     
     try:
-        # PERBAIKAN: Validasi langsung jika BOMService tidak tersedia
-        try:
-            is_valid, details = BOMService.validate_bom_availability(active_bom.id, quantity)
-            return jsonify({'valid': is_valid, 'details': details})
-        except:
-            # Fallback validation
-            is_available = product.check_bom_availability(quantity)
-            return jsonify({'valid': is_available, 'message': 'BOM availability checked'})
-    except Exception as e:
-        current_app.logger.error(f"BOM validation error: {str(e)}")
-        return jsonify({'valid': False, 'error': str(e)}), 500
+        is_valid, details = BOMService.validate_bom_availability(active_bom.id, quantity)
+        return {'valid': is_valid, 'details': details}
+    except:
+        # Fallback validation
+        product = Product.query.get(product_id)
+        is_available = product.check_bom_availability(quantity)
+        return {'valid': is_available, 'message': 'BOM availability checked'}

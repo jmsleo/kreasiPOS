@@ -8,6 +8,15 @@ from app.services.inventory_service import InventoryService
 from app.services.refund_service import RefundService
 from app.middleware.tenant_middleware import tenant_required
 from app.utils.timezone import get_user_timezone, convert_utc_to_user_timezone
+from app.services.cache_service import (
+    CacheService, 
+    ProductCacheService, 
+    DashboardCacheService,
+    InventoryCacheService,
+    ReportsCacheService
+)
+from app.services.enhanced_inventory_service import EnhancedInventoryService
+from app.services.enhanced_bom_service import EnhancedBOMService
 import uuid
 from datetime import datetime, timedelta
 import io
@@ -16,6 +25,7 @@ from reportlab.lib.pagesizes import mm
 from reportlab.lib.units import mm
 from reportlab.graphics.barcode import code128
 
+
 @bp.route('/')
 @login_required
 @tenant_required
@@ -23,16 +33,41 @@ def index():
     """Sales index, redirects to POS"""
     return redirect(url_for('sales.pos'))
 
+
 @bp.route('/history')
 @login_required
 @tenant_required
 def history():
-    """Sales history page"""
+    """Sales history page dengan cache optimization"""
     page = request.args.get('page', 1, type=int)
     date_filter = request.args.get('date', '')
     payment_filter = request.args.get('payment_method', '')
     
-    query = Sale.query.filter_by(tenant_id=current_user.tenant_id)
+    # Build cache key berdasarkan parameter filter
+    cache_key = CacheService.get_cache_key(
+        'sales_history', 
+        page, 
+        date_filter, 
+        payment_filter, 
+        tenant_id=current_user.tenant_id
+    )
+    
+    # Gunakan cache dengan timeout short karena data sales sering berubah
+    sales_data = CacheService.get_or_set(
+        cache_key,
+        lambda: _get_sales_history_data(current_user.tenant_id, page, date_filter, payment_filter),
+        timeout='short'
+    )
+    
+    return render_template('sales/history.html', 
+                         sales=sales_data['sales'], 
+                         date_filter=date_filter, 
+                         payment_filter=payment_filter)
+
+
+def _get_sales_history_data(tenant_id, page, date_filter, payment_filter):
+    """Helper function untuk mendapatkan sales history data"""
+    query = Sale.query.filter_by(tenant_id=tenant_id)
 
     if date_filter:
         query = query.filter(db.func.date(Sale.created_at) == date_filter)
@@ -46,28 +81,70 @@ def history():
     for sale in sales.items:
         sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
     
-    return render_template('sales/history.html', sales=sales, date_filter=date_filter, payment_filter=payment_filter)
+    return {'sales': sales}
 
 
 @bp.route('/pos')
 @login_required
 @tenant_required
 def pos():
-    """Point of Sale interface"""
-    # Get active products
+    """Point of Sale interface dengan cache optimization"""
+    # Get products dengan cache - timeout short karena stock sering berubah
+    products_cache_key = CacheService.get_cache_key(
+        'pos_products', 
+        tenant_id=current_user.tenant_id
+    )
+    
+    products_data = CacheService.get_or_set(
+        products_cache_key,
+        lambda: _get_pos_products_data(current_user.tenant_id),
+        timeout='short'
+    )
+    
+    # Get customers dengan cache - timeout medium karena jarang berubah
+    customers_cache_key = CacheService.get_cache_key(
+        'pos_customers', 
+        tenant_id=current_user.tenant_id
+    )
+    
+    customers = CacheService.get_or_set(
+        customers_cache_key,
+        lambda: Customer.query.filter_by(
+            tenant_id=current_user.tenant_id
+        ).order_by(Customer.name).limit(10).all(),
+        timeout='medium'
+    )
+    
+    return render_template('sales/pos.html', 
+                         products=products_data, 
+                         customers=customers)
+
+
+def _get_pos_products_data(tenant_id):
+    """Helper function untuk mendapatkan products data untuk POS"""
     products = Product.query.filter_by(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tenant_id,
         is_active=True
     ).order_by(Product.name).all()
     
-    # Get customers for quick selection
-    customers = Customer.query.filter_by(
-        tenant_id=current_user.tenant_id
-    ).order_by(Customer.name).limit(10).all()
-    
-    # Prepare products data for JSON
     products_data = []
     for product in products:
+        # Check BOM availability untuk setiap product
+        bom_available = True
+        bom_details = None
+        
+        if product.has_bom:
+            try:
+                # Gunakan enhanced BOM service dengan cache
+                bom_validation = EnhancedBOMService.validate_bom_availability(
+                    product.id, 1, tenant_id  # Check for quantity 1
+                )
+                bom_available = bom_validation.get('is_available', False)
+                bom_details = bom_validation
+            except Exception as e:
+                current_app.logger.error(f"BOM validation error for product {product.id}: {str(e)}")
+                bom_available = product.check_bom_availability()
+        
         products_data.append({
             'id': product.id,
             'name': product.name,
@@ -80,21 +157,22 @@ def pos():
             'has_bom': product.has_bom,
             'is_active': product.is_active,
             'stock_alert': product.stock_alert,
-            'category_name': product.category.name if product.category else ''
+            'category_name': product.category.name if product.category else '',
+            'bom_available': bom_available,
+            'bom_details': bom_details
         })
     
-    return render_template('sales/pos.html', 
-                         products=products_data, 
-                         customers=customers)
+    return products_data
+
 
 @bp.route('/process-sale', methods=['POST'])
 @login_required
 @tenant_required
 def process_sale():
-    """Process new sale with enhanced BOM handling and decimal precision"""
+    """Process new sale dengan cache invalidation yang komprehensif"""
     try:
         data = request.get_json()
-        current_app.logger.info(f'Received sale data: {data}')  # Debug log
+        current_app.logger.info(f'Received sale data: {data}')
         
         if not data or 'items' not in data or not data['items']:
             return jsonify({'error': 'No items in sale'}), 400
@@ -102,38 +180,48 @@ def process_sale():
         # Validate payment
         payment_method = data.get('payment_method', 'cash')
         total_amount = float(data.get('total_amount', 0))
-        amount_paid = float(data.get('amount_paid', total_amount))  # Default to total if not provided
+        amount_paid = float(data.get('amount_paid', total_amount))
         
         if payment_method == 'cash' and amount_paid < total_amount:
             return jsonify({'error': f'Insufficient payment. Required: {total_amount}, Paid: {amount_paid}'}), 400
 
-        # Validate stock and BOM availability before processing
+        # Validate stock and BOM availability sebelum processing
+        products_to_invalidate = set()
+        
         for item_data in data['items']:
+            product_id = item_data['product_id']
             product = Product.query.filter_by(
-                id=item_data['product_id'],
+                id=product_id,
                 tenant_id=current_user.tenant_id
             ).first()
             
             if not product:
-                return jsonify({'error': f'Product not found: {item_data["product_id"]}'}), 400
+                return jsonify({'error': f'Product not found: {product_id}'}), 400
             
-            # Check regular stock if tracking is enabled and no BOM
+            products_to_invalidate.add(product_id)
+            
+            # Check regular stock
             if product.requires_stock_tracking and not product.has_bom:
                 if product.stock_quantity < int(item_data['quantity']):
-                    return jsonify({'error': f'Insufficient stock for {product.name}: need {item_data["quantity"]}, have {product.stock_quantity}'}), 400
+                    return jsonify({
+                        'error': f'Insufficient stock for {product.name}: need {item_data["quantity"]}, have {product.stock_quantity}'
+                    }), 400
             
-            # Check BOM availability if product has BOM
+            # Check BOM availability menggunakan enhanced service
             if product.has_bom:
-                active_bom = BOMService.get_bom_by_product(product.id)
-                if active_bom:
-                    is_valid, details = BOMService.validate_bom_availability(active_bom.id, item_data['quantity'])
-                    if not is_valid:
-                        error_msg = f'Insufficient BOM materials for {product.name}'
-                        if 'availability' in details:
-                            insufficient_materials = [item['raw_material_name'] for item in details['availability'] if not item['sufficient']]
-                            if insufficient_materials:
-                                error_msg += f': {", ".join(insufficient_materials)}'
-                        return jsonify({'error': error_msg}), 400
+                bom_validation = EnhancedBOMService.validate_bom_availability(
+                    product.id, 
+                    item_data['quantity'], 
+                    current_user.tenant_id
+                )
+                
+                if not bom_validation.get('is_available', False):
+                    error_msg = f'Insufficient BOM materials for {product.name}'
+                    missing_items = bom_validation.get('missing_items', [])
+                    if missing_items:
+                        missing_names = [item['name'] for item in missing_items]
+                        error_msg += f': {", ".join(missing_names)}'
+                    return jsonify({'error': error_msg}), 400
         
         # Create sale record
         receipt_number = f"RC-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
@@ -151,9 +239,9 @@ def process_sale():
         )
         
         db.session.add(sale)
-        db.session.flush()  # Get the sale ID
+        db.session.flush()  # Get sale ID
         
-        # Create sale items and process inventory deductions
+        # Create sale items dan process inventory deductions
         for item_data in data['items']:
             product = Product.query.filter_by(
                 id=item_data['product_id'],
@@ -173,25 +261,37 @@ def process_sale():
             
             db.session.add(sale_item)
             
-            # Process inventory deductions
+            # Process inventory deductions menggunakan EnhancedInventoryService
             quantity_sold = int(item_data['quantity'])
             
             if product.has_bom:
-                # Process BOM deduction with enhanced logging
                 current_app.logger.info(f'Processing BOM deduction for {product.name}, quantity: {quantity_sold}')
-                success = product.process_bom_deduction(quantity_sold)
-                if not success:
-                    raise ValueError(f"Failed to process BOM deduction for {product.name}")
+                
+                # Process BOM production/deduction
+                bom_result = EnhancedBOMService.process_bom_production(
+                    product.id, quantity_sold, current_user.tenant_id
+                )
+                
+                if not bom_result.get('success', False):
+                    raise ValueError(f"Failed to process BOM deduction for {product.name}: {bom_result.get('error')}")
+                
                 current_app.logger.info(f'BOM deduction completed for {product.name}')
+                
             elif product.requires_stock_tracking:
                 # Update regular product stock
-                current_app.logger.info(f'Updating regular stock for {product.name}: {product.stock_quantity} - {quantity_sold}')
-                product.stock_quantity -= quantity_sold
-                if product.stock_quantity < 0:
-                    product.stock_quantity = 0
-                current_app.logger.info(f'New stock for {product.name}: {product.stock_quantity}')
+                success = EnhancedInventoryService.update_product_stock(
+                    product.id, quantity_sold, current_user.tenant_id, 'subtract'
+                )
+                
+                if not success:
+                    raise ValueError(f"Failed to update stock for {product.name}")
         
         db.session.commit()
+        
+        # COMPREHENSIVE CACHE INVALIDATION setelah sale berhasil
+        _invalidate_caches_after_sale(current_user.tenant_id, products_to_invalidate)
+        
+        current_app.logger.info(f'Sale processed successfully: {receipt_number}')
         
         return jsonify({
             'success': True,
@@ -205,19 +305,50 @@ def process_sale():
         current_app.logger.error(f'Error processing sale: {str(e)}')
         return jsonify({'error': f'Failed to process sale: {str(e)}'}), 500
 
-# Keep the old route for backward compatibility
+
+def _invalidate_caches_after_sale(tenant_id, product_ids):
+    """Invalidate semua cache yang terkait setelah sale berhasil"""
+    try:
+        # Invalidate product-related caches
+        for product_id in product_ids:
+            ProductCacheService.invalidate_product_cache(product_id, tenant_id)
+            CacheService.delete_pattern(f"*product_availability*{product_id}*")
+            CacheService.delete_pattern(f"*bom_validation*{product_id}*")
+        
+        # Invalidate sales-related caches
+        CacheService.invalidate_tenant_cache(tenant_id, 'sales_history')
+        CacheService.invalidate_tenant_cache(tenant_id, 'pos_products')
+        CacheService.delete_pattern(f"*recent_activity*{tenant_id}*")
+        CacheService.delete_pattern(f"*top_products*{tenant_id}*")
+        
+        # Invalidate dashboard caches
+        DashboardCacheService.invalidate_dashboard_cache(tenant_id)
+        
+        # Invalidate inventory caches
+        InventoryCacheService.invalidate_inventory_cache(tenant_id)
+        
+        # Invalidate reports caches
+        ReportsCacheService.invalidate_reports_cache(tenant_id)
+        
+        current_app.logger.info(f"Cache invalidated for tenant {tenant_id} after sale")
+        
+    except Exception as e:
+        current_app.logger.error(f"Error during cache invalidation: {str(e)}")
+
+
 @bp.route('/create', methods=['POST'])
 @login_required
 @tenant_required
 def create_sale():
     """Legacy route - redirects to process_sale"""
     return process_sale()
-    
+
+
 @bp.route('/<sale_id>/details/html')
 @login_required
 @tenant_required
 def sale_details_html(sale_id):
-    """Return sale details as HTML for modal"""
+    """Return sale details as HTML untuk modal"""
     sale = Sale.query.filter_by(
         id=sale_id,
         tenant_id=current_user.tenant_id
@@ -228,33 +359,68 @@ def sale_details_html(sale_id):
     
     return render_template('sales/sale_details_modal.html', sale=sale)
 
+
 @bp.route('/<sale_id>')
 @login_required
 @tenant_required
 def view_sale(sale_id):
-    """View sale details"""
+    """View sale details dengan cache"""
+    cache_key = CacheService.get_cache_key(
+        'sale_details', 
+        sale_id, 
+        tenant_id=current_user.tenant_id
+    )
+    
+    sale_data = CacheService.get_or_set(
+        cache_key,
+        lambda: _get_sale_details_data(sale_id, current_user.tenant_id),
+        timeout='medium'
+    )
+    
+    return render_template('sales/view.html', sale=sale_data['sale'])
+
+
+def _get_sale_details_data(sale_id, tenant_id):
+    """Helper function untuk mendapatkan sale details"""
     sale = Sale.query.filter_by(
         id=sale_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=tenant_id
     ).first_or_404()
     
     # Convert timestamp to user timezone
     user_timezone = get_user_timezone()
     sale.local_created_at = convert_utc_to_user_timezone(sale.created_at, user_timezone)
     
-    return render_template('sales/view.html', sale=sale)
+    return {'sale': sale}
+
 
 @bp.route('/<sale_id>/receipt/data')
 @login_required
 @tenant_required
 def receipt_data(sale_id):
-    """API endpoint to get receipt data for printing"""
+    """API endpoint untuk mendapatkan receipt data untuk printing dengan cache"""
+    cache_key = CacheService.get_cache_key(
+        'receipt_data', 
+        sale_id, 
+        tenant_id=current_user.tenant_id
+    )
+    
+    receipt_data = CacheService.get_or_set(
+        cache_key,
+        lambda: _get_receipt_data(sale_id, current_user.tenant_id),
+        timeout='long'  # Receipt data tidak berubah
+    )
+    
+    return jsonify(receipt_data)
+
+
+def _get_receipt_data(sale_id, tenant_id):
+    """Helper function untuk mendapatkan receipt data"""
     sale = Sale.query.filter_by(
         id=sale_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=tenant_id
     ).first_or_404()
     
-    # PERBAIKAN: Gunakan convert_utc_to_user_timezone tanpa parameter kedua
     local_created_at = convert_utc_to_user_timezone(sale.created_at)
     
     # Prepare receipt data
@@ -272,7 +438,7 @@ def receipt_data(sale_id):
         'store_address': current_user.tenant.address or '',
         'store_phone': current_user.tenant.phone or '',
         'receipt_number': sale.receipt_number,
-        'date': local_created_at.strftime('%Y-%m-%d %H:%M:%S'),  # Gunakan yang sudah dikonversi
+        'date': local_created_at.strftime('%Y-%m-%d %H:%M:%S'),
         'cashier': sale.user.username,
         'items': items_data,
         'subtotal': float(sale.total_amount - sale.tax_amount + sale.discount_amount),
@@ -285,13 +451,14 @@ def receipt_data(sale_id):
         'customer_name': sale.customer.name if sale.customer else 'Walk-in Customer'
     }
     
-    return jsonify(receipt_data)
+    return receipt_data
+
 
 @bp.route('/<sale_id>/receipt')
 @login_required
 @tenant_required
 def receipt(sale_id):
-    """Generate receipt for sale"""
+    """Generate receipt untuk sale"""
     sale = Sale.query.filter_by(
         id=sale_id,
         tenant_id=current_user.tenant_id
@@ -302,100 +469,106 @@ def receipt(sale_id):
     
     return render_template('sales/receipt.html', sale=sale)
 
+
 @bp.route('/api/validate_cart', methods=['POST'])
 @login_required
 @tenant_required
 def api_validate_cart():
-    """API endpoint to validate cart items before checkout"""
+    """API endpoint untuk validate cart items sebelum checkout dengan cache"""
     try:
         data = request.get_json()
         
         if not data or 'items' not in data:
             return jsonify({'error': 'No items provided'}), 400
         
-        # Validate availability
-        is_valid, errors = InventoryService.validate_sale_availability(
-            data['items'], 
-            current_user.tenant_id
+        # Generate cache key berdasarkan cart contents
+        cart_hash = hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
+        cache_key = CacheService.get_cache_key(
+            'cart_validation', 
+            cart_hash, 
+            tenant_id=current_user.tenant_id
         )
         
-        validation_details = []
+        validation_result = CacheService.get_or_set(
+            cache_key,
+            lambda: _validate_cart_items(data, current_user.tenant_id),
+            timeout='short'  # Short timeout karena cart bisa berubah cepat
+        )
         
-        for item_data in data['items']:
-            product = Product.query.filter_by(
-                id=item_data['product_id'],
-                tenant_id=current_user.tenant_id
-            ).first()
-            
-            if product:
-                item_validation = {
-                    'product_id': product.id,
-                    'product_name': product.name,
-                    'requested_quantity': item_data['quantity'],
-                    'stock_available': product.stock_quantity if product.requires_stock_tracking else 'unlimited',
-                    'requires_stock_tracking': product.requires_stock_tracking,
-                    'has_bom': product.has_bom,
-                    'bom_available': True
-                }
-                
-                # Check BOM availability if applicable
-                if product.has_bom:
-                    item_validation['bom_available'] = product.check_bom_availability(item_data['quantity'])
-                
-                validation_details.append(item_validation)
-        
-        return jsonify({
-            'valid': is_valid,
-            'errors': errors,
-            'details': validation_details
-        })
+        return jsonify(validation_result)
         
     except Exception as e:
         current_app.logger.error(f'Error validating cart: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
+
+def _validate_cart_items(data, tenant_id):
+    """Helper function untuk validate cart items"""
+    # Validate availability menggunakan InventoryService
+    is_valid, errors = InventoryService.validate_sale_availability(
+        data['items'], 
+        tenant_id
+    )
+    
+    validation_details = []
+    products_to_check = []
+    
+    for item_data in data['items']:
+        product = Product.query.filter_by(
+            id=item_data['product_id'],
+            tenant_id=tenant_id
+        ).first()
+        
+        if product:
+            item_validation = {
+                'product_id': product.id,
+                'product_name': product.name,
+                'requested_quantity': item_data['quantity'],
+                'stock_available': product.stock_quantity if product.requires_stock_tracking else 'unlimited',
+                'requires_stock_tracking': product.requires_stock_tracking,
+                'has_bom': product.has_bom,
+                'bom_available': True
+            }
+            
+            # Check BOM availability jika applicable menggunakan cached service
+            if product.has_bom:
+                bom_validation = EnhancedBOMService.validate_bom_availability(
+                    product.id, item_data['quantity'], tenant_id
+                )
+                item_validation['bom_available'] = bom_validation.get('is_available', False)
+                item_validation['bom_details'] = bom_validation
+            
+            validation_details.append(item_validation)
+            products_to_check.append(product.id)
+    
+    return {
+        'valid': is_valid,
+        'errors': errors,
+        'details': validation_details
+    }
+
+
 @bp.route('/api/product_availability/<product_id>')
 @login_required
 @tenant_required
 def api_product_availability(product_id):
-    """API endpoint to check product availability"""
+    """API endpoint untuk check product availability dengan cache optimization"""
     try:
-        product = Product.query.filter_by(
-            id=product_id,
-            tenant_id=current_user.tenant_id
-        ).first_or_404()
-        
         quantity = request.args.get('quantity', 1, type=int)
         
-        availability = {
-            'product_id': product.id,
-            'product_name': product.name,
-            'requires_stock_tracking': product.requires_stock_tracking,
-            'stock_quantity': product.stock_quantity,
-            'has_bom': product.has_bom,
-            'available': True,
-            'messages': []
-        }
+        # Cache key untuk product availability
+        cache_key = CacheService.get_cache_key(
+            'product_availability', 
+            product_id, 
+            quantity, 
+            tenant_id=current_user.tenant_id
+        )
         
-        # Check regular stock
-        if product.requires_stock_tracking:
-            if product.stock_quantity < quantity:
-                availability['available'] = False
-                availability['messages'].append(f'Insufficient stock: need {quantity}, have {product.stock_quantity}')
-        
-        # Check BOM availability
-        if product.has_bom:
-            bom_available = product.check_bom_availability(quantity)
-            if not bom_available:
-                availability['available'] = False
-                availability['messages'].append('Insufficient raw materials for BOM')
-                
-                # Get detailed BOM availability
-                from app.services.bom_service import BOMService
-                active_bom = BOMService.get_bom_by_product(product_id)
-                if active_bom:
-                    is_valid, details = BOMService.validate_bom_availability(active_bom.id, quantity)
-                    availability['bom_details'] = details
+        availability = CacheService.get_or_set(
+            cache_key,
+            lambda: _get_product_availability_data(product_id, quantity, current_user.tenant_id),
+            timeout='short'  # Short timeout karena stock sering berubah
+        )
         
         return jsonify(availability)
         
@@ -403,34 +576,63 @@ def api_product_availability(product_id):
         current_app.logger.error(f'Error checking product availability: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
+
+def _get_product_availability_data(product_id, quantity, tenant_id):
+    """Helper function untuk mendapatkan product availability data"""
+    product = Product.query.filter_by(
+        id=product_id,
+        tenant_id=tenant_id
+    ).first_or_404()
+    
+    availability = {
+        'product_id': product.id,
+        'product_name': product.name,
+        'requires_stock_tracking': product.requires_stock_tracking,
+        'stock_quantity': product.stock_quantity,
+        'has_bom': product.has_bom,
+        'available': True,
+        'messages': []
+    }
+    
+    # Check regular stock
+    if product.requires_stock_tracking:
+        if product.stock_quantity < quantity:
+            availability['available'] = False
+            availability['messages'].append(
+                f'Insufficient stock: need {quantity}, have {product.stock_quantity}'
+            )
+    
+    # Check BOM availability menggunakan enhanced service dengan cache
+    if product.has_bom:
+        bom_validation = EnhancedBOMService.validate_bom_availability(
+            product_id, quantity, tenant_id
+        )
+        
+        if not bom_validation.get('is_available', False):
+            availability['available'] = False
+            availability['messages'].append('Insufficient raw materials for BOM')
+            availability['bom_details'] = bom_validation
+    
+    return availability
+
+
 @bp.route('/api/products')
 @login_required
 @tenant_required
 def api_products():
-    """API endpoint to get products for POS"""
+    """API endpoint untuk mendapatkan products untuk POS dengan cache"""
     try:
-        products = Product.query.filter_by(
-            tenant_id=current_user.tenant_id,
-            is_active=True
-        ).order_by(Product.name).all()
+        # Gunakan cache yang sama dengan route POS
+        products_cache_key = CacheService.get_cache_key(
+            'pos_products', 
+            tenant_id=current_user.tenant_id
+        )
         
-        products_data = []
-        for product in products:
-            products_data.append({
-                'id': product.id,
-                'name': product.name,
-                'price': float(product.price),
-                'stock_quantity': product.stock_quantity,
-                'unit': product.unit,
-                'sku': product.sku,
-                'image_url': product.image_url,
-                'requires_stock_tracking': product.requires_stock_tracking,
-                'has_bom': product.has_bom,
-                'is_active': product.is_active,
-                'stock_alert': product.stock_alert,
-                'category_name': product.category.name if product.category else '',
-                'bom_available': product.check_bom_availability() if product.has_bom else True
-            })
+        products_data = CacheService.get_or_set(
+            products_cache_key,
+            lambda: _get_pos_products_data(current_user.tenant_id),
+            timeout='short'
+        )
         
         return jsonify(products_data)
         
@@ -438,11 +640,12 @@ def api_products():
         current_app.logger.error(f'Error getting products: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
+
 @bp.route('/reports/daily')
 @login_required
 @tenant_required
 def daily_report():
-    """Daily sales report"""
+    """Daily sales report dengan cache optimization"""
     from datetime import date, timedelta
     from sqlalchemy import func
     
@@ -454,13 +657,36 @@ def daily_report():
     start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
     end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
     
+    # Cache key untuk daily report
+    cache_key = CacheService.get_cache_key(
+        'daily_report', 
+        start_date.isoformat(), 
+        end_date.isoformat(), 
+        tenant_id=current_user.tenant_id
+    )
+    
+    report_data = CacheService.get_or_set(
+        cache_key,
+        lambda: _get_daily_report_data(current_user.tenant_id, start_date, end_date),
+        timeout='medium'
+    )
+    
+    return render_template('sales/daily_report.html',
+                         daily_sales=report_data['daily_sales'],
+                         top_products=report_data['top_products'],
+                         start_date=start_date,
+                         end_date=end_date)
+
+
+def _get_daily_report_data(tenant_id, start_date, end_date):
+    """Helper function untuk mendapatkan daily report data"""
     # Get daily sales data
     daily_sales = db.session.query(
         func.date(Sale.created_at).label('sale_date'),
         func.count(Sale.id).label('transaction_count'),
         func.sum(Sale.total_amount).label('total_amount')
     ).filter(
-        Sale.tenant_id == current_user.tenant_id,
+        Sale.tenant_id == tenant_id,
         func.date(Sale.created_at) >= start_date,
         func.date(Sale.created_at) <= end_date
     ).group_by(func.date(Sale.created_at)).order_by('sale_date').all()
@@ -471,27 +697,61 @@ def daily_report():
         func.sum(SaleItem.quantity).label('total_sold'),
         func.sum(SaleItem.total_price).label('total_revenue')
     ).join(SaleItem).join(Sale).filter(
-        Sale.tenant_id == current_user.tenant_id,
+        Sale.tenant_id == tenant_id,
         func.date(Sale.created_at) >= start_date,
         func.date(Sale.created_at) <= end_date
     ).group_by(Product.id, Product.name).order_by('total_revenue desc').limit(10).all()
     
-    return render_template('sales/daily_report.html',
-                         daily_sales=daily_sales,
-                         top_products=top_products,
-                         start_date=start_date,
-                         end_date=end_date)
+    return {
+        'daily_sales': daily_sales,
+        'top_products': top_products
+    }
 
-# --- REFUND ROUTES ---
+
+# --- REFUND ROUTES dengan Cache Optimization ---
+
 @bp.route('/refunds')
 @login_required
 @tenant_required
 def refunds_index():
-    """Refunds management index page"""
+    """Refunds management index page dengan cache"""
     page = request.args.get('page', 1, type=int)
     status_filter = request.args.get('status', '')
     
-    # Get refunds with pagination
+    # Cache key untuk refunds list
+    cache_key = CacheService.get_cache_key(
+        'refunds_list', 
+        page, 
+        status_filter, 
+        tenant_id=current_user.tenant_id
+    )
+    
+    refunds_data = CacheService.get_or_set(
+        cache_key,
+        lambda: _get_refunds_data(current_user.tenant_id, page, status_filter),
+        timeout='short'
+    )
+    
+    # Get refund statistics dengan cache
+    stats_cache_key = CacheService.get_cache_key(
+        'refund_stats', 
+        tenant_id=current_user.tenant_id
+    )
+    
+    stats = CacheService.get_or_set(
+        stats_cache_key,
+        lambda: RefundService.get_refund_statistics(current_user.tenant_id),
+        timeout='medium'
+    )
+    
+    return render_template('sales/refunds/index.html',
+                         refunds=refunds_data['refunds'],
+                         status_filter=status_filter,
+                         stats=stats)
+
+
+def _get_refunds_data(tenant_id, page, status_filter):
+    """Helper function untuk mendapatkan refunds data"""
     status_enum = None
     if status_filter:
         try:
@@ -500,7 +760,7 @@ def refunds_index():
             status_enum = None
     
     refunds = RefundService.get_refunds_by_tenant(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tenant_id,
         status=status_enum,
         page=page,
         per_page=20
@@ -513,19 +773,14 @@ def refunds_index():
             if refund.processed_at:
                 refund.local_processed_at = convert_utc_to_user_timezone(refund.processed_at)
     
-    # Get refund statistics
-    stats = RefundService.get_refund_statistics(current_user.tenant_id)
-    
-    return render_template('sales/refunds/index.html',
-                         refunds=refunds,
-                         status_filter=status_filter,
-                         stats=stats)
+    return {'refunds': refunds}
+
 
 @bp.route('/refunds/search', methods=['GET', 'POST'])
 @login_required
 @tenant_required
 def search_refundable_sales():
-    """Search for refundable sales"""
+    """Search untuk refundable sales dengan cache optimization"""
     form = RefundSearchForm()
     sales = None
     
@@ -534,52 +789,23 @@ def search_refundable_sales():
         search_value = form.search_value.data
         days_limit = int(form.days_limit.data)
         
+        # Cache key untuk search results
+        cache_key = CacheService.get_cache_key(
+            'refundable_sales_search',
+            search_type,
+            search_value,
+            days_limit,
+            tenant_id=current_user.tenant_id
+        )
+        
         try:
-            # Get refundable sales based on search criteria
-            if search_type == 'receipt_number':
-                sale = Sale.query.filter(
-                    Sale.tenant_id == current_user.tenant_id,
-                    Sale.receipt_number.ilike(f'%{search_value}%'),
-                    Sale.payment_status == 'completed'
-                ).first()
-                
-                if sale and sale.can_be_refunded():
-                    sales = [sale]
-                else:
-                    sales = []
-                    
-            elif search_type == 'customer_name':
-                from app.models import Customer
-                sales_query = Sale.query.join(Customer).filter(
-                    Sale.tenant_id == current_user.tenant_id,
-                    Customer.name.ilike(f'%{search_value}%'),
-                    Sale.payment_status == 'completed',
-                    Sale.created_at >= datetime.utcnow() - timedelta(days=days_limit)
-                ).order_by(Sale.created_at.desc()).all()
-                
-                # Filter only refundable sales
-                sales = [sale for sale in sales_query if sale.can_be_refunded()]
-                
-            elif search_type == 'date':
-                try:
-                    search_date = datetime.strptime(search_value, '%Y-%m-%d').date()
-                    sales_query = Sale.query.filter(
-                        Sale.tenant_id == current_user.tenant_id,
-                        db.func.date(Sale.created_at) == search_date,
-                        Sale.payment_status == 'completed'
-                    ).order_by(Sale.created_at.desc()).all()
-                    
-                    # Filter only refundable sales
-                    sales = [sale for sale in sales_query if sale.can_be_refunded()]
-                    
-                except ValueError:
-                    flash('Format tanggal tidak valid. Gunakan format YYYY-MM-DD', 'danger')
-                    sales = []
-            
-            # Convert timestamps
-            if sales:
-                for sale in sales:
-                    sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
+            sales = CacheService.get_or_set(
+                cache_key,
+                lambda: _search_refundable_sales_data(
+                    current_user.tenant_id, search_type, search_value, days_limit
+                ),
+                timeout='short'
+            )
             
             if not sales:
                 flash('Tidak ditemukan transaksi yang dapat direfund dengan kriteria tersebut.', 'info')
@@ -591,11 +817,61 @@ def search_refundable_sales():
     
     return render_template('sales/refunds/search.html', form=form, sales=sales)
 
+
+def _search_refundable_sales_data(tenant_id, search_type, search_value, days_limit):
+    """Helper function untuk mencari refundable sales"""
+    if search_type == 'receipt_number':
+        sale = Sale.query.filter(
+            Sale.tenant_id == tenant_id,
+            Sale.receipt_number.ilike(f'%{search_value}%'),
+            Sale.payment_status == 'completed'
+        ).first()
+        
+        if sale and sale.can_be_refunded():
+            return [sale]
+        else:
+            return []
+            
+    elif search_type == 'customer_name':
+        from app.models import Customer
+        sales_query = Sale.query.join(Customer).filter(
+            Sale.tenant_id == tenant_id,
+            Customer.name.ilike(f'%{search_value}%'),
+            Sale.payment_status == 'completed',
+            Sale.created_at >= datetime.utcnow() - timedelta(days=days_limit)
+        ).order_by(Sale.created_at.desc()).all()
+        
+        # Filter hanya refundable sales
+        sales = [sale for sale in sales_query if sale.can_be_refunded()]
+        
+    elif search_type == 'date':
+        try:
+            search_date = datetime.strptime(search_value, '%Y-%m-%d').date()
+            sales_query = Sale.query.filter(
+                Sale.tenant_id == tenant_id,
+                db.func.date(Sale.created_at) == search_date,
+                Sale.payment_status == 'completed'
+            ).order_by(Sale.created_at.desc()).all()
+            
+            # Filter hanya refundable sales
+            sales = [sale for sale in sales_query if sale.can_be_refunded()]
+            
+        except ValueError:
+            return []
+    
+    # Convert timestamps
+    if sales:
+        for sale in sales:
+            sale.local_created_at = convert_utc_to_user_timezone(sale.created_at)
+    
+    return sales
+
+
 @bp.route('/refunds/create/<sale_id>', methods=['GET', 'POST'])
 @login_required
 @tenant_required
 def create_refund(sale_id):
-    """Create a new refund for a sale"""
+    """Create a new refund untuk sale dengan cache invalidation"""
     sale = Sale.query.filter_by(
         id=sale_id,
         tenant_id=current_user.tenant_id
@@ -609,7 +885,7 @@ def create_refund(sale_id):
     
     if form.validate_on_submit():
         try:
-            # Get refund items from form data
+            # Get refund items dari form data
             refund_items_data = []
             
             for item in sale.items:
@@ -646,6 +922,10 @@ def create_refund(sale_id):
                 user_id=current_user.id
             )
             
+            # Invalidate refund-related caches
+            CacheService.invalidate_tenant_cache(current_user.tenant_id, 'refunds_list')
+            CacheService.invalidate_tenant_cache(current_user.tenant_id, 'refund_stats')
+            
             flash(f'Refund berhasil dibuat dengan nomor: {refund.refund_number}', 'success')
             return redirect(url_for('sales.view_refund', refund_id=refund.id))
             
@@ -658,14 +938,32 @@ def create_refund(sale_id):
     
     return render_template('sales/refunds/create.html', form=form, sale=sale)
 
+
 @bp.route('/refunds/<refund_id>')
 @login_required
 @tenant_required
 def view_refund(refund_id):
-    """View refund details"""
+    """View refund details dengan cache"""
+    cache_key = CacheService.get_cache_key(
+        'refund_details', 
+        refund_id, 
+        tenant_id=current_user.tenant_id
+    )
+    
+    refund_data = CacheService.get_or_set(
+        cache_key,
+        lambda: _get_refund_details_data(refund_id, current_user.tenant_id),
+        timeout='medium'
+    )
+    
+    return render_template('sales/refunds/view.html', refund=refund_data['refund'])
+
+
+def _get_refund_details_data(refund_id, tenant_id):
+    """Helper function untuk mendapatkan refund details"""
     refund = Refund.query.filter_by(
         id=refund_id,
-        tenant_id=current_user.tenant_id
+        tenant_id=tenant_id
     ).first_or_404()
     
     # Convert timestamps
@@ -673,13 +971,14 @@ def view_refund(refund_id):
     if refund.processed_at:
         refund.local_processed_at = convert_utc_to_user_timezone(refund.processed_at)
     
-    return render_template('sales/refunds/view.html', refund=refund)
+    return {'refund': refund}
+
 
 @bp.route('/refunds/<refund_id>/process', methods=['GET', 'POST'])
 @login_required
 @tenant_required
 def process_refund(refund_id):
-    """Process a pending refund"""
+    """Process a pending refund dengan cache invalidation"""
     refund = Refund.query.filter_by(
         id=refund_id,
         tenant_id=current_user.tenant_id
@@ -701,6 +1000,10 @@ def process_refund(refund_id):
                     refund_id=refund_id,
                     user_id=current_user.id
                 )
+                
+                # Invalidate caches setelah refund diproses
+                _invalidate_caches_after_refund(current_user.tenant_id, refund_id)
+                
                 flash(f'Refund {processed_refund.refund_number} berhasil diproses.', 'success')
                 
             elif action == 'cancel':
@@ -708,6 +1011,10 @@ def process_refund(refund_id):
                     refund_id=refund_id,
                     user_id=current_user.id
                 )
+                
+                # Invalidate caches setelah refund dibatalkan
+                _invalidate_caches_after_refund(current_user.tenant_id, refund_id)
+                
                 flash(f'Refund {cancelled_refund.refund_number} dibatalkan.', 'info')
             
             return redirect(url_for('sales.view_refund', refund_id=refund_id))
@@ -721,12 +1028,33 @@ def process_refund(refund_id):
     
     return render_template('sales/refunds/process.html', form=form, refund=refund)
 
-# --- FUNGSI BARU UNTUK ROUTE PDF ---
+
+def _invalidate_caches_after_refund(tenant_id, refund_id):
+    """Invalidate caches setelah refund diproses"""
+    try:
+        # Invalidate refund-related caches
+        CacheService.invalidate_tenant_cache(tenant_id, 'refunds_list')
+        CacheService.invalidate_tenant_cache(tenant_id, 'refund_stats')
+        CacheService.delete_pattern(f"*refund_details*{refund_id}*")
+        
+        # Invalidate sales and dashboard caches karena refund mempengaruhi laporan
+        CacheService.invalidate_tenant_cache(tenant_id, 'sales_history')
+        DashboardCacheService.invalidate_dashboard_cache(tenant_id)
+        ReportsCacheService.invalidate_reports_cache(tenant_id)
+        
+        current_app.logger.info(f"Cache invalidated for tenant {tenant_id} after refund {refund_id}")
+        
+    except Exception as e:
+        current_app.logger.error(f"Error during refund cache invalidation: {str(e)}")
+
+
+# --- PDF Receipt Functions ---
+
 @bp.route('/<sale_id>/receipt/download_pdf')
 @login_required
 @tenant_required
 def download_receipt_pdf(sale_id):
-    """Generate and download PDF receipt"""
+    """Generate dan download PDF receipt"""
     sale = Sale.query.filter_by(
         id=sale_id,
         tenant_id=current_user.tenant_id
@@ -745,34 +1073,21 @@ def download_receipt_pdf(sale_id):
         mimetype='application/pdf'
     )
 
-# --- FUNGSI BARU UNTUK ROUTE PRINT API ---
+
 @bp.route('/<sale_id>/receipt/print', methods=['GET', 'POST'])
 @login_required
 @tenant_required
 def print_receipt(sale_id):
-    """
-    API endpoint to trigger a receipt reprint.
-    Ini adalah route yang hilang yang dipanggil oleh `fetch` JavaScript
-    di template sales/receipt.html
-    """
+    """API endpoint untuk trigger receipt reprint"""
     sale = Sale.query.filter_by(
         id=sale_id,
         tenant_id=current_user.tenant_id
     ).first_or_404()
     
     try:
-        # --- TITIK INTEGRASI PRINTER ---
-        # Di sinilah Anda akan memanggil layanan printer Anda yang sebenarnya.
-        # Contoh:
-        # from app.services.printer_service import PrinterService
-        # printer_config = current_user.tenant.printer_settings 
-        # p_service = PrinterService(config=printer_config)
-        # p_service.print_sale(sale) 
-        
-        # Untuk saat ini, kita simulasikan sukses dan log ke konsol
+        # Simulasi print job - integrasikan dengan printer service yang sebenarnya
         current_app.logger.info(f"Reprint job triggered for receipt: {sale.receipt_number} by {current_user.username}")
         
-        # Kembalikan JSON sukses sesuai harapan JavaScript
         return jsonify({
             'success': True, 
             'message': f"Receipt {sale.receipt_number} sent to printer (simulation)."
@@ -780,18 +1095,14 @@ def print_receipt(sale_id):
         
     except Exception as e:
         current_app.logger.error(f"Failed to trigger reprint for receipt {sale.id}: {str(e)}")
-        # Kembalikan JSON error
         return jsonify({
             'success': False, 
             'message': f"Print failed: {str(e)}"
         }), 500
 
 
-# --- FUNGSI HELPER BARU UNTUK GENERATE PDF (ENTERPRISE GRADE) ---
 def _generate_receipt_pdf_content(sale: Sale) -> io.BytesIO:
-    """
-    Membuat konten PDF untuk struk menggunakan reportlab
-    """
+    """Membuat konten PDF untuk struk menggunakan reportlab"""
     buffer = io.BytesIO()
     
     # Tentukan ukuran kertas struk (80mm width)
@@ -835,11 +1146,75 @@ def _generate_receipt_pdf_content(sale: Sale) -> io.BytesIO:
     y_pos -= 2 * mm
     p.line(x_margin, y_pos, x_margin_right, y_pos)
     
-    # Info Struk - PERBAIKAN: Gunakan sale.local_created_at yang sudah dikonversi
+    # Info Struk
     draw_line(f"RECEIPT: {sale.receipt_number}", 'Helvetica-Bold', 9, line_height_normal, 'center')
     draw_line(sale.local_created_at.strftime('%Y-%m-%d %H:%M:%S'), 'Helvetica', 8, line_height_small, 'center')
     
-    # Continue with the rest of the PDF generation...
+    y_pos -= 3 * mm
+    p.line(x_margin, y_pos, x_margin_right, y_pos)
+    y_pos -= 2 * mm
+    
+    # Items header
+    draw_line("ITEM", 'Helvetica-Bold', 8, line_height_small)
+    draw_line("QTY  PRICE    TOTAL", 'Helvetica-Bold', 8, line_height_small, 'right')
+    
+    y_pos -= 2 * mm
+    p.line(x_margin, y_pos, x_margin_right, y_pos)
+    y_pos -= 1 * mm
+    
+    # Items
+    for item in sale.items:
+        # Product name (bisa dipotong jika terlalu panjang)
+        product_name = item.product.name
+        if len(product_name) > 20:
+            product_name = product_name[:17] + "..."
+        
+        draw_line(product_name, 'Helvetica', 8, line_height_small)
+        
+        # Quantity and price
+        item_line = f"{item.quantity}  Rp{item.unit_price:.0f}  Rp{item.total_price:.0f}"
+        draw_line(item_line, 'Helvetica', 8, line_height_small, 'right')
+        
+        y_pos -= 1 * mm
+    
+    y_pos -= 2 * mm
+    p.line(x_margin, y_pos, x_margin_right, y_pos)
+    y_pos -= 2 * mm
+    
+    # Totals
+    subtotal = sale.total_amount - sale.tax_amount + sale.discount_amount
+    draw_line(f"Subtotal: Rp{subtotal:.0f}", 'Helvetica', 8, line_height_small, 'right')
+    
+    if sale.tax_amount > 0:
+        draw_line(f"Tax: Rp{sale.tax_amount:.0f}", 'Helvetica', 8, line_height_small, 'right')
+    
+    if sale.discount_amount > 0:
+        draw_line(f"Discount: -Rp{sale.discount_amount:.0f}", 'Helvetica', 8, line_height_small, 'right')
+    
+    draw_line(f"TOTAL: Rp{sale.total_amount:.0f}", 'Helvetica-Bold', 9, line_height_normal, 'right')
+    
+    y_pos -= 2 * mm
+    p.line(x_margin, y_pos, x_margin_right, y_pos)
+    y_pos -= 2 * mm
+    
+    # Payment info
+    draw_line(f"Payment: {sale.payment_method.upper()}", 'Helvetica', 8, line_height_small)
+    draw_line(f"Cashier: {sale.user.username}", 'Helvetica', 8, line_height_small)
+    
+    if sale.customer:
+        draw_line(f"Customer: {sale.customer.name}", 'Helvetica', 8, line_height_small)
+    
+    y_pos -= 5 * mm
+    
+    # Footer
+    draw_line("Thank you for your business!", 'Helvetica', 8, line_height_normal, 'center')
+    draw_line("Please come again", 'Helvetica', 8, line_height_small, 'center')
+    
     p.save()
     buffer.seek(0)
     return buffer
+
+
+# Import tambahan yang diperlukan
+import hashlib
+import json
