@@ -1,4 +1,4 @@
-from flask import render_template, flash, redirect, url_for, request, current_app
+from flask import render_template, flash, redirect, url_for, request, current_app, jsonify
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import uuid
@@ -8,30 +8,94 @@ from . import bp
 from .forms import MarketplaceItemForm, RestockOrderForm, RestockVerificationForm, PaymentMethodForm, TenantAddressForm
 from ..models import DestinationType, MarketplaceItem, Product, RawMaterial, db, PaymentMethod,RestockOrder, RestockStatus, Tenant
 from ..superadmin.routes import superadmin_required
-from app.services.s3_service import S3Service  # Import S3Service
+from app.services.s3_service import S3Service
+from app.services.cache_service import CacheService, ProductCacheService, cache_result
+
+# --- Cache Configuration ---
+MARKETPLACE_CACHE_TIMEOUT = 1800  # 30 menit untuk data marketplace
+PRODUCT_CACHE_TIMEOUT = 900      # 15 menit untuk data produk
+ORDER_CACHE_TIMEOUT = 600        # 10 menit untuk data order
+
+# --- Helper Functions untuk Cache ---
+def get_marketplace_cache_key(filter_type='all'):
+    """Generate cache key untuk marketplace items"""
+    return CacheService.get_cache_key('marketplace_items', filter_type)
+
+def get_restock_orders_cache_key(tenant_id=None, status=None):
+    """Generate cache key untuk restock orders"""
+    if tenant_id:
+        return CacheService.get_cache_key('restock_orders', status, tenant_id=tenant_id)
+    return CacheService.get_cache_key('admin_restock_orders', status)
+
+def get_payment_methods_cache_key():
+    """Generate cache key untuk payment methods"""
+    return CacheService.get_cache_key('payment_methods', 'active')
+
+def invalidate_marketplace_cache():
+    """Invalidate semua cache terkait marketplace"""
+    CacheService.delete_pattern('marketplace_items:*')
+    CacheService.delete_pattern('product_list:*')
+    CacheService.delete_pattern('restock_orders:*')
+
+def invalidate_tenant_cache(tenant_id):
+    """Invalidate cache untuk tenant tertentu"""
+    CacheService.invalidate_tenant_cache(tenant_id)
+    CacheService.delete_pattern(f'restock_orders:*:tenant:{tenant_id}:*')
 
 # --- Rute untuk Tenant ---
 @bp.route('/')
 @login_required
 def index():
-    """Halaman Marketplace untuk dilihat oleh Tenant."""
-    items = MarketplaceItem.query.filter(MarketplaceItem.stock > 0).order_by(MarketplaceItem.created_at.desc()).all()
-    
-    # Pastikan query payment methods ini ada dan benar
-    payment_methods = PaymentMethod.query.filter_by(is_active=True).all()
-    
-    return render_template('marketplace/index.html', 
-                         items=items, 
-                         payment_methods=payment_methods,  # Pastikan ini dikirim
-                         title="Marketplace")
+    """Halaman Marketplace untuk dilihat oleh Tenant dengan caching."""
+    try:
+        # Coba ambil dari cache terlebih dahulu
+        cache_key = get_marketplace_cache_key()
+        cached_data = CacheService.get_cache(cache_key)
+        
+        if cached_data:
+            current_app.logger.info('Serving marketplace index from cache')
+            items, payment_methods = cached_data
+        else:
+            # Jika tidak ada di cache, query dari database
+            items = MarketplaceItem.query.filter(
+                MarketplaceItem.stock > 0
+            ).order_by(MarketplaceItem.created_at.desc()).all()
+            
+            payment_methods = PaymentMethod.query.filter_by(is_active=True).all()
+            
+            # Cache hasil query
+            cache_data = (items, payment_methods)
+            CacheService.set_cache(cache_key, cache_data, 'medium')
+            current_app.logger.info('Cached marketplace index data')
+        
+        return render_template('marketplace/index.html', 
+                             items=items, 
+                             payment_methods=payment_methods,
+                             title="Marketplace")
+                             
+    except Exception as e:
+        current_app.logger.error(f"Error in marketplace index: {str(e)}")
+        # Fallback ke query database jika cache error
+        items = MarketplaceItem.query.filter(MarketplaceItem.stock > 0).order_by(MarketplaceItem.created_at.desc()).all()
+        payment_methods = PaymentMethod.query.filter_by(is_active=True).all()
+        return render_template('marketplace/index.html', 
+                             items=items, 
+                             payment_methods=payment_methods,
+                             title="Marketplace")
+
 @bp.route('/restock/<string:item_id>', methods=['GET', 'POST'])
 @login_required
 def restock_item(item_id):
-    """Proses restock item dengan pembayaran dan verifikasi, support untuk produk dan bahan baku."""
+    """Proses restock item dengan pembayaran dan verifikasi."""
     try:
-        item_to_restock = MarketplaceItem.query.get_or_404(item_id)
+        # Cache product details untuk performa yang lebih baik
+        cache_key = ProductCacheService.get_product_cache_key(item_id, 'marketplace', 'details')
+        item_to_restock = CacheService.get_or_set(
+            cache_key,
+            lambda: MarketplaceItem.query.get_or_404(item_id),
+            'medium'
+        )
         
-        # Validasi tenant
         if not current_user.tenant_id:
             flash('Tenant tidak ditemukan untuk user ini.', 'danger')
             return redirect(url_for('marketplace.index'))
@@ -42,7 +106,14 @@ def restock_item(item_id):
             return redirect(url_for('marketplace.index'))
         
         form = RestockOrderForm()
-        payment_methods = PaymentMethod.query.filter_by(is_active=True).all()
+        
+        # Cache payment methods
+        payment_methods_cache_key = get_payment_methods_cache_key()
+        payment_methods = CacheService.get_or_set(
+            payment_methods_cache_key,
+            lambda: PaymentMethod.query.filter_by(is_active=True).all(),
+            'long'
+        )
         
         # Handle GET request - set default values
         if request.method == 'GET':
@@ -58,7 +129,6 @@ def restock_item(item_id):
                 quantity = form.quantity.data
                 total_amount = item_to_restock.price * quantity
                 
-                # Validasi stok
                 if quantity > item_to_restock.stock:
                     flash(f'Stok tidak tersedia. Hanya tersisa {item_to_restock.stock} item.', 'danger')
                     return render_template('marketplace/restock.html', 
@@ -109,7 +179,6 @@ def restock_item(item_id):
                     shipping_postal_code = form.shipping_postal_code.data
                     shipping_phone = form.shipping_phone.data
                 
-                # Validasi alamat pengiriman
                 if not shipping_address or not shipping_city:
                     flash('Alamat pengiriman wajib diisi.', 'danger')
                     return render_template('marketplace/restock.html', 
@@ -119,14 +188,14 @@ def restock_item(item_id):
                                         tenant=tenant,
                                         title=f"Restock {item_to_restock.name}")
                 
-                # Buat restock order dengan destination_type
+                # Buat restock order
                 restock_order = RestockOrder(
                     id=str(uuid.uuid4()),
                     tenant_id=current_user.tenant_id,
                     marketplace_item_id=item_id,
                     quantity=quantity,
                     total_amount=total_amount,
-                    destination_type=form.destination_type.data,  # Simpan pilihan tujuan
+                    destination_type=form.destination_type.data,
                     shipping_address=shipping_address,
                     shipping_city=shipping_city,
                     shipping_postal_code=shipping_postal_code,
@@ -139,7 +208,10 @@ def restock_item(item_id):
                 db.session.add(restock_order)
                 db.session.commit()
                 
-                # Pesan sukses berdasarkan tujuan
+                # Invalidate cache terkait
+                invalidate_tenant_cache(current_user.tenant_id)
+                CacheService.delete_pattern(f'restock_orders:*:tenant:{current_user.tenant_id}:*')
+                
                 destination_message = "produk untuk dijual" if form.destination_type.data == 'product' else "bahan baku untuk produksi"
                 flash(f'Order restock berhasil dibuat sebagai {destination_message}. Silakan tunggu verifikasi admin.', 'success')
                 return redirect(url_for('marketplace.restock_orders'))
@@ -149,11 +221,9 @@ def restock_item(item_id):
                 current_app.logger.error(f"Error creating restock order: {str(e)}")
                 flash(f'Error creating restock order: {str(e)}', 'danger')
         
-        # Untuk debugging - log form errors
         if form.errors:
             current_app.logger.warning(f"Form validation errors: {form.errors}")
         
-        # Untuk GET request atau form tidak valid
         return render_template('marketplace/restock.html', 
                              item=item_to_restock, 
                              form=form,
@@ -165,23 +235,40 @@ def restock_item(item_id):
         current_app.logger.error(f"Error in restock_item route: {str(e)}")
         flash('Terjadi error saat mengakses halaman restock.', 'danger')
         return redirect(url_for('marketplace.index'))
-    
+
 @bp.route('/restock-orders')
 @login_required
 def restock_orders():
-    """Menampilkan riwayat restock orders tenant."""
-    status_filter = request.args.get('status')
-    
-    query = RestockOrder.query.filter_by(tenant_id=current_user.tenant_id)
+    """Menampilkan riwayat restock orders tenant dengan caching."""
+    try:
+        status_filter = request.args.get('status')
+        cache_key = get_restock_orders_cache_key(current_user.tenant_id, status_filter)
+        
+        orders = CacheService.get_or_set(
+            cache_key,
+            lambda: get_restock_orders_from_db(current_user.tenant_id, status_filter),
+            'short'
+        )
+        
+        return render_template('marketplace/restock_orders.html', 
+                             orders=orders,
+                             title="My Restock Orders")
+    except Exception as e:
+        current_app.logger.error(f"Error in restock_orders: {str(e)}")
+        # Fallback ke database query
+        orders = get_restock_orders_from_db(current_user.tenant_id, request.args.get('status'))
+        return render_template('marketplace/restock_orders.html', 
+                             orders=orders,
+                             title="My Restock Orders")
+
+def get_restock_orders_from_db(tenant_id, status_filter=None):
+    """Helper function untuk mengambil restock orders dari database"""
+    query = RestockOrder.query.filter_by(tenant_id=tenant_id)
     
     if status_filter:
         query = query.filter_by(status=RestockStatus(status_filter))
     
-    orders = query.order_by(RestockOrder.created_at.desc()).all()
-    
-    return render_template('marketplace/restock_orders.html', 
-                         orders=orders,
-                         title="My Restock Orders")
+    return query.order_by(RestockOrder.created_at.desc()).all()
 
 @bp.route('/my-address', methods=['GET', 'POST'])
 @login_required
@@ -199,6 +286,10 @@ def my_address():
             tenant.updated_at = datetime.utcnow()
             
             db.session.commit()
+            
+            # Invalidate cache tenant
+            invalidate_tenant_cache(current_user.tenant_id)
+            
             flash('Alamat berhasil diperbarui!', 'success')
             return redirect(url_for('marketplace.my_address'))
             
@@ -215,11 +306,17 @@ def my_address():
 @bp.route('/order/<string:order_id>')
 @login_required
 def order_detail(order_id):
-    """Halaman detail untuk order tertentu."""
-    order = RestockOrder.query.filter_by(
-        id=order_id, 
-        tenant_id=current_user.tenant_id
-    ).first_or_404()
+    """Halaman detail untuk order tertentu dengan caching."""
+    cache_key = CacheService.get_cache_key('order_detail', order_id)
+    
+    order = CacheService.get_or_set(
+        cache_key,
+        lambda: RestockOrder.query.filter_by(
+            id=order_id, 
+            tenant_id=current_user.tenant_id
+        ).first_or_404(),
+        'medium'
+    )
     
     return render_template('marketplace/order_detail.html', 
                          order=order,
@@ -231,9 +328,51 @@ def order_detail(order_id):
 @login_required
 @superadmin_required
 def manage():
-    """Halaman Superadmin untuk mengelola semua item marketplace."""
-    filter_type = request.args.get('filter', 'all')
-    
+    """Halaman Superadmin untuk mengelola semua item marketplace dengan caching."""
+    try:
+        filter_type = request.args.get('filter', 'all')
+        cache_key = get_marketplace_cache_key(f"manage_{filter_type}")
+        
+        cached_data = CacheService.get_cache(cache_key)
+        
+        if cached_data:
+            items, stats = cached_data
+            current_app.logger.info('Serving marketplace manage from cache')
+        else:
+            items = get_marketplace_items_from_db(filter_type)
+            stats = calculate_marketplace_stats(items)
+            
+            # Cache data
+            cache_data = (items, stats)
+            CacheService.set_cache(cache_key, cache_data, 'medium')
+            current_app.logger.info('Cached marketplace manage data')
+        
+        total_items, in_stock_count, out_of_stock_count, total_value = stats
+        
+        return render_template('marketplace/manage.html', 
+                             items=items,
+                             total_items=total_items,
+                             in_stock_count=in_stock_count,
+                             out_of_stock_count=out_of_stock_count,
+                             total_value="Rp{:,.2f}".format(total_value),
+                             title="Manage Marketplace")
+    except Exception as e:
+        current_app.logger.error(f"Error in marketplace manage: {str(e)}")
+        # Fallback ke database query
+        items = get_marketplace_items_from_db(request.args.get('filter', 'all'))
+        stats = calculate_marketplace_stats(items)
+        total_items, in_stock_count, out_of_stock_count, total_value = stats
+        
+        return render_template('marketplace/manage.html', 
+                             items=items,
+                             total_items=total_items,
+                             in_stock_count=in_stock_count,
+                             out_of_stock_count=out_of_stock_count,
+                             total_value="Rp{:,.2f}".format(total_value),
+                             title="Manage Marketplace")
+
+def get_marketplace_items_from_db(filter_type):
+    """Helper function untuk mengambil marketplace items dari database"""
     query = MarketplaceItem.query
     
     if filter_type == 'in_stock':
@@ -241,21 +380,16 @@ def manage():
     elif filter_type == 'out_of_stock':
         query = query.filter(MarketplaceItem.stock == 0)
     
-    items = query.order_by(MarketplaceItem.name).all()
-    
-    # Hitung statistik
+    return query.order_by(MarketplaceItem.name).all()
+
+def calculate_marketplace_stats(items):
+    """Helper function untuk menghitung statistik marketplace"""
     total_items = len(items)
     in_stock_count = len([item for item in items if item.stock > 0])
     out_of_stock_count = len([item for item in items if item.stock == 0])
     total_value = sum(item.price * item.stock for item in items)
     
-    return render_template('marketplace/manage.html', 
-                         items=items,
-                         total_items=total_items,
-                         in_stock_count=in_stock_count,
-                         out_of_stock_count=out_of_stock_count,
-                         total_value="Rp{:,.2f}".format(total_value),
-                         title="Manage Marketplace")
+    return total_items, in_stock_count, out_of_stock_count, total_value
 
 @bp.route('/manage/new', methods=['GET', 'POST'])
 @login_required
@@ -275,7 +409,6 @@ def create_item():
                 sku=form.sku.data
             )
             
-            # Handle image upload
             if form.image.data:
                 s3_service = S3Service()
                 image_url = s3_service.upload_product_image(form.image.data, f"marketplace_{new_item.id}")
@@ -283,6 +416,9 @@ def create_item():
             
             db.session.add(new_item)
             db.session.commit()
+            
+            # Invalidate cache marketplace
+            invalidate_marketplace_cache()
             
             flash(f'Item "{new_item.name}" has been created.', 'success')
             return redirect(url_for('marketplace.manage'))
@@ -305,7 +441,6 @@ def edit_item(item_id):
     item = MarketplaceItem.query.get_or_404(item_id)
     form = MarketplaceItemForm(obj=item)
     
-    # Pass the object to template for displaying current image
     form._obj = item
     
     if form.validate_on_submit():
@@ -316,12 +451,10 @@ def edit_item(item_id):
             item.stock = form.stock.data
             item.sku = form.sku.data
 
-            # Handle image upload
             if form.image.data:
                 s3_service = S3Service()
                 image_url = s3_service.upload_product_image(form.image.data, f"marketplace_{item.id}")
                 
-                # Hapus gambar lama jika ada
                 if item.image_url:
                     try:
                         old_image_url = item.image_url
@@ -334,6 +467,11 @@ def edit_item(item_id):
                 item.image_url = image_url
 
             db.session.commit()
+            
+            # Invalidate cache terkait
+            invalidate_marketplace_cache()
+            ProductCacheService.invalidate_product_cache(item_id, 'marketplace')
+            
             flash(f'Item "{item.name}" has been updated.', 'success')
             return redirect(url_for('marketplace.manage'))
             
@@ -347,7 +485,6 @@ def edit_item(item_id):
                          title="Edit Marketplace Item", 
                          legend=f"Edit {item.name}")
 
-
 @bp.route('/manage/delete/<string:item_id>', methods=['POST'])
 @login_required
 @superadmin_required
@@ -356,20 +493,22 @@ def delete_item(item_id):
     item = MarketplaceItem.query.get_or_404(item_id)
     
     try:
-        # Hapus gambar dari S3 jika ada
         if item.image_url:
             try:
-                s3_service = S3Service()  # Inisialisasi di dalam function
-                # Extract object name dari URL
+                s3_service = S3Service()
                 if 'amazonaws.com/' in item.image_url:
                     object_name = item.image_url.split('amazonaws.com/')[1]
                     s3_service.delete_file(object_name)
             except Exception as e:
                 current_app.logger.warning(f"Could not delete image from S3: {str(e)}")
         
-        # Hapus item dari database
         db.session.delete(item)
         db.session.commit()
+        
+        # Invalidate cache terkait
+        invalidate_marketplace_cache()
+        ProductCacheService.invalidate_product_cache(item_id, 'marketplace')
+        
         flash(f'Item "{item.name}" has been deleted.', 'success')
         
     except Exception as e:
@@ -383,9 +522,32 @@ def delete_item(item_id):
 @login_required
 @superadmin_required
 def admin_restock_orders():
-    """Halaman admin untuk memverifikasi restock orders."""
-    status_filter = request.args.get('status', 'pending')
-    
+    """Halaman admin untuk memverifikasi restock orders dengan caching."""
+    try:
+        status_filter = request.args.get('status', 'pending')
+        cache_key = get_restock_orders_cache_key(status=status_filter)
+        
+        orders = CacheService.get_or_set(
+            cache_key,
+            lambda: get_admin_restock_orders_from_db(status_filter),
+            'short'
+        )
+        
+        return render_template('marketplace/admin_restock_orders.html', 
+                             orders=orders,
+                             status_filter=status_filter,
+                             title="Manage Restock Orders")
+    except Exception as e:
+        current_app.logger.error(f"Error in admin_restock_orders: {str(e)}")
+        # Fallback ke database query
+        orders = get_admin_restock_orders_from_db(request.args.get('status', 'pending'))
+        return render_template('marketplace/admin_restock_orders.html', 
+                             orders=orders,
+                             status_filter=request.args.get('status', 'pending'),
+                             title="Manage Restock Orders")
+
+def get_admin_restock_orders_from_db(status_filter):
+    """Helper function untuk mengambil admin restock orders dari database"""
     query = RestockOrder.query
     
     if status_filter == 'pending':
@@ -395,18 +557,13 @@ def admin_restock_orders():
     elif status_filter == 'rejected':
         query = query.filter_by(status=RestockStatus.REJECTED)
     
-    orders = query.order_by(RestockOrder.created_at.desc()).all()
-    
-    return render_template('marketplace/admin_restock_orders.html', 
-                         orders=orders,
-                         status_filter=status_filter,
-                         title="Manage Restock Orders")
+    return query.order_by(RestockOrder.created_at.desc()).all()
 
 @bp.route('/admin/restock-orders/<string:order_id>/verify', methods=['GET', 'POST'])
 @login_required
 @superadmin_required
 def verify_restock_order(order_id):
-    """Verifikasi restock order oleh admin dengan support untuk product dan raw_material."""
+    """Verifikasi restock order oleh admin."""
     restock_order = RestockOrder.query.get_or_404(order_id)
     form = RestockVerificationForm()
     
@@ -418,10 +575,8 @@ def verify_restock_order(order_id):
             restock_order.verified_at = datetime.utcnow()
             restock_order.admin_notes = form.admin_notes.data
             
-            # Jika status verified, proses berdasarkan destination_type
             if new_status == RestockStatus.VERIFIED:
                 if restock_order.destination_type == 'product':
-                    # Kode untuk produk (seperti sebelumnya)
                     existing_product = Product.query.filter_by(
                         tenant_id=restock_order.tenant_id, 
                         name=restock_order.marketplace_item.name
@@ -449,7 +604,6 @@ def verify_restock_order(order_id):
                         current_app.logger.info(f"Created new product: {new_product.name}, stock: {new_product.stock_quantity}")
                 
                 elif restock_order.destination_type == 'raw_material':
-                    # PERBAIKAN: Pastikan bahan baku benar-benar dibuat dengan logging detail
                     current_app.logger.info(f"Processing raw material restock for tenant: {restock_order.tenant_id}, item: {restock_order.marketplace_item.name}")
                     
                     existing_raw_material = RawMaterial.query.filter_by(
@@ -458,24 +612,22 @@ def verify_restock_order(order_id):
                     ).first()
                     
                     if existing_raw_material:
-                        # Update stok bahan baku yang sudah ada
                         old_stock = existing_raw_material.stock_quantity
                         existing_raw_material.stock_quantity += restock_order.quantity
-                        existing_raw_material.cost_price = restock_order.marketplace_item.price  # Update harga terbaru
-                        existing_raw_material.is_active = True  # Pastikan aktif
+                        existing_raw_material.cost_price = restock_order.marketplace_item.price
+                        existing_raw_material.is_active = True
                         flash(f'Stok bahan baku "{existing_raw_material.name}" berhasil ditambahkan.', 'success')
                         current_app.logger.info(f"Updated raw material: {existing_raw_material.name}, stock: {old_stock} -> {existing_raw_material.stock_quantity}")
                     else:
-                        # Buat bahan baku baru
                         new_raw_material = RawMaterial(
                             id=str(uuid.uuid4()),
                             name=restock_order.marketplace_item.name,
                             description=restock_order.marketplace_item.description,
                             sku=restock_order.marketplace_item.sku or f"RM-{uuid.uuid4().hex[:8]}",
-                            unit='pcs',  # Default unit
+                            unit='pcs',
                             cost_price=restock_order.marketplace_item.price,
                             stock_quantity=restock_order.quantity,
-                            stock_alert=10,  # Default alert
+                            stock_alert=10,
                             tenant_id=restock_order.tenant_id,
                             is_active=True
                         )
@@ -483,20 +635,30 @@ def verify_restock_order(order_id):
                         flash(f'Bahan baku baru "{new_raw_material.name}" berhasil dibuat.', 'success')
                         current_app.logger.info(f"Created new raw material: {new_raw_material.name}, stock: {new_raw_material.stock_quantity}, tenant: {new_raw_material.tenant_id}")
                 
-                # Kurangi stok dari marketplace item (untuk kedua jenis)
                 old_marketplace_stock = restock_order.marketplace_item.stock
                 restock_order.marketplace_item.stock -= restock_order.quantity
                 current_app.logger.info(f"Updated marketplace item stock: {old_marketplace_stock} -> {restock_order.marketplace_item.stock}")
                 
-                # Commit perubahan
                 db.session.commit()
+                
+                # Invalidate cache terkait
+                invalidate_marketplace_cache()
+                invalidate_tenant_cache(restock_order.tenant_id)
+                CacheService.delete_pattern(f'restock_orders:*')
+                CacheService.delete_pattern(f'order_detail:{restock_order.id}*')
                 
                 status_message = "verified" if new_status == RestockStatus.VERIFIED else "rejected"
                 flash(f'Restock order has been {status_message}.', 'success')
                 return redirect(url_for('marketplace.admin_restock_orders'))
             
-            else:  # Jika status rejected, hanya update status
+            else:
                 db.session.commit()
+                
+                # Invalidate cache
+                invalidate_tenant_cache(restock_order.tenant_id)
+                CacheService.delete_pattern(f'restock_orders:*')
+                CacheService.delete_pattern(f'order_detail:{restock_order.id}*')
+                
                 flash('Restock order has been rejected.', 'success')
                 return redirect(url_for('marketplace.admin_restock_orders'))
                 
@@ -516,11 +678,24 @@ def verify_restock_order(order_id):
 @login_required
 @superadmin_required
 def payment_methods():
-    """Kelola payment methods."""
-    methods = PaymentMethod.query.order_by(PaymentMethod.created_at.desc()).all()
-    return render_template('marketplace/payment_methods.html', 
-                         methods=methods,
-                         title="Payment Methods")
+    """Kelola payment methods dengan caching."""
+    try:
+        cache_key = CacheService.get_cache_key('all_payment_methods')
+        methods = CacheService.get_or_set(
+            cache_key,
+            lambda: PaymentMethod.query.order_by(PaymentMethod.created_at.desc()).all(),
+            'long'
+        )
+        
+        return render_template('marketplace/payment_methods.html', 
+                             methods=methods,
+                             title="Payment Methods")
+    except Exception as e:
+        current_app.logger.error(f"Error in payment_methods: {str(e)}")
+        methods = PaymentMethod.query.order_by(PaymentMethod.created_at.desc()).all()
+        return render_template('marketplace/payment_methods.html', 
+                             methods=methods,
+                             title="Payment Methods")
 
 @bp.route('/admin/payment-methods/new', methods=['GET', 'POST'])
 @login_required
@@ -538,7 +713,6 @@ def create_payment_method():
                 is_active=form.is_active.data
             )
             
-            # Handle QR code upload
             if form.qr_code.data:
                 s3_service = S3Service()
                 qr_code_url = s3_service.upload_product_image(
@@ -549,6 +723,10 @@ def create_payment_method():
             
             db.session.add(new_method)
             db.session.commit()
+            
+            # Invalidate payment methods cache
+            CacheService.delete_pattern('payment_methods*')
+            CacheService.delete_pattern('all_payment_methods*')
             
             flash('Payment method created successfully.', 'success')
             return redirect(url_for('marketplace.payment_methods'))
@@ -577,14 +755,12 @@ def edit_payment_method(method_id):
             method.account_name = form.account_name.data
             method.is_active = form.is_active.data
 
-            # Handle QR code upload
             if form.qr_code.data:
                 s3_service = S3Service()
                 qr_code_url = s3_service.upload_product_image(
                     form.qr_code.data, 
                     f"qr_code_{method.id}"
                 )
-                # Hapus QR code lama jika ada
                 if method.qr_code_url:
                     try:
                         old_qr_url = method.qr_code_url
@@ -597,6 +773,11 @@ def edit_payment_method(method_id):
                 method.qr_code_url = qr_code_url
 
             db.session.commit()
+            
+            # Invalidate payment methods cache
+            CacheService.delete_pattern('payment_methods*')
+            CacheService.delete_pattern('all_payment_methods*')
+            
             flash('Payment method updated successfully.', 'success')
             return redirect(url_for('marketplace.payment_methods'))
             
@@ -618,7 +799,6 @@ def delete_payment_method(method_id):
     method = PaymentMethod.query.get_or_404(method_id)
     
     try:
-        # Hapus QR code dari S3 jika ada
         if method.qr_code_url:
             try:
                 s3_service = S3Service()
@@ -630,6 +810,11 @@ def delete_payment_method(method_id):
         
         db.session.delete(method)
         db.session.commit()
+        
+        # Invalidate payment methods cache
+        CacheService.delete_pattern('payment_methods*')
+        CacheService.delete_pattern('all_payment_methods*')
+        
         flash('Payment method deleted successfully.', 'success')
         
     except Exception as e:
@@ -639,3 +824,41 @@ def delete_payment_method(method_id):
     
     return redirect(url_for('marketplace.payment_methods'))
 
+# --- API Endpoints untuk Cache Management ---
+@bp.route('/api/cache/clear-marketplace', methods=['POST'])
+@login_required
+@superadmin_required
+def clear_marketplace_cache():
+    """API endpoint untuk membersihkan cache marketplace (superadmin only)"""
+    try:
+        invalidate_marketplace_cache()
+        flash('Marketplace cache berhasil dibersihkan.', 'success')
+        return jsonify({'success': True, 'message': 'Marketplace cache cleared'})
+    except Exception as e:
+        current_app.logger.error(f"Error clearing marketplace cache: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@bp.route('/api/cache/status')
+@login_required
+@superadmin_required
+def cache_status():
+    """API endpoint untuk mengecek status cache"""
+    try:
+        # Test cache connection
+        test_key = 'cache_test'
+        CacheService.set_cache(test_key, 'test_value', 'short')
+        test_result = CacheService.get_cache(test_key)
+        CacheService.delete_cache(test_key)
+        
+        return jsonify({
+            'success': True,
+            'cache_available': test_result == 'test_value',
+            'message': 'Cache service is working properly'
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error checking cache status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'cache_available': False,
+            'message': str(e)
+        }), 500
