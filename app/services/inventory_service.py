@@ -57,14 +57,44 @@ class InventoryService:
             bool: Success status
         """
         try:
-            # --- PERBAIKAN: Cari produk berdasarkan SKU, bukan NAMA ---
+            # --- PERBAIKAN V2: Logika anti-duplikat antar-tenant ---
+            
+            # 1. Cek apakah produk dengan SKU ini sudah ada untuk TENANT INI.
             product = Product.query.filter_by(
                 tenant_id=tenant_id,
                 sku=marketplace_item.sku
             ).first()
             
-            if not product:
-                # Create new product from marketplace item
+            if product:
+                # 2. JIKA YA: Produk sudah ada, tambahkan stok.
+                product.stock_quantity += quantity
+                
+                # Update detail lain jika perlu
+                if product.cost_price != marketplace_item.price:
+                    product.cost_price = marketplace_item.price
+                if product.name != marketplace_item.name:
+                    product.name = marketplace_item.name
+                    
+                current_app.logger.info(f"Restock: Adding {quantity} to existing product {product.name} (SKU: {product.sku}) for tenant {tenant_id}")
+            
+            else:
+                # 3. JIKA TIDAK: Produk belum ada untuk tenant ini.
+                #    Kita harus membuat produk baru.
+                
+                # 4. TAPI, cek dulu apakah SKU ini sudah dipakai tenant LAIN.
+                #    Ini karena constraint 'unique' pada SKU adalah global.
+                sku_conflict = Product.query.filter_by(sku=marketplace_item.sku).first()
+                
+                if sku_conflict:
+                    # 5. JIKA SKU KONFLIK: Gagal. SKU sudah dipakai tenant lain.
+                    #    Ini adalah masalah desain database (SKU harusnya unique per tenant).
+                    #    Kita tidak bisa melanjutkan.
+                    current_app.logger.error(f"SKU Conflict: Tenant {tenant_id} tried to create product with SKU {marketplace_item.sku}, but it is already used by tenant {sku_conflict.tenant_id}.")
+                    
+                    # Hentikan proses dengan error yang jelas
+                    raise ValueError(f"SKU {marketplace_item.sku} ('{marketplace_item.name}') already exists in the system under a different tenant. Cannot add this item.")
+                
+                # 6. JIKA TIDAK KONFLIK: Aman untuk membuat produk baru.
                 product = Product(
                     tenant_id=tenant_id,
                     name=marketplace_item.name,
@@ -76,28 +106,20 @@ class InventoryService:
                     image_url=marketplace_item.image_url
                 )
                 db.session.add(product)
-                current_app.logger.info(f"Restock: Creating new product {product.name} with SKU {product.sku}")
-            else:
-                # Update existing product stock
-                product.stock_quantity += quantity
-                
-                # Update cost price if different (opsional, tapi praktik yang baik)
-                if product.cost_price != marketplace_item.price:
-                    product.cost_price = marketplace_item.price
-                
-                # Update nama jika berbeda (opsional)
-                if product.name != marketplace_item.name:
-                    product.name = marketplace_item.name
-                    
-                current_app.logger.info(f"Restock: Adding {quantity} to existing product {product.name} (SKU: {product.sku})")
-            
+                current_app.logger.info(f"Restock: Creating new product {product.name} with SKU {product.sku} for tenant {tenant_id}")
+
+            # 7. Commit transaksi
             db.session.commit()
             return True
             
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error adding product stock: {str(e)}")
-            raise
+            # Log error yang lebih spesifik
+            if "SKU" in str(e):
+                current_app.logger.error(f"Failed to process restock due to SKU conflict: {str(e)}")
+            else:
+                current_app.logger.error(f"Error adding product stock: {str(e)}")
+            raise e # Re-raise exception
     
     @staticmethod
     def _add_raw_material_stock(marketplace_item, quantity, tenant_id):
