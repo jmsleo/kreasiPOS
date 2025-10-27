@@ -1,5 +1,5 @@
 from app import db
-from app.models import Product, RawMaterial, RestockOrder, MarketplaceItem, Sale, SaleItem
+from app.models import Product, RawMaterial, RestockOrder, MarketplaceItem, Sale, SaleItem, generate_uuid, utc_now
 from app.services.bom_service import BOMService
 from app.services.enhanced_bom_service import EnhancedBOMService
 from app.services.raw_material_service import RawMaterialService
@@ -57,16 +57,14 @@ class InventoryService:
             bool: Success status
         """
         try:
-            # --- PERBAIKAN V2: Logika anti-duplikat antar-tenant ---
-            
-            # 1. Cek apakah produk dengan SKU ini sudah ada untuk TENANT INI.
+            # Cek apakah produk dengan SKU ini sudah ada untuk TENANT INI
             product = Product.query.filter_by(
                 tenant_id=tenant_id,
                 sku=marketplace_item.sku
             ).first()
             
             if product:
-                # 2. JIKA YA: Produk sudah ada, tambahkan stok.
+                # Produk sudah ada, tambahkan stok
                 product.stock_quantity += quantity
                 
                 # Update detail lain jika perlu
@@ -74,52 +72,54 @@ class InventoryService:
                     product.cost_price = marketplace_item.price
                 if product.name != marketplace_item.name:
                     product.name = marketplace_item.name
+                if product.description != marketplace_item.description:
+                    product.description = marketplace_item.description
+                if product.image_url != marketplace_item.image_url:
+                    product.image_url = marketplace_item.image_url
+                    
+                # Update timestamp
+                product.updated_at = utc_now()
                     
                 current_app.logger.info(f"Restock: Adding {quantity} to existing product {product.name} (SKU: {product.sku}) for tenant {tenant_id}")
             
             else:
-                # 3. JIKA TIDAK: Produk belum ada untuk tenant ini.
-                #    Kita harus membuat produk baru.
+                # Produk belum ada, buat produk baru
+                # Gunakan method helper untuk mendapatkan SKU yang aman
+                safe_sku = InventoryService._get_safe_sku(marketplace_item.sku, tenant_id)
                 
-                # 4. TAPI, cek dulu apakah SKU ini sudah dipakai tenant LAIN.
-                #    Ini karena constraint 'unique' pada SKU adalah global.
-                sku_conflict = Product.query.filter_by(sku=marketplace_item.sku).first()
-                
-                if sku_conflict:
-                    # 5. JIKA SKU KONFLIK: Gagal. SKU sudah dipakai tenant lain.
-                    #    Ini adalah masalah desain database (SKU harusnya unique per tenant).
-                    #    Kita tidak bisa melanjutkan.
-                    current_app.logger.error(f"SKU Conflict: Tenant {tenant_id} tried to create product with SKU {marketplace_item.sku}, but it is already used by tenant {sku_conflict.tenant_id}.")
-                    
-                    # Hentikan proses dengan error yang jelas
-                    raise ValueError(f"SKU {marketplace_item.sku} ('{marketplace_item.name}') already exists in the system under a different tenant. Cannot add this item.")
-                
-                # 6. JIKA TIDAK KONFLIK: Aman untuk membuat produk baru.
                 product = Product(
+                    id=generate_uuid(),
                     tenant_id=tenant_id,
                     name=marketplace_item.name,
                     description=marketplace_item.description,
-                    price=marketplace_item.price * 1.2,  # Add 20% markup
+                    sku=safe_sku,
+                    barcode=marketplace_item.barcode,
+                    price=marketplace_item.price * 1.2,  # 20% markup
                     cost_price=marketplace_item.price,
                     stock_quantity=quantity,
-                    sku=marketplace_item.sku,
-                    image_url=marketplace_item.image_url
+                    stock_alert=10,
+                    unit='pcs',
+                    carton_quantity=1,
+                    is_active=True,
+                    image_url=marketplace_item.image_url,
+                    requires_stock_tracking=True,
+                    has_bom=False,
+                    bom_cost=0.0,
+                    created_at=utc_now(),
+                    updated_at=utc_now()
                 )
+                
                 db.session.add(product)
-                current_app.logger.info(f"Restock: Creating new product {product.name} with SKU {product.sku} for tenant {tenant_id}")
+                current_app.logger.info(f"Restock: Creating new product {product.name} with SKU {safe_sku} for tenant {tenant_id}")
 
-            # 7. Commit transaksi
             db.session.commit()
             return True
             
         except Exception as e:
             db.session.rollback()
-            # Log error yang lebih spesifik
-            if "SKU" in str(e):
-                current_app.logger.error(f"Failed to process restock due to SKU conflict: {str(e)}")
-            else:
-                current_app.logger.error(f"Error adding product stock: {str(e)}")
-            raise e # Re-raise exception
+            current_app.logger.error(f"Error adding product stock: {str(e)}")
+            raise
+
     
     @staticmethod
     def _add_raw_material_stock(marketplace_item, quantity, tenant_id):
