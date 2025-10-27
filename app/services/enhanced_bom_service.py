@@ -223,23 +223,52 @@ class EnhancedBOMService:
         try:
             current_app.logger.info(f"Validating BOM availability - Product: {product_id}, Quantity: {quantity}, Tenant: {tenant_id}")
             
+            # Validate product exists and has BOM
+            product = Product.query.filter_by(id=product_id, tenant_id=tenant_id).first()
+            if not product:
+                current_app.logger.error(f"Product not found: {product_id}")
+                return {
+                    'valid': False,
+                    'is_available': False,
+                    'message': 'Product not found',
+                    'missing_items': []
+                }
+            
+            if not product.has_bom:
+                current_app.logger.info(f"Product {product_id} does not have BOM")
+                return {
+                    'valid': True,
+                    'is_available': True,
+                    'message': 'Product does not require BOM validation',
+                    'missing_items': []
+                }
+            
             # Check cache first
             cached_availability = BOMCacheService.get_cached_bom_availability(product_id, tenant_id)
             if cached_availability and cached_availability.get('quantity') == quantity:
                 current_app.logger.info(f"Using cached BOM availability for product {product_id}")
                 return cached_availability
             
-            # FIXED: Correct parameter order
+            # Calculate requirements
             requirements = EnhancedBOMService.calculate_bom_requirements(product_id, quantity, tenant_id)
             
             if not requirements.get('success', True):
                 current_app.logger.error(f"BOM requirements calculation failed: {requirements}")
-                return requirements
+                return {
+                    'valid': False,
+                    'is_available': False,
+                    'message': requirements.get('error', 'BOM calculation failed'),
+                    'missing_items': []
+                }
+            
+            is_available = requirements['availability_status'] == 'available'
             
             validation_result = {
+                'valid': True,
                 'product_id': product_id,
                 'quantity': quantity,
-                'is_available': requirements['availability_status'] == 'available',
+                'is_available': is_available,
+                'message': 'BOM materials available' if is_available else 'Insufficient BOM materials',
                 'total_cost': requirements['total_cost'],
                 'validation_details': [],
                 'missing_items': requirements.get('missing_items', [])
@@ -265,7 +294,12 @@ class EnhancedBOMService:
             
         except Exception as e:
             current_app.logger.error(f"Error validating BOM availability: {str(e)}")
-            return {'success': False, 'error': str(e)}
+            return {
+                'valid': False,
+                'is_available': False,
+                'message': f'BOM validation error: {str(e)}',
+                'missing_items': []
+            }
     
     @staticmethod
     def process_bom_production(product_id: str, quantity: int, tenant_id: str) -> Dict:

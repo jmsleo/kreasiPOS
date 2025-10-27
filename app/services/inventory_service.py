@@ -1,6 +1,7 @@
 from app import db
 from app.models import Product, RawMaterial, RestockOrder, MarketplaceItem, Sale, SaleItem
 from app.services.bom_service import BOMService
+from app.services.enhanced_bom_service import EnhancedBOMService
 from app.services.raw_material_service import RawMaterialService
 from flask import current_app
 
@@ -157,20 +158,27 @@ class InventoryService:
                         raise ValueError(f"Insufficient stock for {product.name}")
                     product.stock_quantity -= sale_item.quantity
                 
-                # Handle BOM deduction
+                # Handle BOM deduction using enhanced service
                 if product.has_bom:
-                    active_bom = BOMService.get_bom_by_product(product.id)
-                    if active_bom:
-                        # Validate BOM availability
-                        is_valid, details = BOMService.validate_bom_availability(
-                            active_bom.id, 
-                            sale_item.quantity
-                        )
-                        if not is_valid:
-                            raise ValueError(f"Insufficient raw materials for {product.name}: {details}")
-                        
-                        # Process BOM deduction
-                        BOMService.process_bom_deduction(active_bom.id, sale_item.quantity)
+                    # Use enhanced BOM service with correct parameter order
+                    bom_validation = EnhancedBOMService.validate_bom_availability(
+                        product.id, 
+                        sale_item.quantity, 
+                        sale.tenant_id
+                    )
+                    
+                    if not bom_validation.get('is_available', False):
+                        raise ValueError(f"Insufficient raw materials for {product.name}")
+                    
+                    # Process BOM production/deduction
+                    bom_result = EnhancedBOMService.process_bom_production(
+                        product.id, 
+                        sale_item.quantity, 
+                        sale.tenant_id
+                    )
+                    
+                    if not bom_result.get('success', False):
+                        raise ValueError(f"Failed to process BOM deduction for {product.name}: {bom_result.get('error')}")
             
             db.session.commit()
             return True
@@ -205,7 +213,11 @@ class InventoryService:
             bom_availability_issues = []
             
             for product in bom_products:
-                if not product.check_bom_availability():
+                # Use enhanced BOM service for availability check
+                bom_validation = EnhancedBOMService.validate_bom_availability(
+                    product.id, 1, tenant_id
+                )
+                if not bom_validation.get('is_available', True):
                     bom_availability_issues.append(product)
             
             # Calculate total inventory value
@@ -268,14 +280,19 @@ class InventoryService:
                     if product.stock_quantity < quantity:
                         errors.append(f"Insufficient stock for {product.name}: need {quantity}, have {product.stock_quantity}")
                 
-                # Check BOM availability
+                # Check BOM availability using enhanced service
                 if product.has_bom:
-                    if not product.check_bom_availability(quantity):
-                        active_bom = BOMService.get_bom_by_product(product.id)
-                        if active_bom:
-                            is_valid, details = BOMService.validate_bom_availability(active_bom.id, quantity)
-                            if not is_valid:
-                                errors.append(f"BOM materials insufficient for {product.name}: {details.get('availability', [])}")
+                    bom_validation = EnhancedBOMService.validate_bom_availability(
+                        product.id, quantity, tenant_id
+                    )
+                    
+                    if not bom_validation.get('is_available', False):
+                        missing_items = bom_validation.get('missing_items', [])
+                        if missing_items:
+                            missing_names = [item['name'] for item in missing_items]
+                            errors.append(f"BOM materials insufficient for {product.name}: {', '.join(missing_names)}")
+                        else:
+                            errors.append(f"BOM materials insufficient for {product.name}")
             
             return len(errors) == 0, errors
             

@@ -258,6 +258,10 @@ class EnhancedPOSSystem {
                 })
             });
             
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             const result = await response.json();
             console.log('BOM validation result:', result);
             
@@ -348,15 +352,20 @@ class EnhancedPOSSystem {
 
     async validateAllBOMItems() {
         if (!this.bomValidationEnabled) {
-            document.getElementById('bomValidationResults').innerHTML = 
-                '<div class="text-muted">BOM validation is disabled</div>';
+            const resultsEl = document.getElementById('bomValidationResults');
+            if (resultsEl) {
+                resultsEl.innerHTML = '<div class="text-muted">BOM validation is disabled</div>';
+            }
             return;
         }
 
         const bomItems = this.cart.filter(item => item.has_bom);
+        const resultsEl = document.getElementById('bomValidationResults');
+        
+        if (!resultsEl) return;
+        
         if (bomItems.length === 0) {
-            document.getElementById('bomValidationResults').innerHTML = 
-                '<div class="text-muted">No BOM products in cart</div>';
+            resultsEl.innerHTML = '<div class="text-muted">No BOM products in cart</div>';
             return;
         }
 
@@ -387,7 +396,7 @@ class EnhancedPOSSystem {
             `;
         }
 
-        document.getElementById('bomValidationResults').innerHTML = validationHtml;
+        resultsEl.innerHTML = validationHtml;
     }
 
     removeFromCart(productId) {

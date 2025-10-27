@@ -4,6 +4,7 @@ from app.products import bp
 from app.products.forms import ProductForm, CategoryForm, ProductSearchForm
 from app.models import BOMHeader, Product, Category, db
 from app.services.bom_service import BOMService
+from app.services.enhanced_bom_service import EnhancedBOMService
 from app.middleware.tenant_middleware import tenant_required
 from app.services.s3_service import S3Service
 from app.utils.timezone import get_user_timezone, convert_utc_to_user_timezone
@@ -136,7 +137,11 @@ def _get_bom_issues(tenant_id):
     
     bom_issues = []
     for product in bom_products:
-        if not product.check_bom_availability():
+        # Use enhanced BOM service for availability check
+        bom_validation = EnhancedBOMService.validate_bom_availability(
+            product.id, 1, tenant_id
+        )
+        if not bom_validation.get('is_available', True):
             bom_issues.append(product)
     
     return bom_issues
@@ -518,7 +523,11 @@ def _perform_product_search(search, tenant_id):
     for product in products:
         bom_available = True
         if product.has_bom:
-            bom_available = product.check_bom_availability()
+            # Use enhanced BOM service for availability check
+            bom_validation = EnhancedBOMService.validate_bom_availability(
+                product.id, 1, tenant_id
+            )
+            bom_available = bom_validation.get('is_available', True)
         
         results.append({
             'id': product.id,
@@ -579,27 +588,22 @@ def api_bom_validation(product_id):
     
     validation_result = CacheService.get_or_set(
         cache_key,
-        lambda: _perform_bom_validation(product_id, quantity),
+        lambda: _perform_bom_validation(product_id, quantity, current_user.tenant_id),
         timeout='short'
     )
     
     return jsonify(validation_result)
 
-def _perform_bom_validation(product_id, quantity):
+def _perform_bom_validation(product_id, quantity, tenant_id):
     """Helper function untuk melakukan validasi BOM"""
-    try:
-        active_bom = BOMService.get_bom_by_product(product_id)
-    except:
-        active_bom = BOMHeader.query.filter_by(product_id=product_id, is_active=True).first()
+    # Use enhanced BOM service with correct parameter order
+    bom_validation = EnhancedBOMService.validate_bom_availability(
+        product_id, quantity, tenant_id
+    )
     
-    if not active_bom:
-        return {'valid': False, 'message': 'No active BOM found'}
-    
-    try:
-        is_valid, details = BOMService.validate_bom_availability(active_bom.id, quantity)
-        return {'valid': is_valid, 'details': details}
-    except:
-        # Fallback validation
-        product = Product.query.get(product_id)
-        is_available = product.check_bom_availability(quantity)
-        return {'valid': is_available, 'message': 'BOM availability checked'}
+    return {
+        'valid': bom_validation.get('is_available', False),
+        'message': bom_validation.get('message', 'BOM validation completed'),
+        'details': bom_validation.get('validation_details', []),
+        'missing_items': bom_validation.get('missing_items', [])
+    }
