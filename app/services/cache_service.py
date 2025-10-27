@@ -50,7 +50,8 @@ class CacheService:
             timeout_seconds = CacheService.CACHE_TIMEOUTS.get(timeout, 1800)
             return cache.set(key, value, timeout=timeout_seconds)
         except Exception as e:
-            current_app.logger.error(f"Cache set error for key {key}: {str(e)}")
+            # --- PERBAIKAN: Ubah {str(e)} menjadi {e!r} untuk log yang lebih baik ---
+            current_app.logger.error(f"Cache set error for key {key}: {e!r}")
             return False
     
     @staticmethod
@@ -59,7 +60,8 @@ class CacheService:
         try:
             return cache.get(key)
         except Exception as e:
-            current_app.logger.error(f"Cache get error for key {key}: {str(e)}")
+            # --- PERBAIKAN: Ubah {str(e)} menjadi {e!r} untuk log yang lebih baik ---
+            current_app.logger.error(f"Cache get error for key {key}: {e!r}")
             return None
     
     @staticmethod
@@ -68,7 +70,8 @@ class CacheService:
         try:
             return cache.delete(key)
         except Exception as e:
-            current_app.logger.error(f"Cache delete error for key {key}: {str(e)}")
+            # --- PERBAIKAN: Ubah {str(e)} menjadi {e!r} untuk log yang lebih baik ---
+            current_app.logger.error(f"Cache delete error for key {key}: {e!r}")
             return False
     
     @staticmethod
@@ -82,7 +85,8 @@ class CacheService:
                 return redis_client.delete(*keys)
             return 0
         except Exception as e:
-            current_app.logger.error(f"Cache pattern delete error for pattern {pattern}: {str(e)}")
+            # --- PERBAIKAN: Ubah {str(e)} menjadi {e!r} untuk log yang lebih baik ---
+            current_app.logger.error(f"Cache pattern delete error for pattern {pattern}: {e!r}")
             return 0
     
     @staticmethod

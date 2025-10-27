@@ -6,10 +6,11 @@ from typing import Dict, List, Optional, Tuple
 from flask import current_app
 from app.models import Product, RawMaterial, BOMHeader, BOMItem
 from app.extensions import db
-from app.services.cache_service import BOMCacheService, cache_result
+# --- PERBAIKAN: Impor CacheService ---
+from app.services.cache_service import BOMCacheService, CacheService, cache_result
 from datetime import datetime
 import json
-from decimal import Decimal, ROUND_HALF_UP  # --- PERBAIKAN: Impor Decimal ---
+from decimal import Decimal, ROUND_HALF_UP
 
 
 class EnhancedBOMService:
@@ -50,7 +51,6 @@ class EnhancedBOMService:
             db.session.flush()  # Get BOM header ID
             
             # Add BOM items
-            # --- PERBAIKAN: Gunakan Decimal untuk kalkulasi biaya ---
             total_cost_decimal = Decimal('0')
             
             for item_data in bom_items:
@@ -104,7 +104,9 @@ class EnhancedBOMService:
         try:
             # Check cache first
             cache_key = f"bom_details:{product_id}:tenant:{tenant_id}"
-            cached_data = BOMCacheService.get_cache(cache_key)
+            
+            # --- PERBAIKAN: Gunakan CacheService, bukan BOMCacheService ---
+            cached_data = CacheService.get_cache(cache_key)
             if cached_data:
                 return cached_data
             
@@ -129,7 +131,6 @@ class EnhancedBOMService:
                 'total_items': 0
             }
             
-            # --- PERBAIKAN: Gunakan Decimal untuk kalkulasi biaya ---
             total_cost_decimal = Decimal('0')
             
             for bom_item in bom_header.items:
@@ -159,15 +160,15 @@ class EnhancedBOMService:
                 bom_details['total_items'] += 1
             
             bom_details['total_cost'] = float(total_cost_decimal)
-            # --- AKHIR PERBAIKAN ---
 
             # Cache the result
-            BOMCacheService.set_cache(cache_key, bom_details, 'medium')
+            # --- PERBAIKAN: Gunakan CacheService, bukan BOMCacheService ---
+            CacheService.set_cache(cache_key, bom_details, 'medium')
             
             return bom_details
             
         except Exception as e:
-            current_app.logger.error(f"Error getting BOM details: {str(e)}")
+            current_app.logger.error(f"Error getting BOM details: {e!r}") # Log repr(e) untuk info lebih
             return None
     
     @staticmethod
@@ -185,10 +186,9 @@ class EnhancedBOMService:
             
             bom_details = EnhancedBOMService.get_bom_details(product_id, tenant_id)
             if not bom_details:
-                current_app.logger.warning(f"No active BOM found for product {product_id}")
+                current_app.logger.warning(f"No active BOM found for product {product_id} (or get_bom_details failed)")
                 return {'success': False, 'error': 'No active BOM found'}
             
-            # --- PERBAIKAN: Gunakan Decimal untuk semua kalkulasi dan perbandingan ---
             total_cost_decimal = Decimal('0')
             quantity_decimal = Decimal(str(quantity))
 
@@ -225,7 +225,6 @@ class EnhancedBOMService:
                 requirement = {
                     'raw_material_id': item['raw_material_id'],
                     'raw_material_name': item['raw_material_name'],
-                    # Simpan sebagai float untuk JSON, tapi kalkulasi sudah aman
                     'required_quantity': float(required_quantity_decimal), 
                     'available_stock': float(available_stock_decimal),
                     'unit': item['unit'],
@@ -246,7 +245,6 @@ class EnhancedBOMService:
                     })
             
             requirements['total_cost'] = float(total_cost_decimal)
-            # --- AKHIR PERBAIKAN ---
 
             # Cache the calculation
             BOMCacheService.cache_bom_calculation(product_id, tenant_id, quantity, requirements)
@@ -255,7 +253,7 @@ class EnhancedBOMService:
             return requirements
             
         except Exception as e:
-            current_app.logger.error(f"Error calculating BOM requirements: {str(e)}")
+            current_app.logger.error(f"Error calculating BOM requirements: {e!r}")
             return {'success': False, 'error': str(e)}
     
     @staticmethod
@@ -335,7 +333,7 @@ class EnhancedBOMService:
             return validation_result
             
         except Exception as e:
-            current_app.logger.error(f"Error validating BOM availability: {str(e)}")
+            current_app.logger.error(f"Error validating BOM availability: {e!r}")
             return {
                 'valid': False,
                 'is_available': False,
@@ -369,7 +367,6 @@ class EnhancedBOMService:
                 ).first()
                 
                 if raw_material:
-                    # --- PERBAIKAN: Gunakan Decimal untuk update stok ---
                     current_stock_decimal = Decimal(str(raw_material.stock_quantity or 0))
                     required_quantity_decimal = Decimal(str(req['required_quantity']))
                     
@@ -384,7 +381,6 @@ class EnhancedBOMService:
                     
                     # Gunakan method update_stock dari model yang sudah presisi
                     raw_material.update_stock(-float(required_quantity_decimal))
-                    # --- AKHIR PERBAIKAN ---
             
             # Add finished product to inventory
             product = Product.query.filter_by(id=product_id, tenant_id=tenant_id).first()
@@ -409,7 +405,7 @@ class EnhancedBOMService:
             
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error processing BOM production: {str(e)}")
+            current_app.logger.error(f"Error processing BOM production: {e!r}")
             return {'success': False, 'error': str(e)}
     
     @staticmethod
@@ -440,8 +436,7 @@ class EnhancedBOMService:
             for product in products_with_bom:
                 bom_details = EnhancedBOMService.get_bom_details(product.id, tenant_id)
                 if bom_details:
-                    # --- PERBAIKAN: Gunakan Decimal untuk analisis ---
-                    selling_price_decimal = Decimal(str(product.price or 0)) # Ganti product.selling_price ke product.price
+                    selling_price_decimal = Decimal(str(product.price or 0))
                     bom_cost_decimal = Decimal(str(bom_details['total_cost']))
                     profit_margin_decimal = selling_price_decimal - bom_cost_decimal
                     
@@ -471,7 +466,6 @@ class EnhancedBOMService:
                     total_bom_value_decimal += total_bom_cost_value_decimal
                     total_raw_materials_cost_decimal += bom_cost_decimal
                     total_selling_value_decimal += total_inventory_value_decimal
-                    # --- AKHIR PERBAIKAN ---
 
             analysis['total_products_with_bom'] = len(analysis['products'])
             analysis['total_bom_value'] = float(total_bom_value_decimal)
@@ -485,10 +479,9 @@ class EnhancedBOMService:
             return analysis
             
         except Exception as e:
-            # Perbaikan: Cek atribut 'price' vs 'selling_price'
             if "'Product' object has no attribute 'selling_price'" in str(e):
                 current_app.logger.error("Error in BOM cost analysis: Model 'Product' tidak punya 'selling_price', ganti ke 'price'.")
-            current_app.logger.error(f"Error getting BOM cost analysis: {str(e)}")
+            current_app.logger.error(f"Error getting BOM cost analysis: {e!r}")
             return {'error': str(e)}
     
     @staticmethod
@@ -525,5 +518,5 @@ class EnhancedBOMService:
             
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error deleting BOM: {str(e)}")
+            current_app.logger.error(f"Error deleting BOM: {e!r}")
             return {'success': False, 'error': str(e)}
