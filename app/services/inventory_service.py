@@ -57,10 +57,10 @@ class InventoryService:
             bool: Success status
         """
         try:
-            # Find or create product based on marketplace item
+            # --- PERBAIKAN: Cari produk berdasarkan SKU, bukan NAMA ---
             product = Product.query.filter_by(
                 tenant_id=tenant_id,
-                name=marketplace_item.name
+                sku=marketplace_item.sku
             ).first()
             
             if not product:
@@ -76,12 +76,20 @@ class InventoryService:
                     image_url=marketplace_item.image_url
                 )
                 db.session.add(product)
+                current_app.logger.info(f"Restock: Creating new product {product.name} with SKU {product.sku}")
             else:
                 # Update existing product stock
                 product.stock_quantity += quantity
-                # Update cost price if different
+                
+                # Update cost price if different (opsional, tapi praktik yang baik)
                 if product.cost_price != marketplace_item.price:
                     product.cost_price = marketplace_item.price
+                
+                # Update nama jika berbeda (opsional)
+                if product.name != marketplace_item.name:
+                    product.name = marketplace_item.name
+                    
+                current_app.logger.info(f"Restock: Adding {quantity} to existing product {product.name} (SKU: {product.sku})")
             
             db.session.commit()
             return True
