@@ -155,13 +155,18 @@ class EnhancedBOMService:
     def calculate_bom_requirements(product_id: str, quantity: int, tenant_id: str) -> Dict:
         """Calculate BOM requirements untuk quantity tertentu dengan caching"""
         try:
+            # Log the parameters for debugging
+            current_app.logger.info(f"Calculating BOM requirements - Product: {product_id}, Quantity: {quantity}, Tenant: {tenant_id}")
+            
             # Check cache first
             cached_calc = BOMCacheService.get_cached_bom_calculation(product_id, tenant_id, quantity)
             if cached_calc:
+                current_app.logger.info(f"Using cached BOM calculation for product {product_id}")
                 return cached_calc
             
             bom_details = EnhancedBOMService.get_bom_details(product_id, tenant_id)
             if not bom_details:
+                current_app.logger.warning(f"No active BOM found for product {product_id}")
                 return {'success': False, 'error': 'No active BOM found'}
             
             requirements = {
@@ -177,6 +182,8 @@ class EnhancedBOMService:
                 required_quantity = item['quantity'] * quantity
                 available_stock = item['available_stock']
                 is_sufficient = available_stock >= required_quantity
+                
+                current_app.logger.info(f"BOM Item: {item['raw_material_name']} - Required: {required_quantity}, Available: {available_stock}, Sufficient: {is_sufficient}")
                 
                 requirement = {
                     'raw_material_id': item['raw_material_id'],
@@ -203,6 +210,7 @@ class EnhancedBOMService:
             # Cache the calculation
             BOMCacheService.cache_bom_calculation(product_id, tenant_id, quantity, requirements)
             
+            current_app.logger.info(f"BOM calculation completed - Status: {requirements['availability_status']}")
             return requirements
             
         except Exception as e:
@@ -211,16 +219,21 @@ class EnhancedBOMService:
     
     @staticmethod
     def validate_bom_availability(product_id: str, quantity: int, tenant_id: str) -> Dict:
-        """Validate BOM availability dengan caching"""
+        """Validate BOM availability dengan caching - FIXED PARAMETER ORDER"""
         try:
+            current_app.logger.info(f"Validating BOM availability - Product: {product_id}, Quantity: {quantity}, Tenant: {tenant_id}")
+            
             # Check cache first
             cached_availability = BOMCacheService.get_cached_bom_availability(product_id, tenant_id)
             if cached_availability and cached_availability.get('quantity') == quantity:
+                current_app.logger.info(f"Using cached BOM availability for product {product_id}")
                 return cached_availability
             
-            requirements = EnhancedBOMService.calculate_bom_requirements(product_id, tenant_id, quantity)
+            # FIXED: Correct parameter order
+            requirements = EnhancedBOMService.calculate_bom_requirements(product_id, quantity, tenant_id)
             
             if not requirements.get('success', True):
+                current_app.logger.error(f"BOM requirements calculation failed: {requirements}")
                 return requirements
             
             validation_result = {
@@ -228,7 +241,8 @@ class EnhancedBOMService:
                 'quantity': quantity,
                 'is_available': requirements['availability_status'] == 'available',
                 'total_cost': requirements['total_cost'],
-                'validation_details': []
+                'validation_details': [],
+                'missing_items': requirements.get('missing_items', [])
             }
             
             for req in requirements['requirements']:
@@ -243,6 +257,10 @@ class EnhancedBOMService:
             # Cache the availability check
             BOMCacheService.cache_bom_availability(product_id, tenant_id, validation_result)
             
+            current_app.logger.info(f"BOM validation completed - Available: {validation_result['is_available']}")
+            if not validation_result['is_available']:
+                current_app.logger.warning(f"BOM validation failed for product {product_id} - Missing items: {validation_result['missing_items']}")
+            
             return validation_result
             
         except Exception as e:
@@ -253,13 +271,16 @@ class EnhancedBOMService:
     def process_bom_production(product_id: str, quantity: int, tenant_id: str) -> Dict:
         """Process BOM production (deduct raw materials, add finished product)"""
         try:
+            current_app.logger.info(f"Processing BOM production - Product: {product_id}, Quantity: {quantity}")
+            
             # Validate availability first
             validation = EnhancedBOMService.validate_bom_availability(product_id, quantity, tenant_id)
             if not validation['is_available']:
+                current_app.logger.warning(f"BOM production failed - insufficient materials: {validation}")
                 return {'success': False, 'error': 'Insufficient raw materials', 'details': validation}
             
             # Get BOM requirements
-            requirements = EnhancedBOMService.calculate_bom_requirements(product_id, tenant_id, quantity)
+            requirements = EnhancedBOMService.calculate_bom_requirements(product_id, quantity, tenant_id)
             
             # Start transaction
             db.session.begin()
@@ -272,21 +293,26 @@ class EnhancedBOMService:
                 ).first()
                 
                 if raw_material:
+                    current_app.logger.info(f"Deducting {req['required_quantity']} {req['unit']} of {raw_material.name}")
                     raw_material.stock_quantity -= req['required_quantity']
                     if raw_material.stock_quantity < 0:
                         db.session.rollback()
+                        current_app.logger.error(f"Insufficient stock for {raw_material.name} after deduction")
                         return {'success': False, 'error': f'Insufficient stock for {raw_material.name}'}
             
             # Add finished product to inventory
             product = Product.query.filter_by(id=product_id, tenant_id=tenant_id).first()
             if product and product.requires_stock_tracking:
                 product.stock_quantity += quantity
+                current_app.logger.info(f"Added {quantity} units to product {product.name} inventory")
             
             # Commit transaction
             db.session.commit()
             
             # Invalidate caches
             BOMCacheService.invalidate_bom_cache(product_id, tenant_id)
+            
+            current_app.logger.info(f"BOM production completed successfully for {quantity} units of product {product_id}")
             
             return {
                 'success': True,

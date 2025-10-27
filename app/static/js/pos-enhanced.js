@@ -244,6 +244,8 @@ class EnhancedPOSSystem {
         if (!this.bomValidationEnabled) return { valid: true, message: 'BOM validation disabled' };
         
         try {
+            console.log(`Validating BOM for product ${productId}, quantity ${quantity}`);
+            
             const response = await fetch('/bom/api/validate', {
                 method: 'POST',
                 headers: {
@@ -256,10 +258,22 @@ class EnhancedPOSSystem {
                 })
             });
             
-            return await response.json();
+            const result = await response.json();
+            console.log('BOM validation result:', result);
+            
+            return {
+                valid: result.valid || false,
+                message: result.message || 'Unknown validation result',
+                details: result.details || [],
+                missing_items: result.missing_items || []
+            };
         } catch (error) {
             console.error('BOM validation error:', error);
-            return { valid: false, message: 'BOM validation failed' };
+            return { 
+                valid: false, 
+                message: 'BOM validation failed due to network error',
+                error: error.message 
+            };
         }
     }
 
@@ -281,10 +295,27 @@ class EnhancedPOSSystem {
 
         // Validate BOM if product has BOM
         if (product.has_bom) {
+            console.log(`Product ${product.name} has BOM, validating availability...`);
             const bomValidation = await this.validateBOMAvailability(productId, newQuantity);
+            
             if (!bomValidation.valid) {
-                this.showNotification(`BOM validation failed: ${bomValidation.message}`, 'warning');
-                // Allow adding but show warning
+                let errorMessage = `BOM validation failed for ${product.name}: ${bomValidation.message}`;
+                
+                if (bomValidation.missing_items && bomValidation.missing_items.length > 0) {
+                    const missingNames = bomValidation.missing_items.map(item => 
+                        `${item.name} (shortage: ${item.shortage} ${item.unit})`
+                    ).join(', ');
+                    errorMessage += `\n\nMissing materials: ${missingNames}`;
+                }
+                
+                this.showNotification(errorMessage, 'error');
+                
+                // Don't allow adding to cart if BOM validation fails
+                if (this.bomValidationEnabled) {
+                    return;
+                }
+            } else {
+                console.log(`BOM validation passed for ${product.name}`);
             }
         }
 
@@ -331,13 +362,24 @@ class EnhancedPOSSystem {
 
         let validationHtml = '';
         for (const item of bomItems) {
+            console.log(`Validating BOM for cart item: ${item.name} (${item.quantity}x)`);
             const validation = await this.validateBOMAvailability(item.product_id, item.quantity);
-            const statusClass = validation.valid ? 'text-success' : 'text-warning';
+            const statusClass = validation.valid ? 'text-success' : 'text-danger';
             const icon = validation.valid ? 'bi-check-circle' : 'bi-exclamation-triangle';
             
+            let detailsHtml = '';
+            if (!validation.valid && validation.missing_items && validation.missing_items.length > 0) {
+                detailsHtml = '<br><small class="text-muted">Missing: ' + 
+                    validation.missing_items.map(mi => `${mi.name} (${mi.shortage} ${mi.unit})`).join(', ') + 
+                    '</small>';
+            }
+            
             validationHtml += `
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>${item.name} (${item.quantity}x)</span>
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span>${item.name} (${item.quantity}x)</span>
+                        ${detailsHtml}
+                    </div>
                     <span class="${statusClass}">
                         <i class="bi ${icon}"></i> ${validation.message}
                     </span>
@@ -371,8 +413,9 @@ class EnhancedPOSSystem {
                 // Validate BOM for new quantity
                 if (item.has_bom) {
                     const bomValidation = await this.validateBOMAvailability(productId, newQuantity);
-                    if (!bomValidation.valid) {
-                        this.showNotification(`BOM validation warning: ${bomValidation.message}`, 'warning');
+                    if (!bomValidation.valid && this.bomValidationEnabled) {
+                        this.showNotification(`BOM validation failed: ${bomValidation.message}`, 'error');
+                        return;
                     }
                 }
                 
@@ -397,8 +440,9 @@ class EnhancedPOSSystem {
             // Validate BOM for new quantity
             if (item.has_bom) {
                 const bomValidation = await this.validateBOMAvailability(productId, quantity);
-                if (!bomValidation.valid) {
-                    this.showNotification(`BOM validation warning: ${bomValidation.message}`, 'warning');
+                if (!bomValidation.valid && this.bomValidationEnabled) {
+                    this.showNotification(`BOM validation failed: ${bomValidation.message}`, 'error');
+                    return;
                 }
             }
             
@@ -509,9 +553,18 @@ class EnhancedPOSSystem {
         // Final BOM validation before processing
         const bomItems = this.cart.filter(item => item.has_bom);
         for (const item of bomItems) {
+            console.log(`Final BOM validation for ${item.name} (${item.quantity}x)`);
             const validation = await this.validateBOMAvailability(item.product_id, item.quantity);
             if (!validation.valid && this.bomValidationEnabled) {
-                const proceed = confirm(`BOM validation failed for ${item.name}: ${validation.message}\n\nDo you want to proceed anyway?`);
+                let errorDetails = validation.message;
+                if (validation.missing_items && validation.missing_items.length > 0) {
+                    const missingList = validation.missing_items.map(mi => 
+                        `${mi.name} (shortage: ${mi.shortage} ${mi.unit})`
+                    ).join('\n- ');
+                    errorDetails += `\n\nMissing materials:\n- ${missingList}`;
+                }
+                
+                const proceed = confirm(`BOM validation failed for ${item.name}:\n${errorDetails}\n\nDo you want to proceed anyway?`);
                 if (!proceed) return;
             }
         }
@@ -533,6 +586,8 @@ class EnhancedPOSSystem {
         };
 
         try {
+            console.log('Processing sale with data:', saleData);
+            
             const response = await fetch('/sales/process-sale', {
                 method: 'POST',
                 headers: {
@@ -543,6 +598,7 @@ class EnhancedPOSSystem {
             });
 
             const result = await response.json();
+            console.log('Sale processing result:', result);
 
             if (result.success) {
                 this.showNotification(`Sale processed successfully! Receipt: ${result.receipt_number}`, 'success');

@@ -5,6 +5,7 @@ from app.bom import bp
 from app.bom.forms import BOMForm, BOMValidationForm
 from app.models import BOMItem, Product, BOMHeader, RawMaterial, db
 from app.services.bom_service import BOMService
+from app.services.enhanced_bom_service import EnhancedBOMService
 from app.middleware.tenant_middleware import tenant_required
 
 @bp.route('/product/<product_id>')
@@ -270,34 +271,65 @@ def delete_bom(bom_id):
 @login_required
 @tenant_required
 def api_validate_bom():
-    """API endpoint to validate BOM availability"""
+    """API endpoint to validate BOM availability - ENHANCED WITH BETTER LOGGING"""
     data = request.get_json()
     
     if not data or 'product_id' not in data:
-        return jsonify({'error': 'Product ID required'}), 400
+        current_app.logger.warning("BOM validation request missing product_id")
+        return jsonify({'valid': False, 'message': 'Product ID required'}), 400
+    
+    product_id = data['product_id']
+    quantity = data.get('quantity', 1)
+    
+    current_app.logger.info(f"BOM validation request - Product: {product_id}, Quantity: {quantity}")
     
     product = Product.query.filter_by(
-        id=data['product_id'],
+        id=product_id,
         tenant_id=current_user.tenant_id
     ).first()
     
     if not product:
-        return jsonify({'error': 'Product not found'}), 404
+        current_app.logger.warning(f"Product not found for BOM validation: {product_id}")
+        return jsonify({'valid': False, 'message': 'Product not found'}), 404
     
     if not product.has_bom:
-        return jsonify({'error': 'Product does not have BOM'}), 400
-    
-    active_bom = BOMService.get_bom_by_product(product.id)
-    if not active_bom:
-        return jsonify({'error': 'No active BOM found'}), 404
-    
-    quantity = data.get('quantity', 1)
+        current_app.logger.info(f"Product {product_id} does not have BOM")
+        return jsonify({'valid': True, 'message': 'Product does not require BOM validation'})
     
     try:
-        is_valid, details = BOMService.validate_bom_availability(active_bom.id, quantity)
-        return jsonify(details)
+        # Use enhanced BOM service with better error handling
+        validation_result = EnhancedBOMService.validate_bom_availability(
+            product_id, quantity, current_user.tenant_id
+        )
+        
+        if validation_result.get('success') == False:
+            current_app.logger.error(f"BOM validation error: {validation_result.get('error')}")
+            return jsonify({
+                'valid': False, 
+                'message': validation_result.get('error', 'BOM validation failed')
+            }), 500
+        
+        is_available = validation_result.get('is_available', False)
+        
+        response_data = {
+            'valid': is_available,
+            'message': 'BOM materials available' if is_available else 'Insufficient BOM materials',
+            'details': validation_result.get('validation_details', []),
+            'missing_items': validation_result.get('missing_items', [])
+        }
+        
+        current_app.logger.info(f"BOM validation result for {product_id}: {is_available}")
+        if not is_available:
+            current_app.logger.warning(f"BOM validation failed - Missing items: {response_data['missing_items']}")
+        
+        return jsonify(response_data)
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f"Exception in BOM validation: {str(e)}")
+        return jsonify({
+            'valid': False, 
+            'message': f'BOM validation error: {str(e)}'
+        }), 500
 
 @bp.route('/cost_analysis')
 @login_required
