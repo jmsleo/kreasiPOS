@@ -9,6 +9,7 @@ from app.extensions import db
 from app.services.cache_service import BOMCacheService, cache_result
 from datetime import datetime
 import json
+from decimal import Decimal, ROUND_HALF_UP  # --- PERBAIKAN: Impor Decimal ---
 
 
 class EnhancedBOMService:
@@ -49,7 +50,9 @@ class EnhancedBOMService:
             db.session.flush()  # Get BOM header ID
             
             # Add BOM items
-            total_cost = 0.0
+            # --- PERBAIKAN: Gunakan Decimal untuk kalkulasi biaya ---
+            total_cost_decimal = Decimal('0')
+            
             for item_data in bom_items:
                 raw_material = RawMaterial.query.filter_by(
                     id=item_data['raw_material_id'],
@@ -60,19 +63,23 @@ class EnhancedBOMService:
                     db.session.rollback()
                     return {'success': False, 'error': f'Raw material {item_data["raw_material_id"]} not found'}
                 
+                # Konversi ke Decimal
+                item_quantity_decimal = Decimal(str(item_data['quantity']))
+                cost_price_decimal = Decimal(str(raw_material.cost_price or 0))
+
                 bom_item = BOMItem(
                     bom_header_id=bom_header.id,
                     raw_material_id=item_data['raw_material_id'],
-                    quantity=item_data['quantity'],
+                    quantity=float(item_quantity_decimal), # Simpan sebagai float, tapi kalkulasi presisi
                     unit=item_data.get('unit', raw_material.unit)
                 )
                 
                 db.session.add(bom_item)
-                total_cost += item_data['quantity'] * float(raw_material.cost_price)
+                total_cost_decimal += item_quantity_decimal * cost_price_decimal
             
             # Update product BOM info
             product.has_bom = True
-            product.bom_cost = total_cost
+            product.bom_cost = float(total_cost_decimal) # Simpan sebagai float
             
             db.session.commit()
             
@@ -83,7 +90,7 @@ class EnhancedBOMService:
                 'success': True,
                 'bom_header_id': bom_header.id,
                 'version': new_version,
-                'total_cost': total_cost
+                'total_cost': float(total_cost_decimal)
             }
             
         except Exception as e:
@@ -122,26 +129,38 @@ class EnhancedBOMService:
                 'total_items': 0
             }
             
+            # --- PERBAIKAN: Gunakan Decimal untuk kalkulasi biaya ---
+            total_cost_decimal = Decimal('0')
+            
             for bom_item in bom_header.items:
                 raw_material = bom_item.raw_material
-                item_cost = bom_item.quantity * float(raw_material.cost_price)
+                
+                # Konversi ke Decimal
+                item_quantity_decimal = Decimal(str(bom_item.quantity))
+                cost_price_decimal = Decimal(str(raw_material.cost_price or 0))
+                available_stock_decimal = Decimal(str(raw_material.stock_quantity or 0))
+
+                item_cost_decimal = item_quantity_decimal * cost_price_decimal
                 
                 item_details = {
                     'id': bom_item.id,
                     'raw_material_id': raw_material.id,
                     'raw_material_name': raw_material.name,
                     'raw_material_sku': raw_material.sku,
-                    'quantity': bom_item.quantity,
+                    'quantity': float(item_quantity_decimal),
                     'unit': bom_item.unit,
-                    'cost_price': float(raw_material.cost_price),
-                    'item_cost': item_cost,
-                    'available_stock': raw_material.stock_quantity
+                    'cost_price': float(cost_price_decimal),
+                    'item_cost': float(item_cost_decimal),
+                    'available_stock': float(available_stock_decimal)
                 }
                 
                 bom_details['items'].append(item_details)
-                bom_details['total_cost'] += item_cost
+                total_cost_decimal += item_cost_decimal
                 bom_details['total_items'] += 1
             
+            bom_details['total_cost'] = float(total_cost_decimal)
+            # --- AKHIR PERBAIKAN ---
+
             # Cache the result
             BOMCacheService.set_cache(cache_key, bom_details, 'medium')
             
@@ -169,32 +188,51 @@ class EnhancedBOMService:
                 current_app.logger.warning(f"No active BOM found for product {product_id}")
                 return {'success': False, 'error': 'No active BOM found'}
             
+            # --- PERBAIKAN: Gunakan Decimal untuk semua kalkulasi dan perbandingan ---
+            total_cost_decimal = Decimal('0')
+            quantity_decimal = Decimal(str(quantity))
+
             requirements = {
                 'product_id': product_id,
                 'quantity': quantity,
-                'total_cost': bom_details['total_cost'] * quantity,
+                'total_cost': 0.0, # Akan diisi oleh Decimal
                 'requirements': [],
                 'availability_status': 'available',
                 'missing_items': []
             }
             
             for item in bom_details['items']:
-                required_quantity = item['quantity'] * quantity
-                available_stock = item['available_stock']
-                is_sufficient = available_stock >= required_quantity
+                # Konversi semua nilai ke Decimal SEBELUM kalkulasi
+                item_quantity_decimal = Decimal(str(item['quantity']))
+                available_stock_decimal = Decimal(str(item['available_stock']))
+                cost_price_decimal = Decimal(str(item['cost_price']))
+
+                # Lakukan kalkulasi dalam Decimal
+                required_quantity_decimal = item_quantity_decimal * quantity_decimal
+                is_sufficient = available_stock_decimal >= required_quantity_decimal
                 
-                current_app.logger.info(f"BOM Item: {item['raw_material_name']} - Required: {required_quantity}, Available: {available_stock}, Sufficient: {is_sufficient}")
+                # Hitung kekurangan (shortage)
+                shortage_decimal = Decimal('0')
+                if not is_sufficient:
+                    shortage_decimal = required_quantity_decimal - available_stock_decimal
+                
+                # Kalkulasi biaya item
+                item_total_cost_decimal = required_quantity_decimal * cost_price_decimal
+                total_cost_decimal += item_total_cost_decimal
+
+                current_app.logger.info(f"BOM Item (Decimal Check): {item['raw_material_name']} - Required: {required_quantity_decimal}, Available: {available_stock_decimal}, Sufficient: {is_sufficient}")
                 
                 requirement = {
                     'raw_material_id': item['raw_material_id'],
                     'raw_material_name': item['raw_material_name'],
-                    'required_quantity': required_quantity,
-                    'available_stock': available_stock,
+                    # Simpan sebagai float untuk JSON, tapi kalkulasi sudah aman
+                    'required_quantity': float(required_quantity_decimal), 
+                    'available_stock': float(available_stock_decimal),
                     'unit': item['unit'],
-                    'cost_per_unit': item['cost_price'],
-                    'total_cost': required_quantity * item['cost_price'],
+                    'cost_per_unit': float(cost_price_decimal),
+                    'total_cost': float(item_total_cost_decimal),
                     'is_sufficient': is_sufficient,
-                    'shortage': max(0, required_quantity - available_stock)
+                    'shortage': float(shortage_decimal)
                 }
                 
                 requirements['requirements'].append(requirement)
@@ -203,10 +241,13 @@ class EnhancedBOMService:
                     requirements['availability_status'] = 'insufficient'
                     requirements['missing_items'].append({
                         'name': item['raw_material_name'],
-                        'shortage': requirement['shortage'],
+                        'shortage': float(shortage_decimal), # Kirim sebagai float
                         'unit': item['unit']
                     })
             
+            requirements['total_cost'] = float(total_cost_decimal)
+            # --- AKHIR PERBAIKAN ---
+
             # Cache the calculation
             BOMCacheService.cache_bom_calculation(product_id, tenant_id, quantity, requirements)
             
@@ -250,6 +291,7 @@ class EnhancedBOMService:
                 return cached_availability
             
             # Calculate requirements
+            # Ini sekarang sudah menggunakan Decimal berkat perbaikan di atas
             requirements = EnhancedBOMService.calculate_bom_requirements(product_id, quantity, tenant_id)
             
             if not requirements.get('success', True):
@@ -313,7 +355,7 @@ class EnhancedBOMService:
                 current_app.logger.warning(f"BOM production failed - insufficient materials: {validation}")
                 return {'success': False, 'error': 'Insufficient raw materials', 'details': validation}
             
-            # Get BOM requirements
+            # Get BOM requirements (sudah dihitung dengan Decimal)
             requirements = EnhancedBOMService.calculate_bom_requirements(product_id, quantity, tenant_id)
             
             # Start transaction
@@ -327,12 +369,22 @@ class EnhancedBOMService:
                 ).first()
                 
                 if raw_material:
-                    current_app.logger.info(f"Deducting {req['required_quantity']} {req['unit']} of {raw_material.name}")
-                    raw_material.stock_quantity -= req['required_quantity']
-                    if raw_material.stock_quantity < 0:
+                    # --- PERBAIKAN: Gunakan Decimal untuk update stok ---
+                    current_stock_decimal = Decimal(str(raw_material.stock_quantity or 0))
+                    required_quantity_decimal = Decimal(str(req['required_quantity']))
+                    
+                    new_stock_decimal = current_stock_decimal - required_quantity_decimal
+                    
+                    current_app.logger.info(f"Deducting {required_quantity_decimal} {req['unit']} of {raw_material.name}. Old stock: {current_stock_decimal}, New stock: {new_stock_decimal}")
+
+                    if new_stock_decimal < 0:
                         db.session.rollback()
-                        current_app.logger.error(f"Insufficient stock for {raw_material.name} after deduction")
+                        current_app.logger.error(f"Insufficient stock for {raw_material.name} during final deduction check.")
                         return {'success': False, 'error': f'Insufficient stock for {raw_material.name}'}
+                    
+                    # Gunakan method update_stock dari model yang sudah presisi
+                    raw_material.update_stock(-float(required_quantity_decimal))
+                    # --- AKHIR PERBAIKAN ---
             
             # Add finished product to inventory
             product = Product.query.filter_by(id=product_id, tenant_id=tenant_id).first()
@@ -381,43 +433,61 @@ class EnhancedBOMService:
                 has_bom=True
             ).all()
             
+            total_selling_value_decimal = Decimal('0')
+            total_bom_value_decimal = Decimal('0')
+            total_raw_materials_cost_decimal = Decimal('0')
+
             for product in products_with_bom:
                 bom_details = EnhancedBOMService.get_bom_details(product.id, tenant_id)
                 if bom_details:
-                    selling_price = float(product.selling_price)
-                    bom_cost = bom_details['total_cost']
-                    profit_margin = selling_price - bom_cost
-                    profit_percentage = (profit_margin / selling_price * 100) if selling_price > 0 else 0
+                    # --- PERBAIKAN: Gunakan Decimal untuk analisis ---
+                    selling_price_decimal = Decimal(str(product.price or 0)) # Ganti product.selling_price ke product.price
+                    bom_cost_decimal = Decimal(str(bom_details['total_cost']))
+                    profit_margin_decimal = selling_price_decimal - bom_cost_decimal
+                    
+                    profit_percentage_decimal = Decimal('0')
+                    if selling_price_decimal > 0:
+                        profit_percentage_decimal = (profit_margin_decimal / selling_price_decimal * 100)
+                    
+                    stock_quantity_decimal = Decimal(str(product.stock_quantity or 0))
+                    total_inventory_value_decimal = stock_quantity_decimal * selling_price_decimal
+                    total_bom_cost_value_decimal = stock_quantity_decimal * bom_cost_decimal
                     
                     product_analysis = {
                         'id': product.id,
                         'name': product.name,
                         'sku': product.sku,
-                        'selling_price': selling_price,
-                        'bom_cost': bom_cost,
-                        'profit_margin': profit_margin,
-                        'profit_percentage': profit_percentage,
-                        'stock_quantity': product.stock_quantity,
-                        'total_inventory_value': product.stock_quantity * selling_price,
-                        'total_bom_cost_value': product.stock_quantity * bom_cost
+                        'selling_price': float(selling_price_decimal),
+                        'bom_cost': float(bom_cost_decimal),
+                        'profit_margin': float(profit_margin_decimal),
+                        'profit_percentage': float(profit_percentage_decimal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                        'stock_quantity': float(stock_quantity_decimal),
+                        'total_inventory_value': float(total_inventory_value_decimal),
+                        'total_bom_cost_value': float(total_bom_cost_value_decimal)
                     }
                     
                     analysis['products'].append(product_analysis)
-                    analysis['total_bom_value'] += product_analysis['total_bom_cost_value']
-                    analysis['cost_breakdown']['raw_materials_cost'] += bom_cost
-            
+                    
+                    total_bom_value_decimal += total_bom_cost_value_decimal
+                    total_raw_materials_cost_decimal += bom_cost_decimal
+                    total_selling_value_decimal += total_inventory_value_decimal
+                    # --- AKHIR PERBAIKAN ---
+
             analysis['total_products_with_bom'] = len(analysis['products'])
-            
+            analysis['total_bom_value'] = float(total_bom_value_decimal)
+            analysis['cost_breakdown']['raw_materials_cost'] = float(total_raw_materials_cost_decimal)
+
             # Calculate overall profit margin
-            total_selling_value = sum(p['total_inventory_value'] for p in analysis['products'])
-            if total_selling_value > 0:
-                analysis['cost_breakdown']['potential_profit_margin'] = (
-                    (total_selling_value - analysis['total_bom_value']) / total_selling_value * 100
-                )
+            if total_selling_value_decimal > 0:
+                overall_profit_margin_decimal = ((total_selling_value_decimal - total_bom_value_decimal) / total_selling_value_decimal * 100)
+                analysis['cost_breakdown']['potential_profit_margin'] = float(overall_profit_margin_decimal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
             
             return analysis
             
         except Exception as e:
+            # Perbaikan: Cek atribut 'price' vs 'selling_price'
+            if "'Product' object has no attribute 'selling_price'" in str(e):
+                current_app.logger.error("Error in BOM cost analysis: Model 'Product' tidak punya 'selling_price', ganti ke 'price'.")
             current_app.logger.error(f"Error getting BOM cost analysis: {str(e)}")
             return {'error': str(e)}
     
