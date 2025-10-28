@@ -1,4 +1,4 @@
-from flask import render_template, redirect, url_for, flash, request, session, jsonify
+from flask import render_template, redirect, url_for, flash, request, session, jsonify, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -6,10 +6,13 @@ from app.auth import bp
 from app.auth.forms import LoginForm, RegistrationForm, ForgotPasswordForm, ResetPasswordForm
 from app.models import User, Tenant
 from app import db, limiter
-from app.services.email_service import EmailService
+from app.services.postmark_service import postmark_service  # Import Postmark service
 import random
 import string
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 def generate_otp():
     return ''.join(random.choices(string.digits, k=6))
@@ -99,6 +102,19 @@ def register():
             db.session.add(user)
             db.session.commit()
             
+            # Kirim welcome email menggunakan Postmark
+            try:
+                success = postmark_service.send_welcome_email(
+                    to_email=user.email,
+                    store_name=tenant.name,
+                    username=user.username
+                )
+                if not success:
+                    logger.warning(f"Welcome email failed to send to {user.email}, but registration was successful")
+            except Exception as e:
+                logger.error(f"Error sending welcome email: {str(e)}")
+                # Jangan gagalkan registrasi hanya karena email gagal
+            
             print("Registration successful!")
             flash('Registration successful! Please login to your account.', 'success')
             return redirect(url_for('auth.login'))
@@ -139,17 +155,32 @@ def forgot_password():
             session['reset_attempts'] = 0
             session['reset_created'] = datetime.utcnow().isoformat()
             
-            # Send OTP via email
+            # Send OTP via Postmark
             try:
-                email_service = EmailService()
-                email_service.send_otp_email(user.email, otp)
-                flash('OTP sent to your email address', 'info')
+                success = postmark_service.send_otp_email(
+                    to_email=user.email,
+                    otp_code=otp,
+                    user_name=user.username or user.first_name or "User"
+                )
+                
+                if success:
+                    flash('OTP sent to your email address', 'info')
+                    logger.info(f"OTP email sent successfully to {user.email}")
+                else:
+                    flash('Failed to send OTP. Please try again.', 'danger')
+                    logger.error(f"Failed to send OTP email to {user.email}")
+                    return redirect(url_for('auth.forgot_password'))
+                
             except Exception as e:
+                logger.error(f"Error sending OTP email to {user.email}: {str(e)}")
                 flash('Failed to send OTP. Please try again.', 'danger')
+                return redirect(url_for('auth.forgot_password'))
             
             return redirect(url_for('auth.reset_password'))
         else:
-            flash('Email not found', 'warning')
+            # Untuk keamanan, tetap tampilkan pesan sukses meskipun email tidak ditemukan
+            flash('If an account with that email exists, an OTP has been sent.', 'info')
+            return redirect(url_for('auth.reset_password'))
     
     return render_template('auth/forgot_password.html', form=form)
 

@@ -65,6 +65,14 @@ class Config:
     CACHE_REDIS_URL = REDIS_URL
     CACHE_DEFAULT_TIMEOUT = 300
 
+    # Postmark Email Service
+    POSTMARK_API_KEY = os.environ.get('POSTMARK_API_KEY')
+    POSTMARK_FROM_EMAIL = os.environ.get('POSTMARK_FROM_EMAIL')
+    POSTMARK_OTP_TEMPLATE_ID = os.environ.get('POSTMARK_OTP_TEMPLATE_ID')
+    POSTMARK_WELCOME_TEMPLATE_ID = os.environ.get('POSTMARK_WELCOME_TEMPLATE_ID')
+    LOGO_URL = os.environ.get('LOGO_URL')
+    APP_URL = os.environ.get('APP_URL')
+
 class DevelopmentConfig(Config):
     DEBUG = True
     TESTING = False

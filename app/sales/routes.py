@@ -1,5 +1,6 @@
 from flask import render_template, request, redirect, send_file, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
+from sqlalchemy import func
 from app.sales import bp
 from app.sales.forms import SaleForm, CustomerSelectForm, RefundForm, RefundSearchForm, ProcessRefundForm, RefundReportForm
 from app.models import Sale, SaleItem, Product, Customer, Refund, RefundItem, RefundStatus, db
