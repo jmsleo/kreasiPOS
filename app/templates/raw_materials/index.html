@@ -63,12 +63,12 @@
         </div>
 
         <div class="col-xl-3 col-md-6 mb-5">
-            <div class="card stats-card h-100" style="border-left-color:var(--warning-color); color: var(--warning-color);">
+            <div class="card stats-card h-100" style="border-left-color:var(--danger-color); color: var(--danger-color);">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-1">
                             <div class="text-xs font-weight-bold text-uppercase mb-1">
-                                Stok Rendah
+                                Stok Menipis
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">
                                 {{ low_stock_materials|length }}
@@ -120,7 +120,7 @@
             <div class="card border-left-warning shadow">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>Peringatan Stok Rendah
+                        <i class="fas fa-exclamation-triangle me-2"></i>Peringatan Stok Menipis
                     </h6>
                 </div>
                 <div class="card-body">
@@ -203,7 +203,7 @@
                     </h6>
                     <div class="btn-group-outline">
                         <a href="{{ url_for('raw_materials.low_stock') }}" class="btn btn-sm" style="--btn-color: var(--warning-color);">
-                            <i class="fas fa-exclamation-triangle me-1"></i> Stok Rendah
+                            <i class="fas fa-exclamation-triangle me-1"></i> Stok Menipis
                         </a>
                         <a href="{{ url_for('raw_materials.usage_report') }}" class="btn btn-sm" style="--btn-color: var(--info-color);">
                             <i class="fas fa-chart-bar me-1"></i>Laporan

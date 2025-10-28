@@ -90,6 +90,156 @@
     border-color: #0d6efd;
     color: white;
 }
+
+/* Chart Container */
+.chart-container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Ringkasan mini card di atas chart */
+.chart-summary .mini-card {
+    background: #f9fafb;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.chart-summary .mini-card:hover {
+    background: #eef3ff;
+    transform: translateY(-2px);
+}
+
+.chart-summary .mini-card-body h5 {
+    font-size: 1.25rem;
+}
+
+.chart-summary .mini-card-body small {
+    display: block;
+    font-size: 0.85rem;
+}
+
+/* Responsiveness */
+@media (max-width: 768px) {
+    .chart-summary .mini-card-body h5 {
+        font-size: 1.1rem;
+    }
+}
+/* Mini cards di samping chart */
+.stats-mini {
+    border-radius: 10px;
+    border-left: 4px solid;
+    box-shadow: 0 0.15rem 0.3rem rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stats-mini:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.stats-mini h6 {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.stats-mini h5 {
+    font-weight: 700;
+    margin-top: 0.25rem;
+}
+
+.mini-icon {
+    width: 30px;
+    height: 30px;
+    opacity: 0.8;
+}
+
+/* ====== PRODUK TERATAS (kanan bawah) ====== */
+.chart-container-top-product {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    padding: 1.25rem;
+    height: 340px; /* tinggi tetap agar sejajar dengan chart kiri */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header Produk Teratas */
+.chart-container-top-product .d-flex {
+    flex-shrink: 0;
+    margin-bottom: 0.75rem;
+}
+
+/* Area daftar produk */
+#topProductsList {
+    flex-grow: 1;
+    overflow-y: auto; /* scroll jika konten melebihi tinggi card */
+    padding-right: 4px; /* ruang agar scrollbar tidak menutupi teks */
+}
+
+/* Scrollbar style */
+#topProductsList::-webkit-scrollbar {
+    width: 6px;
+}
+#topProductsList::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+#topProductsList::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+/* State loading atau kosong */
+#topProductsList .spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+#topProductsList .text-muted {
+    text-align: center;
+    color: #6c757d;
+}
+
+/* ====== KESEJAJARAN DENGAN CHART KIRI ====== */
+.col-lg-8, .col-lg-4 {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Pastikan card di dalam kolom kanan ikut tinggi penuh */
+.col-lg-4 > .card.chart-container-top-product {
+    flex-grow: 1;
+}
+
+.chart-container {
+    background: #fff;
+    border-radius: 12px;
+}
+
+.mini-card {
+    background-color: #f8f9fa;
+    transition: 0.2s ease-in-out;
+}
+.mini-card:hover {
+    background-color: #eef3ff;
+}
+
+.chart-wrapper canvas {
+    width: 100% !important;
+}
+
+/* ====== RESPONSIF ====== */
+@media (max-width: 992px) {
+    .chart-container-top-product {
+        height: auto; /* biar fleksibel di layar kecil */
+        max-height: 340px;
+    }
+
+    #topProductsList {
+        max-height: 250px;
+    }
+}
+
 </style>
 {% endblock %}
 
@@ -124,110 +274,74 @@
         </div>
     </div>
 
-    <!-- Real-time Stats -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card stats-card border-primary">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted mb-0">Pendapatan Hari ini</h6>
-                            <h3 class="mb-0" id="todayRevenue">Rp0.00</h3>
-                            <small class="text-muted" id="todaySalesCount">0 sales</small>
-                        </div>
-                        <div class="align-self-center">
-                            <img src="{{ url_for('static', filename='assets/rp-icon.png') }}" 
-                                alt="Rupiah Icon" 
-                                class="stats-icon" 
-                                style="width: 45px; height: 35px;">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card stats-card border-success">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted mb-0">Minggu ini</h6>
-                            <h3 class="mb-0" id="weekRevenue">Rp0.00</h3>
-                            <small class="text-muted" id="weekSalesCount">0 sales</small>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-calendar-range stats-icon text-success"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card stats-card border-warning">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted mb-0">Bulan ini</h6>
-                            <h3 class="mb-0" id="monthRevenue">Rp0.00</h3>
-                            <small class="text-muted" id="monthSalesCount">0 sales</small>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-calendar stats-icon text-warning"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card stats-card border-info">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted mb-0">Rerata Penjualan</h6>
-                            <h3 class="mb-0" id="avgSale">Rp0.00</h3>
-                            <small class="text-muted">Per transaksi</small>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-graph-up stats-icon text-info"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mb-4">
+<div class="row mb-4 align-items-stretch">
     <!-- Sales Trend Chart -->
-    <div class="col-lg-8">
-        <div class="chart-container">
+    <div class="col-lg-8 mb-4 mb-lg-0">
+        <div class="card chart-container shadow-sm border-0 p-3 h-100">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">
+                <h5 class="mb-0 fw-semibold">
                     <i class="bi bi-bar-chart"></i> Tren Penjualan (7 Hari Terakhir)
                 </h5>
                 <div class="btn-group btn-group-sm">
-                    <button type="button" class="btn btn-outline-secondary active" data-metric="revenue" id="revenueBtn">
+                    <button type="button" class="btn btn-outline-primary active" data-metric="revenue" id="revenueBtn">
                         Pendapatan
                     </button>
-                    <button type="button" class="btn btn-outline-secondary" data-metric="count" id="countBtn">
+                    <button type="button" class="btn btn-outline-primary" data-metric="count" id="countBtn">
                         Jumlah Transaksi
                     </button>
                 </div>
             </div>
-            <!-- Tambahkan wrapper div untuk chart -->
+
+            <!-- Summary Cards -->
+            <div class="row g-3 mb-3">
+                <div class="col-6 col-md-3">
+                    <div class="mini-card bg-light rounded-3 p-2">
+                        <small class="text-muted d-block">Hari ini</small>
+                        <h5 class="fw-semibold text-primary mb-0" id="todayRevenue">Rp0.00</h5>
+                        <small class="text-muted" id="todaySalesCount">0 transaksi</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="mini-card bg-light-subtle rounded-3 p-2">
+                        <small class="text-muted d-block">Minggu ini</small>
+                        <h5 class="fw-semibold text-success mb-0" id="weekRevenue">Rp0.00</h5>
+                        <small class="text-muted" id="weekSalesCount">0 transaksi</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="mini-card bg-light rounded-3 p-2">
+                        <small class="text-muted d-block">Bulan ini</small>
+                        <h5 class="fw-semibold text-warning mb-0" id="monthRevenue">Rp0.00</h5>
+                        <small class="text-muted" id="monthSalesCount">0 transaksi</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="mini-card bg-light-subtle rounded-3 p-2">
+                        <small class="text-muted d-block">Rerata Penjualan</small>
+                        <h5 class="fw-semibold text-info mb-0" id="avgSale">Rp0.00</h5>
+                        <small class="text-muted">Per transaksi</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart -->
             <div class="chart-wrapper" style="height: 300px; position: relative;">
                 <canvas id="salesTrendChart"></canvas>
             </div>
         </div>
     </div>
 
-    <!-- Top Products Chart -->
+    <!-- Top Products -->
     <div class="col-lg-4">
-        <div class="chart-container">
-            <h5 class="mb-3">
-                <i class="bi bi-star"></i> Produk Teratas
-            </h5>
-            <!-- Tambahkan max-height untuk daftar produk -->
-            <div id="topProductsList" style="max-height: 250px; overflow-y: auto;">
-                <div class="text-center py-4">
+        <div class="card chart-container shadow-sm border-0 p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-semibold mb-0">
+                    <i class="bi bi-star"></i> Produk Teratas
+                </h6>
+                <small class="text-muted">Last 30 days</small>
+            </div>
+            <div id="topProductsList" style="max-height: 350px; overflow-y: auto;">
+                <div class="text-center py-5">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
@@ -237,6 +351,7 @@
         </div>
     </div>
 </div>
+
 
     <!-- Report Types -->
     <div class="row">

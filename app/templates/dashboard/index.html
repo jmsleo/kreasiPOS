@@ -197,6 +197,141 @@
         height: 150px; /* Lebih pendek di mobile */
     }
 }
+/* Chart Container */
+.chart-container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Ringkasan mini card di atas chart */
+.chart-summary .mini-card {
+    background: #f9fafb;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.chart-summary .mini-card:hover {
+    background: #eef3ff;
+    transform: translateY(-2px);
+}
+
+.chart-summary .mini-card-body h5 {
+    font-size: 1.25rem;
+}
+
+.chart-summary .mini-card-body small {
+    display: block;
+    font-size: 0.85rem;
+}
+
+/* Responsiveness */
+@media (max-width: 768px) {
+    .chart-summary .mini-card-body h5 {
+        font-size: 1.1rem;
+    }
+}
+/* Mini cards di samping chart */
+.stats-mini {
+    border-radius: 10px;
+    border-left: 4px solid;
+    box-shadow: 0 0.15rem 0.3rem rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stats-mini:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.stats-mini h6 {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.stats-mini h5 {
+    font-weight: 700;
+    margin-top: 0.25rem;
+}
+
+.mini-icon {
+    width: 30px;
+    height: 30px;
+    opacity: 0.8;
+}
+
+/* ====== PRODUK TERATAS (kanan bawah) ====== */
+.chart-container-top-product {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    padding: 1.25rem;
+    height: 340px; /* tinggi tetap agar sejajar dengan chart kiri */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header Produk Teratas */
+.chart-container-top-product .d-flex {
+    flex-shrink: 0;
+    margin-bottom: 0.75rem;
+}
+
+/* Area daftar produk */
+#topProductsList {
+    flex-grow: 1;
+    overflow-y: auto; /* scroll jika konten melebihi tinggi card */
+    padding-right: 4px; /* ruang agar scrollbar tidak menutupi teks */
+}
+
+/* Scrollbar style */
+#topProductsList::-webkit-scrollbar {
+    width: 6px;
+}
+#topProductsList::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+#topProductsList::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+/* State loading atau kosong */
+#topProductsList .spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+#topProductsList .text-muted {
+    text-align: center;
+    color: #6c757d;
+}
+
+/* ====== KESEJAJARAN DENGAN CHART KIRI ====== */
+.col-lg-8, .col-lg-4 {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Pastikan card di dalam kolom kanan ikut tinggi penuh */
+.col-lg-4 > .card.chart-container-top-product {
+    flex-grow: 1;
+}
+
+/* ====== RESPONSIF ====== */
+@media (max-width: 992px) {
+    .chart-container-top-product {
+        height: auto; /* biar fleksibel di layar kecil */
+        max-height: 340px;
+    }
+
+    #topProductsList {
+        max-height: 250px;
+    }
+}
+
+.container-fluid {
+    box-shadow: none !important;
+}
 </style>
 {% endblock %}
 
@@ -225,117 +360,6 @@
         </div>
     </div>
 
-    <!-- Real-time Stats -->
-    <div class="row mb-0">
-        <!-- Today's Revenue -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-80" style="border-left-color: #0d6efd;">
-                <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-muted mb-0" >Pendapatan Hari Ini</h6>
-                        <h3 class="mb-0 text-primary">Rp{{ "%.2f"|format(today_revenue) }}</h3>
-                        <small class="text-muted">{{ today_transactions }} Transaksi</small>
-                    </div>
-                    <div>
-                        <img src="{{ url_for('static', filename='assets/icon-rp.png') }}" 
-                            alt="Rupiah Icon" 
-                            class="stats-icon" >
-                                </div>
-                            </div>                    
-                            <div class="mt-1">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-primary" role="progressbar" 
-                                 style="width: {{ (today_revenue / (today_revenue + 100)) * 100 if today_revenue > 0 else 0 }}%">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Today's Transactions -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-80" style="border-left-color: var(--success-color);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted mb-0">Transaksi Hari Ini</h6>
-                            <h3 class="mb-0 text-success">{{ today_transactions }}</h3>
-                            <small class="text-muted">Penjualan Selesai</small>
-                        </div>
-                        <div>
-                        <img src="{{ url_for('static', filename='assets/icon-cart.png') }}" 
-                            alt="Cart Icon" 
-                            class="stats-icon" >
-                                </div>
-                    </div>
-                    <div class="mt-1">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-success" role="progressbar" 
-                                 style="width: {{ (today_transactions / (today_transactions + 5)) * 100 if today_transactions > 0 else 0 }}%">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Total Products -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-80" style="border-left-color: var(--bs-warning);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted mb-0">Produk Aktif</h6>
-                            <h3 class="mb-0" style="-webkit-text-fill-color: var(--bs-warning)">{{ total_products }}</h3>
-                            <small class="text-muted">Dalam inventaris</small>
-                        </div>
-                        <div>
-                        <img src="{{ url_for('static', filename='assets/icon-box.png') }}" 
-                            alt="Box Icon" 
-                            class="stats-icon" >
-                                </div>
-                    </div>
-                    <div class="mt-1">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar" role="progressbar" 
-                                 style="background-color: var(--bs-warning); width: {{ (total_products / (total_products + 10)) * 100 if total_products > 0 else 0 }}%">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Low Stock Alert -->
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-80" style="border-left-color: var(--danger-color);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted mb-0" style="font-size: 13px; white-space: nowrap;">Peringatan Stok Menipis</h6>
-                            <h3 class="mb-0 text-danger">{{ low_stock_products }}</h3>
-                            <small class="text-muted">Butuh stok ulang</small>
-                        </div>
-                        <div>
-                        <img src="{{ url_for('static', filename='assets/icon-danger.png') }}" 
-                            alt="Danger Icon" 
-                            class="stats-icon" >
-                            </div>
-                    </div>
-                    <div class="mt-1">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-danger" role="progressbar" 
-                                 style="width: {{ (low_stock_products / (low_stock_products + 5)) * 100 if low_stock_products > 0 else 0 }}%">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Banner Slideshow Section -->
 <div class="row mb-4">
     <div class="col-12">
@@ -346,10 +370,10 @@
                 
                 <!-- Slides -->
                 <div class="carousel-inner">
-                    {% for i in range(1, 4) %}
+                    {% for i in range(1, 5) %}
                     <div class="carousel-item {% if loop.first %}active{% endif %}">
                         <img src="{{ url_for('static', filename='banners/banner' ~ i ~ '.jpg') }}" 
-                             class="d-block w-100" 
+                             class="d-block w-1200 h-400" 
                              alt="Promo Banner {{ i }}"
                              onerror="this.style.display='none';">
                     </div>
@@ -381,50 +405,105 @@
     </div>
 </div>
 
-    <!-- Charts Section -->
-    <div class="row mb-4">
-        <!-- Sales Trend Chart -->
-        <div class="col-lg-8 mb-4">
-            <div class="chart-container">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0">
-                        <i class="bi bi-bar-chart"></i> Tren Penjualan
-                    </h5>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary active" data-metric="revenue">
-                            Pendapatan
-                        </button>
-                        <button type="button" class="btn btn-outline-primary" data-metric="transactions">
-                            Transaksi
-                        </button>
+<div class="row mb-4">
+    <!-- Chart Section -->
+    <div class="col-lg-8 mb-4">
+        <div class="chart-container card p-3 shadow-sm border-0">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0 fw-semibold">
+                    <i class="bi bi-bar-chart"></i> Tren Penjualan
+                </h5>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" data-metric="revenue">
+                        Pendapatan
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" data-metric="transactions">
+                        Transaksi
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="row g-3 mb-3 chart-summary">
+                <div class="col-6 col-md-3">
+                    <div class="mini-card">
+                        <div class="mini-card-body">
+                            <h5 class="mb-0 text-primary fw-bold">Rp{{ "%.2f"|format(today_revenue) }}</h5>
+                            <small class="text-muted">Pendapatan Hari Ini</small>
+                        </div>
                     </div>
                 </div>
-                <div class="chart-wrapper">
-                    <canvas id="salesTrendChart"></canvas>
+                <div class="col-6 col-md-3">
+                    <div class="mini-card">
+                        <div class="mini-card-body">
+                            <h5 class="mb-0 text-success fw-bold">{{ today_transactions }}</h5>
+                            <small class="text-muted">Transaksi Hari Ini</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-wrapper">
+                <canvas id="salesTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Side Cards + Top Products -->
+    <div class="col-lg-4 mb-4">
+        <div class="row g-3">
+            <!-- Produk Aktif -->
+            <div class="col-6 col-lg-6">
+                <div class="card stats-mini h-100" style="border-left-color: var(--bs-warning);">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <h6 class="text-muted mb-0">Produk Aktif</h6>
+                                <h5 class="mb-0 text-warning">{{ total_products }}</h5>
+                            </div>
+                            <img src="{{ url_for('static', filename='assets/icon-box.png') }}" 
+                                 alt="Box Icon" class="mini-icon">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stok Menipis -->
+            <div class="col-6 col-lg-6">
+                <div class="card stats-mini h-100" style="border-left-color: var(--bs-danger);">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <h6 class="text-muted mb-0" style="font-size: 13px;">Stok Menipis</h6>
+                                <h5 class="mb-0 text-danger">{{ low_stock_products }}</h5>
+                            </div>
+                            <img src="{{ url_for('static', filename='assets/icon-danger.png') }}" 
+                                 alt="Danger Icon" class="mini-icon">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Top Products -->
-        <div class="col-lg-4 mb-4">
-            <div class="chart-container">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0">
-                        <i class="bi bi-star"></i> Produk Teratas
-                    </h5>
-                    <small class="text-muted" id="topProductsPeriod">Last 30 days</small>
-                </div>
-                <div id="topProductsList">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2 text-muted">Loading produk teratas...</p>
+        <!-- Produk Teratas -->
+        <div class="card chart-container-top-product mt-3 p-3 shadow-sm border-0">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0 fw-semibold">
+                    <i class="bi bi-star"></i> Produk Teratas
+                </h6>
+                <small class="text-muted" id="topProductsPeriod">Last 30 days</small>
+            </div>
+            <div id="topProductsList">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
+                    <p class="mt-2 text-muted">Loading produk teratas...</p>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
     <!-- Second Row: Recent Activity & Quick Actions -->
     <div class="row">

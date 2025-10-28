@@ -51,7 +51,7 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card stats-card " style="border-left-color: var(--warning-color); color: var(--warning-color)">
+            <div class="card stats-card " style="border-left-color: var(--danger-color); color: var(--danger-color)">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
@@ -167,17 +167,17 @@
                                     <span class="badge bg-danger">Out of Stock</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ url_for('marketplace.edit_item', item_id=item.id) }}" class="btn btn-outline-primary" title="Edit">
+                            <td class="text-center align-middle" >
+                                <div class="btn-group-outline btn-sm d-inline-flex align-items-center gap-1" role="group">
+                                    <a href="{{ url_for('marketplace.edit_item', item_id=item.id) }}" class="btn btn-sm" style="--btn-color: var(--primary-color);" title="Ubah">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#itemModal{{ item.id }}" title="View Details">
+                                    <button type="button" class="btn btn-sm" style="--btn-color: var(--info-color);" data-bs-toggle="modal" data-bs-target="#itemModal{{ item.id }}" title="Lihat Detail">
                                         <i class="bi bi-eye"></i>
                                     </button>
                                     <form action="{{ url_for('marketplace.delete_item', item_id=item.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this item?');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                        <button type="submit" class="btn btn-sm" style="--btn-color: var(--danger-color);" title="Hapus">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
