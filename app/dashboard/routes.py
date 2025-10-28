@@ -50,11 +50,13 @@ def index():
     today_revenue = sum(sale.total_amount for sale in today_sales)
     today_transactions = len(today_sales)
     
-    # Low stock products
+    # PERBAIKAN: Low stock products - HANYA produk aktif yang tidak menggunakan BOM dan memerlukan stock tracking
     low_stock_products = Product.query.filter(
         Product.tenant_id == current_user.tenant_id,
         Product.stock_quantity <= Product.stock_alert,
-        Product.is_active == True
+        Product.is_active == True,
+        Product.requires_stock_tracking == True,  # TAMBAHAN: Hanya yang memerlukan stock tracking
+        Product.has_bom == False  # KUNCI: Exclude produk dengan BOM
     ).count()
     
     # Total products
