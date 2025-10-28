@@ -127,20 +127,32 @@ class EnhancedDashboardService:
     
     @staticmethod
     def _get_inventory_stats(tenant_id: str) -> Dict:
-        """Get inventory statistics - FIXED: Only count active products"""
+        """Get inventory statistics - FIXED: Exclude BOM products from low stock calculation"""
         try:
             # Product statistics - HANYA produk yang aktif
             products = Product.query.filter_by(tenant_id=tenant_id, is_active=True).all()
             
             total_products = len(products)
-            # PERBAIKAN: Hanya hitung produk aktif yang memerlukan tracking stok dan stok menipis
-            low_stock_products = sum(1 for p in products if p.requires_stock_tracking and p.stock_quantity <= p.stock_alert)
-            out_of_stock_products = sum(1 for p in products if p.requires_stock_tracking and p.stock_quantity <= 0)
+            
+            # PERBAIKAN UTAMA: Hanya hitung produk yang:
+            # 1. Aktif (is_active=True) 
+            # 2. Memerlukan stock tracking (requires_stock_tracking=True)
+            # 3. TIDAK menggunakan BOM (has_bom=False)
+            # Produk dengan BOM tidak dihitung karena stoknya bergantung pada raw materials
+            low_stock_products = sum(1 for p in products 
+                                   if p.requires_stock_tracking 
+                                   and not p.has_bom  # KUNCI: Exclude produk dengan BOM
+                                   and p.stock_quantity <= p.stock_alert)
+            
+            out_of_stock_products = sum(1 for p in products 
+                                      if p.requires_stock_tracking 
+                                      and not p.has_bom  # KUNCI: Exclude produk dengan BOM
+                                      and p.stock_quantity <= 0)
             
             total_inventory_value = sum(
-                p.stock_quantity * float(p.selling_price) 
+                p.stock_quantity * float(p.price) 
                 for p in products 
-                if p.requires_stock_tracking
+                if p.requires_stock_tracking and not p.has_bom  # Hanya produk tanpa BOM
             )
             
             # Raw material statistics - HANYA raw materials yang aktif
@@ -153,6 +165,7 @@ class EnhancedDashboardService:
             total_raw_material_value = sum(
                 rm.stock_quantity * float(rm.cost_price)
                 for rm in raw_materials
+                if rm.cost_price  # Pastikan cost_price tidak None
             )
             
             return {
@@ -210,33 +223,35 @@ class EnhancedDashboardService:
     
     @staticmethod
     def _get_alert_stats(tenant_id: str) -> Dict:
-        """Get alert statistics - FIXED: Only count active products and raw materials"""
+        """Get alert statistics - FIXED: Exclude BOM products from low stock alerts"""
         try:
-            # Low stock alerts - HANYA produk dan raw materials yang aktif
+            # Low stock alerts - HANYA produk aktif yang tidak menggunakan BOM
             low_stock_products = Product.query.filter(
                 Product.tenant_id == tenant_id,
-                Product.is_active == True,  # PERBAIKAN: Tambahkan filter is_active
+                Product.is_active == True,
                 Product.requires_stock_tracking == True,
+                Product.has_bom == False,  # KUNCI: Exclude produk dengan BOM
                 Product.stock_quantity <= Product.stock_alert
             ).count()
             
             low_stock_raw_materials = RawMaterial.query.filter(
                 RawMaterial.tenant_id == tenant_id,
-                RawMaterial.is_active == True,  # PERBAIKAN: Tambahkan filter is_active
+                RawMaterial.is_active == True,
                 RawMaterial.stock_quantity <= RawMaterial.stock_alert
             ).count()
             
-            # Critical alerts (out of stock) - HANYA produk dan raw materials yang aktif
+            # Critical alerts (out of stock) - HANYA produk aktif yang tidak menggunakan BOM
             critical_products = Product.query.filter(
                 Product.tenant_id == tenant_id,
-                Product.is_active == True,  # PERBAIKAN: Tambahkan filter is_active
+                Product.is_active == True,
                 Product.requires_stock_tracking == True,
+                Product.has_bom == False,  # KUNCI: Exclude produk dengan BOM
                 Product.stock_quantity <= 0
             ).count()
             
             critical_raw_materials = RawMaterial.query.filter(
                 RawMaterial.tenant_id == tenant_id,
-                RawMaterial.is_active == True,  # PERBAIKAN: Tambahkan filter is_active
+                RawMaterial.is_active == True,
                 RawMaterial.stock_quantity <= 0
             ).count()
             
