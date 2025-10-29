@@ -6,6 +6,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_caching import Cache
+from app.services.postmark_service import postmark_service
 import os
 import logging
 from logging.handlers import RotatingFileHandler
@@ -37,7 +38,7 @@ def create_app(config_class=None):
     csrf.init_app(app)
     limiter.init_app(app)
     cache.init_app(app)
-    
+    postmark_service.init_app(app)
     # Register Jinja filters for timezone formatting
     app.jinja_env.filters['local_date'] = format_local_date
     app.jinja_env.filters['local_datetime'] = format_local_datetime

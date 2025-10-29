@@ -7,14 +7,26 @@ from flask import current_app
 logger = logging.getLogger(__name__)
 
 class PostmarkService:
-    def __init__(self):
-        self.api_key = current_app.config.get('POSTMARK_API_KEY')
-        self.from_email = current_app.config.get('POSTMARK_FROM_EMAIL')
-        self.otp_template_id = current_app.config.get('POSTMARK_OTP_TEMPLATE_ID')
-        self.welcome_template_id = current_app.config.get('POSTMARK_WELCOME_TEMPLATE_ID')
-        self.logo_url = current_app.config.get('LOGO_URL')
-        self.app_url = current_app.config.get('APP_URL', 'https://your-domain.com')
+    def __init__(self, app=None):
+        self.api_key = None
+        self.from_email = None
+        self.otp_template_id = None
+        self.welcome_template_id = None
+        self.logo_url = None
+        self.app_url = None
         self.client = None
+        
+        if app is not None:
+            self.init_app(app)
+    
+    def init_app(self, app):
+        """Initialize Postmark service dengan Flask app"""
+        self.api_key = app.config.get('POSTMARK_API_KEY')
+        self.from_email = app.config.get('POSTMARK_FROM_EMAIL')
+        self.otp_template_id = app.config.get('POSTMARK_OTP_TEMPLATE_ID')
+        self.welcome_template_id = app.config.get('POSTMARK_WELCOME_TEMPLATE_ID')
+        self.logo_url = app.config.get('LOGO_URL')
+        self.app_url = app.config.get('APP_URL', 'www.kreasipos.com')
         
         self._initialize_client()
     
@@ -107,5 +119,5 @@ class PostmarkService:
             logger.error(f"Failed to send welcome email to {to_email}: {str(e)}")
             return False
 
-# Global instance
+# Global instance - TANPA inisialisasi langsung
 postmark_service = PostmarkService()
