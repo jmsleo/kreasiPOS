@@ -5,254 +5,354 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - KreasiPOS Enterprise</title>
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
         body {
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
             height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0;
+            overflow-x: hidden;
         }
-        .login-container {
-            padding: 40px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            width: 100%;
-            max-width: 380px;
-            text-align: left;
-            background: none; /* sebelumnya: white */
-            box-shadow: none; /* hapus bayangan */
-            padding-top: 0;
-        }
-        .login-header {
-            text-align: left;
-            margin-bottom: 30px;
-            margin-top: 0;
-            align-items: flex-start;
-        }
-        .login-header h1 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .login-header p {
-            color: #666;
-            margin: 0;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            color: #333;
-            font-weight: bold;
-        }
-        input[type="email"],
-        input[type="password"] {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        input[type="email"]:focus,
-        input[type="password"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .btn-login {
-            width: 100%;
-            padding: 12px;
-            background: #0d6efd;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        .btn-login:hover {
-            background: #3d8bfd;
-        }
-        .form-footer {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .form-footer a {
-            color: #0d6efd;
-            text-decoration: none;
-        }
-        .form-footer a:hover {
-            text-decoration: underline;
-        }
-        .flash-messages {
-            margin-bottom: 20px;
-        }
-        .alert {
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-        }
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .alert-success {
-            background: #d1edff;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .form-control {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        .form-control:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        /* Layout dua sisi */
+
+        /* Layout dua sisi - Panel kanan lebih kecil di desktop */
         .main-container {
             display: flex;
             height: 100vh;
             width: 100%;
         }
 
-        /* Panel kiri dengan gradasi */
+        /* Panel kiri lebih besar - 70% di desktop */
         .left-panel {
-            flex: 1;
+            flex: 7; /* 70% untuk desktop */
             background: linear-gradient(270deg, #0d6efd, #00b4d8);
             display: flex;
             align-items: center;
-            justify-content: left;
+            justify-content: center;
             color: white;
-            font-size: 48px;
-            font-weight: 700;
-            text-align: center;
-            padding: 20px;
+            position: relative;
+            flex-direction: column;
         }
 
-        /* Panel kanan tempat form login */
+        .left-panel .logo-top {
+            position: absolute;
+            top: 40px;
+            left: 50px;
+        }
+
+        .left-panel h1 {
+            font-size: 6rem;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.1;
+        }
+
+        /* Panel kanan lebih kecil - 30% di desktop */
         .right-panel {
-            flex: 1;
+            flex: 3; /* 30% untuk desktop */
             display: flex;
             align-items: center;
             justify-content: center;
             background: white;
             padding: 40px;
-            background: white;
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .login-container {
             width: 100%;
-            max-width: 400px;
-            
+            max-width: 320px; /* Sedikit lebih kecil */
         }
 
-        /* Hilangkan background body gradasi lama */
-        body {
-            background: none;
-            margin: 0;
-            font-family: Arial, sans-serif;
-        }
-
-        /* Posisi logo di pojok kiri atas */
-        .left-panel .logo-top {
-            position: absolute;
-            top: 20px;      /* jarak dari atas */
-            left: 20px;     /* jarak dari kiri */
-            margin-top: 15px;
-            margin-left: 50px;
-        }
-
-        /* Agar teks Welcome tetap di tengah panel */
-        .left-panel h1 {
-            font-size: 114px;
-            font-weight: 700;
-            margin: 0;
+        .login-header {
             text-align: left;
-            margin-left: 50px;
+            margin-bottom: 30px;
+        }
+
+        .login-header h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8rem; /* Sedikit lebih kecil */
+        }
+
+        .login-header p {
+            color: #666;
+            margin: 0;
+            font-size: 0.9rem; /* Sedikit lebih kecil */
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .btn-login:hover {
+            background: #0b5ed7;
+        }
+
+        .form-footer {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .form-footer a {
+            color: #0d6efd;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .form-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .form-footer p {
+            margin-bottom: 10px;
+        }
+
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+
+        .alert {
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-success {
+            background: #d1edff;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .remember-me span {
+            font-size: 0.9rem;
+            color: #333;
+        }
+
+        /* ============ RESPONSIVE MOBILE ============ */
+        /* Tampilan mobile TIDAK berubah */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .left-panel {
+                flex: 1; /* Kembali ke 50-50 di mobile */
+                min-height: 30vh;
+                padding: 30px 20px;
+                justify-content: flex-start;
+                text-align: center;
+            }
+
+            .left-panel .logo-top {
+                position: relative;
+                top: auto;
+                left: auto;
+                margin-bottom: 20px;
+            }
+
+            .left-panel h1 {
+                font-size: 2.5rem;
+                margin: 0;
+                text-align: center;
+            }
+
+            .right-panel {
+                flex: 1; /* Kembali ke 50-50 di mobile */
+                padding: 40px 25px;
+                min-height: 70vh;
+                align-items: flex-start;
+            }
+
+            .login-container {
+                max-width: 100%;
+                width: 100%;
+            }
+
+            .login-header {
+                text-align: center;
+                margin-bottom: 25px;
+            }
+
+            .login-header h1 {
+                font-size: 1.8rem;
+            }
+
+            .login-header p {
+                font-size: 0.95rem;
+            }
+
+            .form-group {
+                margin-bottom: 18px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .left-panel {
+                min-height: 25vh;
+                padding: 25px 15px;
+            }
+
+            .left-panel h1 {
+                font-size: 2rem;
+            }
+
+            .left-panel .logo-top img {
+                height: 35px;
+            }
+
+            .right-panel {
+                padding: 30px 20px;
+                min-height: 75vh;
+            }
+
+            .login-header h1 {
+                font-size: 1.6rem;
+            }
+
+            .form-control, .btn-login {
+                padding: 10px 12px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .left-panel h1 {
+                font-size: 1.8rem;
+            }
+
+            .login-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .form-footer a {
+                font-size: 0.85rem;
+            }
         }
     </style>
 </head>
 <body>
-    <body>
-  <div class="main-container">
-    <div class="left-panel">
-                <div class="logo-top">
-            <img src="{{ url_for('static', filename='assets/logo-gambar.png') }}" 
-                alt="KreasiPOS Logo" 
-                style="height: 50px; width: auto;">
+    <div class="main-container">
+        <div class="left-panel">
+            <div class="logo-top">
+                <img src="{{ url_for('static', filename='assets/logo-gambar.png') }}" 
+                    alt="KreasiPOS Logo" 
+                    style="height: 50px; width: auto;">
+            </div>
+            <h1>Welcome<br>Back!</h1>
         </div>
 
-      <h1>Welcome<br>Back!</h1>
-    </div>
-
-    <div class="right-panel">
-    <div class="login-container">
-        <div class="login-header">
-            <h1>Login</h1>
-            <p>Welcome Back! Please log in to your account</p>
-        </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
-                    {% endfor %}
+        <div class="right-panel">
+            <div class="login-container">
+                <div class="login-header">
+                    <h1>Login</h1>
+                    <p>Welcome Back! Please log in to your account</p>
                 </div>
-            {% endif %}
-        {% endwith %}
 
-        <form method="POST" action="">
-            {{ form.hidden_tag() }}
-            
-            <div class="form-group">
-                <label for="email">Email</label>
-                {{ form.email(class="form-control") }}
-                {% if form.email.errors %}
-                    <div style="color: red; font-size: 14px; margin-top: 5px;">
-                        {% for error in form.email.errors %}
-                            {{ error }}
-                        {% endfor %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-messages">
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }}">{{ message }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        {{ form.email(class="form-control", placeholder="Enter your email") }}
+                        {% if form.email.errors %}
+                            <div style="color: red; font-size: 0.85rem; margin-top: 5px;">
+                                {% for error in form.email.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     </div>
-                {% endif %}
-            </div>
 
-            <div class="form-group">
-                <label for="password">Password</label>
-                {{ form.password(class="form-control") }}
-                {% if form.password.errors %}
-                    <div style="color: red; font-size: 14px; margin-top: 5px;">
-                        {% for error in form.password.errors %}
-                            {{ error }}
-                        {% endfor %}
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        {{ form.password(class="form-control", placeholder="Enter your password") }}
+                        {% if form.password.errors %}
+                            <div style="color: red; font-size: 0.85rem; margin-top: 5px;">
+                                {% for error in form.password.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     </div>
-                {% endif %}
+
+                    <div class="form-group">
+                        <label class="remember-me">
+                            {{ form.remember_me() }}
+                            <span>Remember me</span>
+                        </label>
+                    </div>
+
+                    {{ form.submit(class="btn-login") }}
+                </form>
+
+                <div class="form-footer">
+                    <p><a href="{{ url_for('auth.forgot_password') }}">Forgot your password?</a></p>
+                    <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Sign up</a></p>
+                </div>
             </div>
-
-            <div class="form-group">
-                <label style="display: inline-flex; align-items: center;">
-                    {{ form.remember_me() }}
-                    <span style="margin-left: 8px;">Remember me</span>
-                </label>
-            </div>
-
-            {{ form.submit(class="btn-login") }}
-        </form>
-
-        <div class="form-footer">
-            <p><a href="{{ url_for('auth.forgot_password') }}">Forgot your password?</a></p>
-            <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Sign up</a></p>
         </div>
     </div>
-    </div>
-  </div>
 </body>
 </html>
