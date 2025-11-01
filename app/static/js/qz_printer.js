@@ -230,6 +230,23 @@ function formatDiskon(amount) {
 
 // Enhanced print function dengan safe initialization
 async function printReceiptWithQZ(receiptData) {
+    if (typeof window.Android !== "undefined" && typeof window.Android.printThermalReceipt === "function") {
+        
+        console.log("🖨️ Mencetak via Android Native Bridge...");
+        
+        // 1. Kita TETAP gunakan fungsi format ESC/POS Anda yang sudah bagus
+        const dataArray = formatReceiptForQZ(receiptData);
+        
+        // 2. Gabungkan array perintah menjadi satu string tunggal
+        // Kita gunakan .join('') karena formatReceiptForQZ mengembalikan array
+        const escPosString = dataArray.join(''); 
+        
+        // 3. Kirim string ESC/POS mentah itu ke Kotlin
+        window.Android.printThermalReceipt(escPosString);
+        
+        // 4. Hentikan eksekusi di sini agar tidak lanjut ke QZ Tray
+        return { success: true, message: 'Data dikirim ke Android.' };
+    }
     try {
         console.log("🖨️ Starting print process...");
         
